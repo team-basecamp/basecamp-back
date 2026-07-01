@@ -54,6 +54,7 @@ Desktop.ini
 *.env
 application-secret.yml
 application-secret.yaml
+application-local.yml
 
 ### Logs ###
 *.log
