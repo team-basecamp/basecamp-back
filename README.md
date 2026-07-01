@@ -52,20 +52,14 @@ CREATE DATABASE basecamp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 | `JWT_ACCESS_EXPIRATION` | Access Token 만료시간(ms) | `1800000` (30분) |
 | `JWT_REFRESH_EXPIRATION` | Refresh Token 만료시간(ms) | `1209600000` (14일) |
 | `KAKAO_CLIENT_ID` / `KAKAO_CLIENT_SECRET` | 카카오 로그인 키 | - |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 구글 로그인 키 | - |
-| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 로그인 키 | - |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 구글 로그인 키 | `dummy-google-client-id` 등 |
+| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 로그인 키 | `dummy-naver-client-id` 등 |
+
+> 소셜 로그인 키는 값이 없으면 OAuth2 자동 설정이 실패해 서버 자체가 기동되지 않으므로, 실제 키가 없는 로컬/CI 환경에서도 앱이 뜰 수 있도록 더미 값을 기본값으로 설정해두었습니다. 실제 소셜 로그인을 테스트하려면 위 환경변수에 발급받은 키를 설정하세요.
 
 > 실제 키 값이나 운영 DB 정보는 절대 커밋하지 마세요. 필요 시 `application-secret.yml`(gitignore 처리됨)을 만들어 관리하는 것을 권장합니다.
 
-### 4. Gradle Wrapper 생성 (최초 1회)
-
-이 저장소는 Gradle Wrapper 바이너리를 포함하지 않습니다. 로컬에 Gradle이 설치되어 있다면 최초 1회 아래 명령으로 Wrapper를 생성하세요. (IntelliJ에서 프로젝트를 열고 Gradle 프로젝트로 Import 해도 자동 생성됩니다.)
-
-```bash
-gradle wrapper --gradle-version 8.10
-```
-
-### 5. 빌드 및 실행
+### 4. 빌드 및 실행
 
 ```bash
 ./gradlew build
@@ -74,7 +68,7 @@ gradle wrapper --gradle-version 8.10
 
 또는 IntelliJ에서 `BasecampApplication`을 직접 실행합니다.
 
-### 6. Swagger 접속
+### 5. Swagger 접속
 
 서버 실행 후 아래 주소에서 API 문서를 확인할 수 있습니다.
 
@@ -118,3 +112,11 @@ domain/{도메인명}/
 ## 데이터베이스 마이그레이션
 
 DB 스키마는 Flyway로 관리합니다. 마이그레이션 스크립트는 `src/main/resources/db/migration` 아래에 `V{순번}__{설명}.sql` 형식으로 추가합니다. (예: `V1__init.sql`)
+
+## CI (GitHub Actions)
+
+이 프로젝트는 별도 서버 배포 없이 로컬 실행만 하지만, `dev` 브랜치 머지 전 빌드 오류를 걸러내기 위해 GitHub Actions로 CI를 구성했습니다. (`.github/workflows/ci.yml`)
+
+- 트리거: `dev` 브랜치로의 Pull Request, `dev` 브랜치로의 Push
+- 실행 내용: JDK 21 세팅 → MySQL 8 서비스 컨테이너 기동 → `./gradlew build` (컴파일 + 테스트 + Flyway 마이그레이션 검증)
+- 실패 시 `build/reports/tests/test` 리포트가 Actions 아티팩트로 업로드됩니다.
