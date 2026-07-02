@@ -8,11 +8,11 @@
 --  버전    : v1.0
 -- =============================================================
 
-CREATE DATABASE IF NOT EXISTS camping_db
-    DEFAULT CHARACTER SET utf8mb4
-    DEFAULT COLLATE utf8mb4_unicode_ci;
+-- CREATE DATABASE IF NOT EXISTS camping_db
+--    DEFAULT CHARACTER SET utf8mb4
+--    DEFAULT COLLATE utf8mb4_unicode_ci;
 
-USE camping_db;
+-- USE camping_db;
 
 -- =============================================================
 -- 1. users (회원)
