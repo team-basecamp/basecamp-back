@@ -1,15 +1,11 @@
+
+
 -- =============================================================
 --  캠핑 플랫폼 DB DDL
 --  DB      : MySQL 8.0+
 --  Charset : utf8mb4 / utf8mb4_unicode_ci
 --  작성일  : 2026-06-30
---  버전    : v1
---
---  [v1.1 변경 이력]
---   1. reservations.total_price 추가        (예약 시점 가격 스냅샷)
---   2. 금액 컬럼 INT -> BIGINT               (camps.price, payments.amount, total_price)
---   3. reviews 정규화                        (camp_id, user_id 삭제 -> reservation_id로 유도)
---   4. camps 소스 구분 CHECK 제약 추가        (content_id XOR owner_id)
+--  버전    : v1.0
 -- =============================================================
 
 -- CREATE DATABASE IF NOT EXISTS camping_db
@@ -70,8 +66,8 @@ CREATE TABLE token_blacklist (
 -- =============================================================
 CREATE TABLE camps (
                        camp_id           BIGINT           NOT NULL AUTO_INCREMENT COMMENT '캠핑장 고유 식별자',
-                       content_id        BIGINT                                   COMMENT '고캠핑 API contentId (외부 연동 캠핑장)',
-                       owner_id          BIGINT                                   COMMENT '캠핑업체 소유자 (직접 등록 캠핑장)',
+                       content_id        BIGINT                                   COMMENT '고캠핑 API contentId (외부 연동)',
+                       owner_id          BIGINT                                   COMMENT '캠핑업체 소유자 (직접 등록 시)',
                        faclt_nm          VARCHAR(100)     NOT NULL               COMMENT '캠핑장 이름',
                        addr1             VARCHAR(200)     NOT NULL               COMMENT '도로명/지번 주소',
                        map_x             DECIMAL(11, 8)                          COMMENT 'GPS 경도',
@@ -85,9 +81,10 @@ CREATE TABLE camps (
                        manage_sttus      VARCHAR(20)      NOT NULL DEFAULT '운영' COMMENT '운영 / 휴장 / 폐장',
                        average_rating    DECIMAL(3, 2)    NOT NULL DEFAULT 0.00  COMMENT '리뷰 평균 평점 (캐싱 값)',
                        reservation_count INT              NOT NULL DEFAULT 0     COMMENT '누적 예약 건수 (Hot 캠핑장 정렬용)',
-                       price             BIGINT           NOT NULL DEFAULT 0     COMMENT '1박 기준 가격 (원)',
                        created_at        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '캠핑장 등록 일시',
                        updated_at        DATETIME                  ON UPDATE CURRENT_TIMESTAMP COMMENT '정보 수정 일시',
+                       price             BIGINT           NOT NULL DEFAULT 0     COMMENT '1박 기준 가격 (원)',
+
 
                        PRIMARY KEY (camp_id),
                        UNIQUE KEY uq_camps_content_id  (content_id),
@@ -96,10 +93,6 @@ CREATE TABLE camps (
                        INDEX      idx_camps_rsv_count  (reservation_count DESC),
                        INDEX      idx_camps_location   (map_x, map_y),
 
-    -- 고캠핑 API 캠핑장(content_id)과 직접 등록 캠핑장(owner_id)은 상호 배타적.
-    -- 정확히 하나만 존재해야 함 (둘 다 NULL 이거나 둘 다 존재하면 거부).
-                       CONSTRAINT chk_camps_source
-                           CHECK ( (content_id IS NOT NULL) <> (owner_id IS NOT NULL) ),
 
                        CONSTRAINT fk_camps_owner
                            FOREIGN KEY (owner_id) REFERENCES users (user_id)
@@ -141,13 +134,14 @@ CREATE TABLE reservations (
                               check_in_date  DATE         NOT NULL               COMMENT '체크인 일자',
                               check_out_date DATE         NOT NULL               COMMENT '체크아웃 일자',
                               guest_count    INT          NOT NULL DEFAULT 1     COMMENT '예약 인원',
-                              total_price    BIGINT       NOT NULL               COMMENT '예약 확정 당시 총 결제 예정 금액 (가격 스냅샷, 원)',
                               status         VARCHAR(20)  NOT NULL DEFAULT 'PENDING'
                                   COMMENT 'PENDING / RESERVED / REJECTED / CANCELLED',
                               reject_reason  VARCHAR(200)                        COMMENT '캠핑업체 거절 사유',
                               cancel_date    DATETIME                            COMMENT '예약 취소 일시',
                               created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '예약 신청 일시',
                               updated_at     DATETIME              ON UPDATE CURRENT_TIMESTAMP COMMENT '상태 변경 일시',
+                              total_price    BIGINT       NOT NULL               COMMENT '예약 확정 당시 총 결제 예정 금액 (가격 스냅샷, 원)',
+
 
                               PRIMARY KEY (reservation_id),
                               INDEX idx_rsv_user      (user_id),
@@ -163,10 +157,7 @@ CREATE TABLE reservations (
                                   FOREIGN KEY (camp_id) REFERENCES camps (camp_id)
                                       ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='캠핑장 예약 신청 및 상태 관리 (total_price는 예약 시점 camps.price 스냅샷)';
--- [주의] 같은 캠핑장/겹치는 날짜의 더블부킹은 DB만으로 막을 수 없음.
---        예약 생성 트랜잭션에서 사이트 수(gnrl/auto/glamp_site_co) 대비
---        기존 예약 건수를 잠금(SELECT ... FOR UPDATE) 후 검증할 것.
+  COMMENT='캠핑장 예약 신청 및 상태 관리';
 
 
 -- =============================================================
@@ -281,26 +272,21 @@ CREATE TABLE post_reports (
 -- =============================================================
 CREATE TABLE reviews (
                          review_id      BIGINT         NOT NULL AUTO_INCREMENT COMMENT '리뷰 고유 식별자',
-                         reservation_id BIGINT         NOT NULL               COMMENT '연결된 예약 (camp/user는 이 예약에서 유도)',
+                         reservation_id BIGINT         NOT NULL               COMMENT '연결된 예약 (체크아웃 검증용)',
                          rating         DECIMAL(3, 1)  NOT NULL               COMMENT '1.0 ~ 5.0 평점',
                          content        TEXT           NOT NULL               COMMENT '리뷰 본문',
                          created_at     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '리뷰 작성 일시',
                          updated_at     DATETIME                ON UPDATE CURRENT_TIMESTAMP COMMENT '리뷰 수정 일시',
 
-    -- camp/user 별 조회는 reservations JOIN으로 처리.
-    --   예) 특정 캠핑장 리뷰:
-    --       SELECT rv.* FROM reviews rv
-    --       JOIN reservations rs ON rv.reservation_id = rs.reservation_id
-    --       WHERE rs.camp_id = ?;
-
                          PRIMARY KEY (review_id),
                          UNIQUE KEY uq_reviews_rsv   (reservation_id),
+
 
                          CONSTRAINT fk_reviews_reservation
                              FOREIGN KEY (reservation_id) REFERENCES reservations (reservation_id)
                                  ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='예약 체크아웃 이후 작성 가능한 캠핑장 리뷰 및 평점 (camp/user는 예약에서 유도)';
+  COMMENT='예약 체크아웃 이후 작성 가능한 캠핑장 리뷰 및 평점';
 
 
 -- =============================================================
