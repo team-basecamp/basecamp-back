@@ -94,9 +94,12 @@ CREATE TABLE camps (
                        INDEX      idx_camps_location   (map_x, map_y),
 
 
+                       CONSTRAINT chk_camps_source
+                           CHECK ( (content_id IS NOT NULL) <> (owner_id IS NOT NULL) ),
+
                        CONSTRAINT fk_camps_owner
                            FOREIGN KEY (owner_id) REFERENCES users (user_id)
-                               ON DELETE SET NULL
+                               ON DELETE RESTRICT          -- SET NULL → RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='고캠핑 Open API 연동 및 캠핑업체 직접 등록 캠핑장 정보';
 
