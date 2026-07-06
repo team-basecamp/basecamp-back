@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+# 리뷰 결과를 한국어로 출력
+language: "ko-KR"
+
+# 리뷰 톤 지침
+tone_instructions: "한국어로 정중하고 간결하게 리뷰해 주세요. 지적할 때는 이유와 개선 방안을 함께 제시하고, 사소한 스타일 문제보다 버그·보안·성능 이슈를 우선해 주세요."
+
+reviews:
+  # chill: 중요한 이슈 위주 / assertive: 더 적극적으로 지적
+  profile: "chill"
+  # 리뷰에서 변경 요청이 있으면 PR을 자동으로 request changes 상태로
+  request_changes_workflow: false
+  # PR 요약 및 워크스루 생성
+  high_level_summary: true
+  review_status: true
+  collapse_walkthrough: false
+  # 시(poem) 생성 비활성화
+  poem: false
+
+  auto_review:
+    enabled: true
+    # 초안(draft) PR은 리뷰하지 않음
+    drafts: false
+    # 이 브랜치를 대상으로 하는 PR을 리뷰
+    base_branches:
+      - "dev"
+      - "main"
+
+  # 리뷰 제외 경로
+  path_filters:
+    - "!**/build/**"
+    - "!**/*.lockb"
+    - "!gradlew"
+    - "!gradlew.bat"
+    - "!gradle/wrapper/**"
+
+  # 경로별 리뷰 지침
+  path_instructions:
+    - path: "src/main/**/*.java"
+      instructions: "Spring Boot 관례를 따르는지 확인해 주세요. 계층 분리(Controller/Service/Repository), 예외 처리, 트랜잭션 경계, 입력 검증, N+1 쿼리 가능성을 중점적으로 봐 주세요."
+    - path: "src/test/**/*.java"
+      instructions: "테스트가 의미 있는 케이스(경계값, 예외 경로)를 다루는지, 테스트 간 독립성이 보장되는지 확인해 주세요."
+    - path: "src/main/resources/db/migration/**/*.sql"
+      instructions: "Flyway 마이그레이션의 되돌릴 수 없는 변경, 외래키·인덱스·제약조건, 명명 규칙(V__)을 확인해 주세요."
+
+  # 정적 분석 도구 연동
+  tools:
+    languagetool:
+      enabled: true
+    detekt:
+      enabled: false
+
+chat:
+  # 코멘트에 대한 자동 응답
+  auto_reply: true
