@@ -19,6 +19,5 @@
 -- -------------------------------------------------------------
 ALTER TABLE reservations
     ADD COLUMN customer_name   VARCHAR(50)  NOT NULL COMMENT '예약자 이름',
-    ADD COLUMN customer_phone  VARCHAR(20)  NOT NULL COMMENT '예약자 전화번호',
-    ADD COLUMN special_request VARCHAR(500) NULL     COMMENT '고객 요청사항 (예약 시 자유 입력, 선택)';
+    ADD COLUMN customer_phone  VARCHAR(20)  NOT NULL COMMENT '예약자 전화번호';
         
