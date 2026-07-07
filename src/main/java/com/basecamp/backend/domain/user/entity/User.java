@@ -8,6 +8,9 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import org.springframework.util.StringUtils;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -103,7 +106,7 @@ public class User {
 		// @Column(nullable=false)는 DB NULL만 막고 빈 문자열은 막지 못하므로, 잘못된 회원 생성 자체를 팩토리에서 차단한다.
 		// (email 은 소셜 회원 식별의 유일 키다. 미제공/미동의는 로그인 서비스에서 사전 차단하지만, 여기서도 최종 방어한다.)
 		if (!StringUtils.hasText(email)) {
-			throw new IllegalArgumentException("회원 생성 시 email 은 null 이거나 공백일 수 없습니다.");
+			throw new BusinessException(ErrorCode.INVALID_EMAIL);
 		}
 		return User.builder()
 				.nickname(nickname)
