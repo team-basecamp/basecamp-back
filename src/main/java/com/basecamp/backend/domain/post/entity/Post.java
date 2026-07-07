@@ -25,7 +25,7 @@ import java.time.LocalDateTime;
 @Table(name = "posts")
 // 생성하는 시간 자바단이냐 디비단이냐? ?
 public class Post {
-
+// nullable 세팅해야하나?
     @Id
     @Column(name = "post_id")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,6 +34,7 @@ public class Post {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    // 얘 디폴트 있으면 좋을 듯
     @Column(length = 30, nullable = false)
     private String category;
 
@@ -60,7 +61,9 @@ public class Post {
     private LocalDateTime updatedAt;
 
     // 이건 머냐 왜 만들었냐
-    public Post(String title, String content) {
+    // userId, category 더 필요한가? -> 예시 자료에는 없네?
+    public Post(String category, String title, String content) {
+        this.category = category;
         this.title = title;
         this.content = content;
     }
