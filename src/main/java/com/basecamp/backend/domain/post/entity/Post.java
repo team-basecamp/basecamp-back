@@ -23,7 +23,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED) // 왜?
 
 @Table(name = "posts")
-// 생성하는 시간 자바단이냐 디비단이냐?
+// 생성하는 시간 자바단이냐 디비단이냐? ?
 public class Post {
 
     @Id
