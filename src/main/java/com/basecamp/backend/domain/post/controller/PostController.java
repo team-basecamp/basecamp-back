@@ -26,6 +26,7 @@ public class PostController {
     // 주소는 맞나?
     // valid 안써도 되ㅑㅑ냐ㅑ?
     // 게시글 작성
+    // 카테고리에 General 외 3개 내에서만 선택할 수 있게
     @PostMapping("/api/v1/posts")
     public ResponseEntity<Long> createPost(@RequestBody PostCreateRequest request) {
         Long postId = postService.createPost(request.category(), request.title(), request.content());
@@ -33,11 +34,11 @@ public class PostController {
     }
 
     // 게시판 수정
-    //  PostResponse create update 따로 만드니?
-//    @PostMapping("/api/v1/posts/{postId}/update")
-//    public ResponseEntity<PostUpdateResponse> updatePost(
-//            @PathVariable("id") Long id,
-//            @RequestBody @Valid PostUpdateRequest request) {
-//        return ResponseEntity.ok(postService.update(id, request));
-//    }
+    // PostResponse create update 따로 만드니?
+    @PostMapping("/api/v1/posts/{postId}/update")
+    public ResponseEntity<PostUpdateResponse> updatePost(
+            @PathVariable("postId") Long id,
+            @RequestBody @Valid PostUpdateRequest request) {
+        return ResponseEntity.ok(postService.update(id, request));
+    }
 }

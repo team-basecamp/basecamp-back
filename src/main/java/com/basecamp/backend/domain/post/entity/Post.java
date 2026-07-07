@@ -67,5 +67,13 @@ public class Post {
         this.title = title;
         this.content = content;
     }
+
+    // 게시글 수정: 변경 감지(dirty checking)로 UPDATE 되도록 필드 값만 바꾼다.
+    public void update(String category, String title, String content) {
+        this.category = category;
+        this.title = title;
+        this.content = content;
+        this.updatedAt = LocalDateTime.now();
+    }
 }
 
