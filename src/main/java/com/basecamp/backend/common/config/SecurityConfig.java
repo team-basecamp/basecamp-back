@@ -15,6 +15,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.basecamp.backend.common.security.CorsProperties;
 import com.basecamp.backend.common.security.JwtAccessDeniedHandler;
 import com.basecamp.backend.common.security.JwtAuthenticationEntryPoint;
 import com.basecamp.backend.common.security.JwtAuthenticationFilter;
@@ -32,7 +33,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -48,6 +49,7 @@ public class SecurityConfig {
 	};
 
 	private final JwtTokenProvider jwtTokenProvider;
+	private final CorsProperties corsProperties;
 	private final ObjectMapper objectMapper;
 
 	@Bean
@@ -76,8 +78,8 @@ public class SecurityConfig {
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration config = new CorsConfiguration();
-		// React Vite 개발 서버. 배포 오리진은 추후 환경변수로 분리 예정.
-		config.setAllowedOrigins(List.of("http://localhost:5173"));
+		// cors.allowed-origins (환경변수 CORS_ALLOWED_ORIGINS)로 주입되는 오리진 화이트리스트.
+		config.setAllowedOrigins(corsProperties.getAllowedOrigins());
 		config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 		config.setAllowedHeaders(List.of("*"));
 		config.setExposedHeaders(List.of("Authorization"));
