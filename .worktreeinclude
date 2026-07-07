@@ -1,0 +1,8 @@
+# 워크트리에 복사할, gitignore된 파일 목록
+# 새 워크트리 생성 시 아래 경로들이 함께 복사됩니다.
+
+.claude/settings.local.json
+CLAUDE.local.md
+src/main/resources/application-local.yml
+src/main/resources/application-secret.yml
+.env
