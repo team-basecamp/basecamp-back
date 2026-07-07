@@ -34,10 +34,10 @@ public class PostController {
 
     // 게시판 수정
     //  PostResponse create update 따로 만드니?
-    @PostMapping("/api/v1/posts/{postId}/update")
-    public ResponseEntity<PostUpdateResponse> updatePost(
-            @PathVariable("id") Long id,
-            @RequestBody @Valid PostUpdateRequest request) {
-        return ResponseEntity.ok(postService.update(id, request));
-    }
+//    @PostMapping("/api/v1/posts/{postId}/update")
+//    public ResponseEntity<PostUpdateResponse> updatePost(
+//            @PathVariable("id") Long id,
+//            @RequestBody @Valid PostUpdateRequest request) {
+//        return ResponseEntity.ok(postService.update(id, request));
+//    }
 }
