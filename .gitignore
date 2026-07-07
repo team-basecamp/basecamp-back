@@ -59,3 +59,5 @@ application-local.yml
 ### Logs ###
 *.log
 logs/
+
+CLAUDE.local.md
