@@ -68,6 +68,11 @@ jwt:
   access-token-expiration: ${JWT_ACCESS_EXPIRATION:1800000}
   refresh-token-expiration: ${JWT_REFRESH_EXPIRATION:1209600000}
 
+# gocamping API
+gocamping:
+  api:
+    url: https://apis.data.go.kr/B551011/GoCamping/basedList  # 고캠핑 API URL
+
 springdoc:
   api-docs:
     path: /v3/api-docs
