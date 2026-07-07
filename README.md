@@ -85,7 +85,7 @@ src/main/java/com/basecamp/backend
 │   └── exception/               # 전역 예외 처리 (GlobalExceptionHandler, ErrorCode ...)
 └── domain/                     # 도메인별 패키지 (ERD 기준)
     ├── auth/                   # 소셜 로그인, 토큰 발급/재발급/블랙리스트
-    ├── member/                 # 회원 정보, 탈퇴, 관리자 회원 관리 (user는 MySQL 예약어라 member로 명명)
+    ├── user/                   # 회원 정보, 탈퇴, 관리자 회원 관리
     ├── map/                    # 지도 / 고캠핑 API 연동
     ├── camp/                   # 캠핑장, 찜(위시리스트)
     ├── post/                   # 게시글, 신고, 블라인드
