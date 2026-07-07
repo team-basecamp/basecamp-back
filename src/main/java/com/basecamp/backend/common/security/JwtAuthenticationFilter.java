@@ -7,6 +7,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.basecamp.backend.common.exception.ErrorCode;
@@ -54,8 +55,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 				request.setAttribute(ATTR_ERROR_CODE, ErrorCode.INVALID_TOKEN);
 				return;
 			}
-			Long userId = jwtTokenProvider.getUserId(claims);
+
+			String subject = claims.getSubject();
 			String role = jwtTokenProvider.getRole(claims);
+			// 필수 클레임(userId, role)이 없거나 공백이면 인증하지 않는다.
+			// (role 누락 시 "ROLE_null"/"ROLE_" 권한으로 인증되는 것을 방지)
+			if (!StringUtils.hasText(subject) || !StringUtils.hasText(role)) {
+				request.setAttribute(ATTR_ERROR_CODE, ErrorCode.INVALID_TOKEN);
+				return;
+			}
+			Long userId = Long.valueOf(subject);
 
 			UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
 					userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
