@@ -28,21 +28,21 @@ public class PostService {
     }
 
 
-    @Transactional
-    public PostResponse update(Long id, PostUpdateRequest request) {
-//        // 업데이트 대상 게시글 조회하기
-//        Post post = postMapper.findById(id)
-//                .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
-//
-//        // 업데이트 할 내용으로 바꾸기
-//        post.setTitle(request.title());
-//        post.setContent(request.content());
-//
-//        // 업데이트 수행
-//        postMapper.update(post);
-//
-//        // 업데이트 된 게시글 반환
-        return PostResponse.from(post);
-    }
+//    @Transactional
+//    public PostResponse update(Long id, PostUpdateRequest request) {
+////        // 업데이트 대상 게시글 조회하기
+////        Post post = postMapper.findById(id)
+////                .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
+////
+////        // 업데이트 할 내용으로 바꾸기
+////        post.setTitle(request.title());
+////        post.setContent(request.content());
+////
+////        // 업데이트 수행
+////        postMapper.update(post);
+////
+////        // 업데이트 된 게시글 반환
+//        return PostResponse.from(post);
+//    }
 
 }
