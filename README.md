@@ -54,6 +54,7 @@ CREATE DATABASE basecamp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 | `KAKAO_CLIENT_ID` / `KAKAO_CLIENT_SECRET` | 카카오 로그인 키 | - |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 구글 로그인 키 | `dummy-google-client-id` 등 |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 로그인 키 | `dummy-naver-client-id` 등 |
+| `CORS_ALLOWED_ORIGINS` | credentials 허용 CORS 오리진 화이트리스트 (콤마 구분) | `http://localhost:5173` |
 
 > 소셜 로그인 키는 값이 없으면 OAuth2 자동 설정이 실패해 서버 자체가 기동되지 않으므로, 실제 키가 없는 로컬/CI 환경에서도 앱이 뜰 수 있도록 더미 값을 기본값으로 설정해두었습니다. 실제 소셜 로그인을 테스트하려면 위 환경변수에 발급받은 키를 설정하세요.
 
