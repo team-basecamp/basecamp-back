@@ -1,7 +1,7 @@
 package com.basecamp.backend.domain.reservation.dto.response;
 
 import com.basecamp.backend.domain.reservation.entity.Reservation;
-import com.basecamp.backend.domain.reservation.entity.Reservation.ReservationStatus;
+import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

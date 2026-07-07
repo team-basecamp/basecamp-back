@@ -57,6 +57,15 @@ public class Reservation {
     @Column(name = "total_price", nullable = false)
     private Long totalPrice;
 
+    @Column(name = "customer_name", nullable = false)
+    private String customerName;
+
+    @Column(name = "customer_phone", nullable = false)
+    private String customerPhone;
+
+    @Column(name = "special_request")
+    private String specialRequest;
+
     // --- 생성 및 수정 일시 (자동화 대신 명시적 선언 또는 @CreatedDate 활용 가능) ---
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -65,6 +74,10 @@ public class Reservation {
     private LocalDateTime updatedAt;
 
     // --- 비즈니스 메서드 (상태 변경 도메인 로직) ---
+
+    public void pend(){
+        this.status = ReservationStatus.PENDING;
+    }
 
     public void approve() {
         this.status = ReservationStatus.RESERVED;
@@ -80,13 +93,13 @@ public class Reservation {
         this.cancelDate = LocalDateTime.now();
     }
 
-    /* 예약 상태 코드 enum */
-    public static enum ReservationStatus {
-        PENDING,    // 예약 신청 (대기)
-        RESERVED,   // 예약 확정 (기존 CONFIRMED 에서 변경)
-        REJECTED,   // 캠핑업체 거절
-        CANCELLED   // 예약 취소
-    }
+//    /* 예약 상태 코드 enum */
+//    public static enum ReservationStatus {
+//        PENDING,    // 예약 신청 (대기)
+//        RESERVED,   // 예약 확정 (기존 CONFIRMED 에서 변경)
+//        REJECTED,   // 캠핑업체 거절
+//        CANCELLED   // 예약 취소
+//    }
 
 
 }

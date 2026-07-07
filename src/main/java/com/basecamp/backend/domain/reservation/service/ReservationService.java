@@ -5,15 +5,13 @@ import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
-import com.basecamp.backend.domain.reservation.entity.Reservation.ReservationStatus;
+import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
-
-import java.time.LocalDateTime;
-
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor

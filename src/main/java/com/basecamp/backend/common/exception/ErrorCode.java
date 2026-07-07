@@ -18,7 +18,7 @@ public enum ErrorCode {
 	EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "A003", "만료된 토큰입니다."),
 	ACCESS_DENIED(HttpStatus.FORBIDDEN, "A004", "접근 권한이 없습니다."),
 
-	// Reservation TODO: 예약 예외처리
+	// Reservation TODO: 예약 예외처리(써야하는 지?)
 	// INVALID_RESERVATION_PERIOD(HttpStatus.BAD_REQUEST, "R001", "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."),
 	;
 
