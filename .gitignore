@@ -60,4 +60,7 @@ application-local.yml
 *.log
 logs/
 
+### Claude Code (개인용 — 팀 공유 안 함) ###
 CLAUDE.local.md
+.claude/settings.local.json
+.claude/agent-memory/
