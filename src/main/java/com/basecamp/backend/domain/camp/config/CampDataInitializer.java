@@ -11,6 +11,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Configuration
+@ConditionalOnProperty(
+        name = "camp.data.init.enabled",
+        havingValue = "true",
+        matchIfMissing = true  // 설정 없으면 true로 기본값
+)
 public class CampDataInitializer {
 
     private static final Logger logger = LoggerFactory.getLogger(CampDataInitializer.class);
@@ -27,15 +32,10 @@ public class CampDataInitializer {
      * 앱이 완전히 준비된 후에 별도 스레드에서 데이터 동기화 실행
      * - ApplicationReadyEvent: 앱 시작이 완료되면 발생하는 이벤트
      * - @Async: 별도 스레드에서 비동기 실행 (메인 스레드 블로킹 안 함)
-     * - @ConditionalOnProperty: 필요하면 ini 설정으로 비활성화 가능
+     * - camp.data.init.enabled=false면 이 빈 자체가 등록되지 않아 동기화가 실행되지 않음
      */
     @EventListener(ApplicationReadyEvent.class)
     @Async  // 비동기 실행 (별도 스레드)
-    @ConditionalOnProperty(
-            name = "camp.data.init.enabled",
-            havingValue = "true",
-            matchIfMissing = true  // 설정 없으면 true로 기본값
-    )
     public void initGocampingData() {
         try {
             // 이미 데이터가 있으면 건너뛰기
