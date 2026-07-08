@@ -50,10 +50,9 @@ public class ReservationService {
         Reservation canceled = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
-        if(canceled.getStatus() == ReservationStatus.CANCELLED || canceled.getStatus() == ReservationStatus.RESERVED)
+        if(canceled.getStatus() == ReservationStatus.CANCELLED || canceled.getStatus() == ReservationStatus.REJECTED)
             throw new BusinessException(ErrorCode.ALREADY_CANCELED_OR_REJECTED);
 
-        canceled.cancel();
         reservationRepository.delete(canceled);
     }
 }

@@ -79,7 +79,7 @@ public class Reservation {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // --- 비즈니스 메서드 (상태 변경 도메인 로직) --- TODO: 필요할지 안 할지? -> 쓸거 같기는 함. 일단 두기로
+    // --- 비즈니스 메서드 (상태 변경 도메인 로직) --- TODO: 필요할지 안 할지? -> 쓸거 같기는 함. 일단 두기로 ->필요없는 쪽으로 기움
 
     public void pend(){
         this.status = ReservationStatus.PENDING;
