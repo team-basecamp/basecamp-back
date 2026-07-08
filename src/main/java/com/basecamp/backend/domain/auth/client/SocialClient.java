@@ -20,8 +20,9 @@ public interface SocialClient {
 	 * 인가 코드로 토큰을 교환하고 사용자 정보를 조회해 정규화한다.
 	 *
 	 * @param authorizationCode 프론트가 소셜에서 받아 전달한 인가 코드
+	 * @param state             CSRF 방지용 state 값(네이버 토큰 교환에 필요). 카카오/구글은 사용하지 않으므로 {@code null} 가능.
 	 * @return 정규화된 소셜 사용자 정보
 	 */
-	OAuthUserInfo fetchUserInfo(String authorizationCode);
+	OAuthUserInfo fetchUserInfo(String authorizationCode, String state);
 
 }

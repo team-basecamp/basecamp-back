@@ -28,9 +28,10 @@ public class AuthService {
 	private final SocialClientResolver socialClientResolver;
 	private final AuthTransactionService authTransactionService;
 
-	public LoginResult login(Provider provider, String authorizationCode) {
+	public LoginResult login(Provider provider, String authorizationCode, String state) {
 		// 1) 외부 소셜 호출 — 트랜잭션 밖(응답 지연이 DB 커넥션 점유로 이어지지 않도록).
-		OAuthUserInfo userInfo = socialClientResolver.resolve(provider).fetchUserInfo(authorizationCode);
+		//    state 는 네이버 토큰 교환에만 쓰이며, 나머지 provider 는 무시한다.
+		OAuthUserInfo userInfo = socialClientResolver.resolve(provider).fetchUserInfo(authorizationCode, state);
 
 		// 2) #23 정책: 이메일이 회원 식별의 유일 키다. 미제공(동의 안 함) 시 로그인/가입을 거부한다.
 		if (!StringUtils.hasText(userInfo.email())) {

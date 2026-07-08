@@ -1,4 +1,4 @@
-package com.basecamp.backend.domain.auth.client.kakao;
+package com.basecamp.backend.domain.auth.client.naver;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -18,17 +18,17 @@ import com.basecamp.backend.domain.user.entity.Provider;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 카카오 소셜 로그인 어댑터.
+ * 네이버 소셜 로그인 어댑터.
  *
- * <p>{@code code → 토큰 교환(공통 {@link OAuth2TokenClient}) → /v2/user/me 조회 → {@link OAuthUserInfo} 정규화} 순서로 처리한다.
- * 엔드포인트/자격증명은 {@code application.yml} 의 {@code spring.security.oauth2.client} 설정에서 만들어지는
- * {@link ClientRegistration}(registrationId = {@code kakao})을 재사용한다(수동 코드 릴레이라 {@code oauth2Login()} 은 쓰지 않음).</p>
+ * <p>{@code code(+state) → 토큰 교환(공통 {@link OAuth2TokenClient}) → /v1/nid/me 조회 → {@link OAuthUserInfo} 정규화} 순서로 처리한다.
+ * 카카오와 달리 네이버는 토큰 교환에 {@code state}(CSRF 방지 값)를 요구하므로 프론트가 보낸 state 를 그대로 전달한다.
+ * 엔드포인트/자격증명은 {@code application.yml} 의 {@link ClientRegistration}(registrationId = {@code naver})을 재사용한다.</p>
  */
 @Component
 @RequiredArgsConstructor
-public class KakaoSocialClient implements SocialClient {
+public class NaverSocialClient implements SocialClient {
 
-	private static final String REGISTRATION_ID = "kakao";
+	private static final String REGISTRATION_ID = "naver";
 
 	private final ClientRegistrationRepository clientRegistrationRepository;
 	private final OAuth2TokenClient oauth2TokenClient;
@@ -36,30 +36,29 @@ public class KakaoSocialClient implements SocialClient {
 
 	@Override
 	public Provider provider() {
-		return Provider.KAKAO;
+		return Provider.NAVER;
 	}
 
 	@Override
 	public OAuthUserInfo fetchUserInfo(String authorizationCode, String state) {
-		// 카카오는 state 를 토큰 교환에 사용하지 않는다(파라미터는 인터페이스 공통 시그니처를 위해 받되 무시).
 		ClientRegistration registration = clientRegistrationRepository.findByRegistrationId(REGISTRATION_ID);
-		String accessToken = oauth2TokenClient.fetchAccessToken(registration, authorizationCode);
+		String accessToken = oauth2TokenClient.fetchAccessToken(registration, authorizationCode, state);
 		return requestUser(registration, accessToken).toOAuthUserInfo();
 	}
 
-	private KakaoUserResponse requestUser(ClientRegistration registration, String accessToken) {
-		KakaoUserResponse response;
+	private NaverUserResponse requestUser(ClientRegistration registration, String accessToken) {
+		NaverUserResponse response;
 		try {
 			response = restClient.get()
 					.uri(registration.getProviderDetails().getUserInfoEndpoint().getUri())
 					.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
 					.accept(MediaType.APPLICATION_JSON)
 					.retrieve()
-					.body(KakaoUserResponse.class);
+					.body(NaverUserResponse.class);
 		} catch (RestClientException e) {
 			throw new BusinessException(ErrorCode.SOCIAL_USERINFO_FETCH_FAILED);
 		}
-		if (response == null) {
+		if (response == null || response.response() == null) {
 			throw new BusinessException(ErrorCode.SOCIAL_USERINFO_FETCH_FAILED);
 		}
 		return response;
