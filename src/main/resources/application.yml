@@ -71,6 +71,7 @@ jwt:
 # gocamping API
 gocamping:
   api:
+    key: ${GOCAMPING_API_KEY:dummy-gocamping-api-key}
     url: https://apis.data.go.kr/B551011/GoCamping/basedList  # 고캠핑 API URL
 
 cors:
