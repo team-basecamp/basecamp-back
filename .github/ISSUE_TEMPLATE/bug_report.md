@@ -2,7 +2,7 @@
 name: 🐛 버그 리포트
 about: 버그를 제보합니다
 title: "[Bug] "
-labels: bug
+labels: fix
 ---
 
 ## 현상
