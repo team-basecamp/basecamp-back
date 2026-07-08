@@ -1,5 +1,6 @@
 package com.basecamp.backend.domain.auth.controller;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -54,7 +55,7 @@ class AuthControllerTest {
 		// given
 		LoginResponse body = new LoginResponse(
 				"access-token", "Bearer", 1L, "user@example.com", "camper", "USER", null);
-		given(authService.login(eq(Provider.KAKAO), anyString()))
+		given(authService.login(eq(Provider.KAKAO), anyString(), any()))
 				.willReturn(new LoginResult(body, "refresh-token"));
 		ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", "refresh-token")
 				.httpOnly(true).path("/api/v1/auth").build();
@@ -72,7 +73,7 @@ class AuthControllerTest {
 				.andExpect(cookie().value("refreshToken", "refresh-token"))
 				.andExpect(cookie().httpOnly("refreshToken", true));
 
-		verify(authService).login(Provider.KAKAO, "auth-code");
+		verify(authService).login(Provider.KAKAO, "auth-code", null);
 	}
 
 	@Test

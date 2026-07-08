@@ -28,12 +28,20 @@ public class OAuth2TokenClient {
 	private final RestClient restClient;
 
 	public String fetchAccessToken(ClientRegistration registration, String authorizationCode) {
+		return fetchAccessToken(registration, authorizationCode, null);
+	}
+
+	public String fetchAccessToken(ClientRegistration registration, String authorizationCode, String state) {
 		MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
 		form.add("grant_type", "authorization_code");
 		form.add("client_id", registration.getClientId());
 		form.add("client_secret", registration.getClientSecret());
 		form.add("redirect_uri", registration.getRedirectUri());
 		form.add("code", authorizationCode);
+		// 네이버는 토큰 교환에 state 를 요구한다. 카카오/구글은 사용하지 않으므로 값이 있을 때만 싣는다.
+		if (StringUtils.hasText(state)) {
+			form.add("state", state);
+		}
 
 		OAuth2TokenResponse response;
 		try {

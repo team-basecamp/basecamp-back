@@ -28,6 +28,7 @@ public enum ErrorCode {
 	EMAIL_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "O002", "이메일 제공에 동의해야 로그인/회원가입이 가능합니다."),
 	SOCIAL_TOKEN_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "O003", "소셜 토큰 발급에 실패했습니다."),
 	SOCIAL_USERINFO_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "O004", "소셜 사용자 정보 조회에 실패했습니다."),
+	INVALID_OAUTH_STATE(HttpStatus.BAD_REQUEST, "O005", "유효하지 않은 로그인 요청입니다(state 검증 실패)."),
 
 	// User
 	INVALID_EMAIL(HttpStatus.BAD_REQUEST, "U001", "유효하지 않은 이메일입니다."),
