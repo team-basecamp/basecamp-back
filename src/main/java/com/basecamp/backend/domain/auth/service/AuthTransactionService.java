@@ -61,8 +61,16 @@ public class AuthTransactionService {
 
 	private User updateExisting(User user, OAuthUserInfo userInfo) {
 		// 재로그인 시 소셜 프로필(닉네임 + 이미지)을 동기화한다.
-		Image profileImage = syncImage(user.getProfileImage(), userInfo.profileImageUrl());
+		Image current = user.getProfileImage();
+		Image profileImage = syncImage(current, userInfo.profileImageUrl());
 		user.updateProfile(userInfo.nickname(), profileImage);
+
+		// 프로필 이미지가 제거된 경우(새 url 없음 + 기존 이미지 존재): users.image_id 해제만으론 images row 가 고아로 남는다.
+		// User 에 orphanRemoval 설정이 없으므로 여기서 기존 row 를 명시적으로 삭제한다.
+		// updateProfile 로 FK(image_id)를 먼저 NULL 로 끊은 뒤 삭제하므로 FK 제약 위반은 없다.
+		if (profileImage == null && current != null) {
+			imageRepository.delete(current);
+		}
 		return user;
 	}
 
