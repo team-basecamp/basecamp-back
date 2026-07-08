@@ -39,6 +39,9 @@ spring:
           google:
             client-id: ${GOOGLE_CLIENT_ID:dummy-google-client-id}
             client-secret: ${GOOGLE_CLIENT_SECRET:dummy-google-client-secret}
+            # 엔드포인트(token/user-info)는 CommonOAuth2Provider.GOOGLE 가 자동 제공하지만,
+            # redirect-uri 는 토큰 교환에서 authorize 때와 정확히 일치해야 하므로 명시한다(미지정 시 미해석 템플릿이 전송됨).
+            redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:3000/oauth/google/callback}
             scope:
               - email
               - profile
