@@ -21,7 +21,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.security.CookieUtil;
 import com.basecamp.backend.domain.auth.dto.response.LoginResponse;
@@ -73,7 +72,7 @@ class AuthControllerTest {
 				.andExpect(cookie().value("refreshToken", "refresh-token"))
 				.andExpect(cookie().httpOnly("refreshToken", true));
 
-		verify(authService).login(eq(Provider.KAKAO), eq("auth-code"));
+		verify(authService).login(Provider.KAKAO, "auth-code");
 	}
 
 	@Test
