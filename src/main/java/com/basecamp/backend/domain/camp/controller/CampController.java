@@ -1,6 +1,11 @@
 package com.basecamp.backend.domain.camp.controller;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
+import com.basecamp.backend.domain.camp.dto.response.CampDetailResponseDto;
+import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
+import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
 import lombok.RequiredArgsConstructor;
@@ -68,21 +73,39 @@ public class CampController {
 
 // 고캠핑 contentId로 캠핑장 조회 (상세페이지용)
     @GetMapping("/content/{contentId}")
-    public ResponseEntity<?> getCampByContentId(@PathVariable Long contentId) {
-        try {
-            Camp camp = campService.getCampByContentId(contentId);
+    public ResponseEntity<CampDetailResponseDto> getCampByContentId(@PathVariable Long contentId) {
+        Camp camp = campService.getCampByContentId(contentId);
 
-            if (camp == null) {
-                return ResponseEntity.status(404)
-                        .body("캠핑장을 찾을 수 없습니다");
-            }
-
-            return ResponseEntity.ok(camp);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("조회 실패: " + e.getMessage());
+        if (camp == null) {
+            throw new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
         }
+
+        return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
+    }
+
+// 캠핑장 검색 (키워드/지역/유형/최대금액 필터 + 정렬 + 페이징 조합)
+    @GetMapping("/search")
+    public ResponseEntity<CampListResponseDto> searchCamps(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) String induty,
+            @RequestParam(required = false) Integer priceMax,
+            @RequestParam(required = false, defaultValue = "recommended") String sort,
+            @RequestParam(required = false, defaultValue = "1") int pageNo,
+            @RequestParam(required = false, defaultValue = "12") int numOfRows) {
+
+        return ResponseEntity.ok(
+                campService.searchCamps(keyword, region, induty, priceMax, sort, pageNo, numOfRows));
+    }
+
+// HOT 캠핑장 조회 (평점순 / 예약건수순)
+    @GetMapping("/hot")
+    public ResponseEntity<CampListResponseDto> getHotCamps(
+            @RequestParam(required = false, defaultValue = "rating") String sortBy,
+            @RequestParam(required = false, defaultValue = "1") int pageNo,
+            @RequestParam(required = false, defaultValue = "10") int numOfRows) {
+
+        return ResponseEntity.ok(campService.getHotCamps(sortBy, pageNo, numOfRows));
     }
 
 //모든 캠핑장 조회

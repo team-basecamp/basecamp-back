@@ -1,11 +1,19 @@
 package com.basecamp.backend.domain.camp.service;
 
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
+import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
+import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
+import com.basecamp.backend.domain.camp.repository.CampSpecs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;  // ← 추가!
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;  // ← 추가!
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -171,6 +179,54 @@ public class CampService {
    public List<Camp> searchByAddress(String address) {
        return campRepository.findByAddr1Containing(address);
    }
+
+    // 키워드/지역/유형/최대금액 필터 + 정렬 + 페이징을 조합한 캠핑장 목록/상세검색 조회
+    // sort: recommended(기본, 평점->예약건수순) / rating(평점순) / reviewCount(리뷰많은순) / priceAsc(가격낮은순) / recent(최근등록순)
+    public CampListResponseDto searchCamps(String keyword, String region, String induty,
+                                            Integer priceMax, String sort, int pageNo, int numOfRows) {
+        int page = Math.max(pageNo - 1, 0);
+        Page<Camp> result;
+
+        if ("reviewCount".equals(sort)) {
+            Pageable pageable = PageRequest.of(page, numOfRows);
+            result = campRepository.searchOrderByReviewCountDesc(keyword, region, induty, priceMax, pageable);
+        } else {
+            Specification<Camp> spec = Specification.where(CampSpecs.isOperating())
+                    .and(CampSpecs.keywordContains(keyword))
+                    .and(CampSpecs.regionContains(region))
+                    .and(CampSpecs.indutyContains(induty))
+                    .and(CampSpecs.priceLessThanOrEqual(priceMax));
+            Pageable pageable = PageRequest.of(page, numOfRows, resolveSort(sort));
+            result = campRepository.findAll(spec, pageable);
+        }
+
+        List<CampResponseDto> dtos = result.getContent().stream().map(CampResponseDto::from).toList();
+        return CampListResponseDto.ok(dtos, result.getTotalElements());
+    }
+
+    // HOT 캠핑장 조회 (평점순 / 예약건수순)
+    public CampListResponseDto getHotCamps(String sortBy, int pageNo, int numOfRows) {
+        Sort sort = "reservationCount".equals(sortBy)
+                ? Sort.by(Sort.Direction.DESC, "reservationCount")
+                : Sort.by(Sort.Direction.DESC, "averageRating");
+        Pageable pageable = PageRequest.of(Math.max(pageNo - 1, 0), numOfRows, sort);
+        Page<Camp> result = campRepository.findAll(CampSpecs.isOperating(), pageable);
+        List<CampResponseDto> dtos = result.getContent().stream().map(CampResponseDto::from).toList();
+        return CampListResponseDto.ok(dtos, result.getTotalElements());
+    }
+
+    // 최근 등록된 캠핑장 조회
+    public CampListResponseDto getRecentCamps(int numOfRows) {
+        return searchCamps(null, null, null, null, "recent", 1, numOfRows);
+    }
+
+    private Sort resolveSort(String sort) {
+        if ("rating".equals(sort)) return Sort.by(Sort.Direction.DESC, "averageRating");
+        if ("priceAsc".equals(sort)) return Sort.by(Sort.Direction.ASC, "price");
+        if ("recent".equals(sort)) return Sort.by(Sort.Direction.DESC, "createdAt");
+        // 추천순(recommended, 기본값): 평점 우선, 동점이면 예약건수 많은 순
+        return Sort.by(Sort.Direction.DESC, "averageRating").and(Sort.by(Sort.Direction.DESC, "reservationCount"));
+    }
 
     // 고캠핑 API 실제 응답 구조: { "response": { "header": {...}, "body": { "items": { "item": [...] }, ... } } }
     // 여기 선언되지 않은 필드(header, numOfRows, pageNo, totalCount 등)는 무시한다

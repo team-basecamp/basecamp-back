@@ -62,6 +62,26 @@ public class GocampingApiResponseDto {
     @JsonProperty("manageSttus")
     private String manageSttus;
 
+    // 캠핑장 소개글
+    @JsonProperty("intro")
+    private String intro;
+
+    // 웹사이트
+    @JsonProperty("homepage")
+    private String homepage;
+
+    // 부대시설 (편의시설, 콤마 구분 문자열)
+    @JsonProperty("sbrsCl")
+    private String sbrsCl;
+
+    // 운영 시작일 (YYYYMMDD)
+    @JsonProperty("hvofBgnde")
+    private String hvofBgnde;
+
+    // 운영 종료일 (YYYYMMDD)
+    @JsonProperty("hvofEndde")
+    private String hvofEndde;
+
     @Override
     public String toString() {
         return "GocampingApiResponseDto{" +
@@ -77,6 +97,11 @@ public class GocampingApiResponseDto {
                 ", glampSiteCo=" + glampSiteCo +
                 ", firstImageUrl='" + firstImageUrl + '\'' +
                 ", manageSttus='" + manageSttus + '\'' +
+                ", intro='" + intro + '\'' +
+                ", homepage='" + homepage + '\'' +
+                ", sbrsCl='" + sbrsCl + '\'' +
+                ", hvofBgnde='" + hvofBgnde + '\'' +
+                ", hvofEndde='" + hvofEndde + '\'' +
                 '}';
     }
 

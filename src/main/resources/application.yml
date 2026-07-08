@@ -76,7 +76,7 @@ gocamping:
 cors:
   # credentials 허용 CORS 오리진 화이트리스트. 배포 오리진은 환경변수로 주입 (콤마 구분).
   # 예) CORS_ALLOWED_ORIGINS=https://basecamp.example.com,https://admin.basecamp.example.com
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
 springdoc:
   api-docs:
