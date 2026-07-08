@@ -28,10 +28,10 @@ public class Camp {
     @Column(name = "owner_id")
     private Long ownerId;
 
-    @Column(name = "faclt_nm", nullable = false, length = 100)
+    @Column(name = "faclt_nm", length = 100)
     private String facltNm;
 
-    @Column(name = "addr1", nullable = false, length = 200)
+    @Column(name = "addr1", length = 200)
     private String addr1;
 
     @Column(name = "addr2", length = 200)

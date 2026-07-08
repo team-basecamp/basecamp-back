@@ -13,12 +13,16 @@ public class CampSpecs {
         return (root, query, cb) -> cb.equal(root.get("manageSttus"), "운영");
     }
 
+     private static String escapeLike(String value) {
+              return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+           }
+
     public static Specification<Camp> keywordContains(String keyword) {
         if (keyword == null || keyword.isBlank()) return null;
-        String like = "%" + keyword.trim() + "%";
+        String like = "%" + escapeLike(keyword.trim()) + "%";
         return (root, query, cb) -> cb.or(
-                cb.like(root.get("facltNm"), like),
-                cb.like(root.get("addr1"), like)
+                cb.like(root.get("facltNm"), like, '\\'),
+                cb.like(root.get("addr1"), like, '\\')
         );
     }
 
