@@ -54,6 +54,7 @@ CREATE DATABASE basecamp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 | `KAKAO_CLIENT_ID` / `KAKAO_CLIENT_SECRET` | 카카오 로그인 키 | - |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 구글 로그인 키 | `dummy-google-client-id` 등 |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 로그인 키 | `dummy-naver-client-id` 등 |
+| `CORS_ALLOWED_ORIGINS` | credentials 허용 CORS 오리진 화이트리스트 (콤마 구분) | `http://localhost:5173` |
 
 > 소셜 로그인 키는 값이 없으면 OAuth2 자동 설정이 실패해 서버 자체가 기동되지 않으므로, 실제 키가 없는 로컬/CI 환경에서도 앱이 뜰 수 있도록 더미 값을 기본값으로 설정해두었습니다. 실제 소셜 로그인을 테스트하려면 위 환경변수에 발급받은 키를 설정하세요.
 
@@ -85,7 +86,7 @@ src/main/java/com/basecamp/backend
 │   └── exception/               # 전역 예외 처리 (GlobalExceptionHandler, ErrorCode ...)
 └── domain/                     # 도메인별 패키지 (ERD 기준)
     ├── auth/                   # 소셜 로그인, 토큰 발급/재발급/블랙리스트
-    ├── member/                 # 회원 정보, 탈퇴, 관리자 회원 관리 (user는 MySQL 예약어라 member로 명명)
+    ├── user/                   # 회원 정보, 탈퇴, 관리자 회원 관리
     ├── map/                    # 지도 / 고캠핑 API 연동
     ├── camp/                   # 캠핑장, 찜(위시리스트)
     ├── post/                   # 게시글, 신고, 블라인드

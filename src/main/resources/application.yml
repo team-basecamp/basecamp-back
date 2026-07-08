@@ -73,6 +73,11 @@ gocamping:
   api:
     url: https://apis.data.go.kr/B551011/GoCamping/basedList  # 고캠핑 API URL
 
+cors:
+  # credentials 허용 CORS 오리진 화이트리스트. 배포 오리진은 환경변수로 주입 (콤마 구분).
+  # 예) CORS_ALLOWED_ORIGINS=https://basecamp.example.com,https://admin.basecamp.example.com
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
 springdoc:
   api-docs:
     path: /v3/api-docs
