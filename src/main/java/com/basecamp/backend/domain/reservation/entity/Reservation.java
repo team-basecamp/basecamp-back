@@ -32,6 +32,12 @@ public class Reservation {
     @JoinColumn(name = "camp_id", nullable = false)
     private Camp camp;
      */
+    // TODO: 임시 엔티티 (삭제해야 할 것)
+    @Column(name = "user_id")
+    private Long userId;
+
+    @Column(name = "camp_id")
+    private Long campId;
 
     // --- 기본 예약 필드 ---
 

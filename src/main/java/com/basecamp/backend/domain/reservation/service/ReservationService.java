@@ -27,10 +27,15 @@ public class ReservationService {
         }
 
         Reservation reservation = Reservation.builder()
+                .userId(1L) // TODO: user 엔티티 미구현으로 인한 하드코딩
+                .campId(1L) // TODO: camp 엔티티 미구현으로 인한 하드코딩
                 .checkInDate(request.checkInDate())
                 .checkOutDate(request.checkOutDate())
                 .guestCount(request.guestCount())
                 .totalPrice(request.totalPrice())
+                .customerName(request.customerName())
+                .customerPhone(request.customerPhone())
+                .specialRequest(request.specialRequest())
                 .status(ReservationStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .build();
