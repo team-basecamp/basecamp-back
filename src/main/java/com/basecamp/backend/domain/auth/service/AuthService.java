@@ -6,6 +6,7 @@ import org.springframework.util.StringUtils;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.common.security.OAuthStateProvider;
 import com.basecamp.backend.domain.auth.client.OAuthUserInfo;
 import com.basecamp.backend.domain.auth.client.SocialClientResolver;
 import com.basecamp.backend.domain.user.entity.Provider;
@@ -27,8 +28,28 @@ public class AuthService {
 
 	private final SocialClientResolver socialClientResolver;
 	private final AuthTransactionService authTransactionService;
+	private final OAuthStateProvider oAuthStateProvider;
+
+	/**
+	 * 네이버 로그인 시작용 서명 state 를 발급한다. 프론트는 이 state 로 네이버 authorize 를 요청한다.
+	 */
+	public String issueNaverLoginState() {
+		return oAuthStateProvider.issue();
+	}
 
 	public LoginResult login(Provider provider, String authorizationCode, String state) {
+		// 0) 네이버 CSRF 방지: state 는 서버가 발급한 서명값이어야 한다.
+		//    - 빈 값: 잘못된 요청(400). - 서명/만료 검증 실패: 위조·만료된 요청(400).
+		//    유효하지 않은 state 를 토큰 교환(502)까지 내려보내지 않고 여기서 막는다.
+		if (provider == Provider.NAVER) {
+			if (!StringUtils.hasText(state)) {
+				throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+			}
+			if (!oAuthStateProvider.verify(state)) {
+				throw new BusinessException(ErrorCode.INVALID_OAUTH_STATE);
+			}
+		}
+
 		// 1) 외부 소셜 호출 — 트랜잭션 밖(응답 지연이 DB 커넥션 점유로 이어지지 않도록).
 		//    state 는 네이버 토큰 교환에만 쓰이며, 나머지 provider 는 무시한다.
 		OAuthUserInfo userInfo = socialClientResolver.resolve(provider).fetchUserInfo(authorizationCode, state);
