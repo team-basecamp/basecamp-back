@@ -55,6 +55,12 @@ CREATE DATABASE basecamp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 구글 로그인 키 | `dummy-google-client-id` 등 |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 로그인 키 | `dummy-naver-client-id` 등 |
 | `CORS_ALLOWED_ORIGINS` | credentials 허용 CORS 오리진 화이트리스트 (콤마 구분) | `http://localhost:5173` |
+| `COOKIE_REFRESH_NAME` | Refresh Token 쿠키 이름 | `refreshToken` |
+| `COOKIE_REFRESH_PATH` | Refresh Token 쿠키 경로 | `/api/v1/auth` |
+| `COOKIE_REFRESH_SAMESITE` | Refresh Token 쿠키 SameSite 속성 | `Lax` |
+| `COOKIE_REFRESH_SECURE` | Refresh Token 쿠키 Secure 플래그 | `false` |
+
+> Refresh Token은 HttpOnly 쿠키로 발급됩니다. 로컬은 same-site라 `Lax`/`Secure=false`로 충분하지만, 배포 시 프론트·백 도메인이 다르면(cross-site) `COOKIE_REFRESH_SAMESITE=None` + `COOKIE_REFRESH_SECURE=true`로 설정해야 합니다. (`SameSite=None`이면 `Secure=true` 필수)
 
 > 소셜 로그인 키는 값이 없으면 OAuth2 자동 설정이 실패해 서버 자체가 기동되지 않으므로, 실제 키가 없는 로컬/CI 환경에서도 앱이 뜰 수 있도록 더미 값을 기본값으로 설정해두었습니다. 실제 소셜 로그인을 테스트하려면 위 환경변수에 발급받은 키를 설정하세요.
 
