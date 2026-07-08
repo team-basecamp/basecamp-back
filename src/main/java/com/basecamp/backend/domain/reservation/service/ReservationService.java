@@ -3,7 +3,7 @@ package com.basecamp.backend.domain.reservation.service;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
-import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
+import com.basecamp.backend.domain.reservation.dto.response.CustomerReservationResponse;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
@@ -21,7 +21,7 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
 
     @Transactional
-    public ReservationResponse createReservation(ReservationCreateRequest request) {
+    public CustomerReservationResponse createReservation(ReservationCreateRequest request) {
         if (!request.checkOutDate().isAfter(request.checkInDate())) {
             throw new BusinessException(ErrorCode.INVALID_RESERVATION_PERIOD, "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다.");
         }
@@ -41,6 +41,19 @@ public class ReservationService {
                 .build();
 
         Reservation saved = reservationRepository.save(reservation);
-        return ReservationResponse.from(saved);
+        return CustomerReservationResponse.from(saved);
+    }
+
+    // 고객이 예약취소
+    @Transactional
+    public CustomerReservationResponse cancelReservation(Long reservationId){
+        Reservation cancelled = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+
+
+
+        cancelled.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
+
+        return CustomerReservationResponse.from(cancelled);
     }
 }

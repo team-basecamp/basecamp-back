@@ -20,6 +20,8 @@ public enum ErrorCode {
 
 	// Reservation
 	INVALID_RESERVATION_PERIOD(HttpStatus.BAD_REQUEST, "R001", "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."),
+	RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "R002", "예약 정보가 존재하지 않습니다."),
+	ALREADY_CANCELED_OR_REJECTED(HttpStatus.BAD_REQUEST, "R003", "이미 취소 되었거나 거절된 예약입니다."),
 
 	// OAuth / Social Login
 	UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "O001", "지원하지 않는 소셜 로그인 제공자입니다."),
