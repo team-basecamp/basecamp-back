@@ -1,10 +1,15 @@
 package com.basecamp.backend.domain.user.entity;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import org.springframework.util.StringUtils;
+
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -45,7 +50,7 @@ public class User {
 	@Column(name = "nickname", nullable = false, length = 50)
 	private String nickname;
 
-	@Column(name = "email", nullable = false, length = 100)
+	@Column(name = "email", nullable = false, length = 100, unique = true)
 	private String email;
 
 	/**
@@ -98,6 +103,11 @@ public class User {
 	 * @param profileImage 소셜 프로필 이미지(없으면 {@code null})
 	 */
 	public static User register(String nickname, String email, Image profileImage, Provider provider) {
+		// @Column(nullable=false)는 DB NULL만 막고 빈 문자열은 막지 못하므로, 잘못된 회원 생성 자체를 팩토리에서 차단한다.
+		// (email 은 소셜 회원 식별의 유일 키다. 미제공/미동의는 로그인 서비스에서 사전 차단하지만, 여기서도 최종 방어한다.)
+		if (!StringUtils.hasText(email)) {
+			throw new BusinessException(ErrorCode.INVALID_EMAIL);
+		}
 		return User.builder()
 				.nickname(nickname)
 				.email(email)
@@ -118,10 +128,12 @@ public class User {
 
 	/**
 	 * 회원 탈퇴 처리(soft delete). 상태를 {@link UserStatus#WITHDRAWN} 로 바꾸고 탈퇴 시각·사유를 기록한다.
+	 *
+	 * @param clock 탈퇴 시각 산정에 사용할 시계(서버 타임존 의존 제거 및 테스트 용이성 확보를 위해 주입받는다)
 	 */
-	public void withdraw(String reason) {
+	public void withdraw(String reason, Clock clock) {
 		this.status = UserStatus.WITHDRAWN;
-		this.deletedAt = LocalDateTime.now();
+		this.deletedAt = LocalDateTime.now(clock);
 		this.withdrawalReason = reason;
 	}
 
