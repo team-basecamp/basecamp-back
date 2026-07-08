@@ -6,7 +6,7 @@ import java.time.LocalDate;
 
 
 public record ReservationCreateRequest(
-        @NotNull(message = "예약자 이름은 필수입니다.")
+        @NotBlank(message = "예약자 이름은 필수입니다.")
         String customerName,    // 예약자 이름
 
         @NotBlank(message = "전화번호는 필수 입력 항목입니다.")

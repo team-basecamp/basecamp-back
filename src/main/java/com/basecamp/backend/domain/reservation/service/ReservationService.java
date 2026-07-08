@@ -23,7 +23,7 @@ public class ReservationService {
     @Transactional
     public ReservationResponse createReservation(ReservationCreateRequest request) {
         if (!request.checkOutDate().isAfter(request.checkInDate())) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다.");
+            throw new BusinessException(ErrorCode.INVALID_RESERVATION_PERIOD, "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다.");
         }
 
         Reservation reservation = Reservation.builder()
