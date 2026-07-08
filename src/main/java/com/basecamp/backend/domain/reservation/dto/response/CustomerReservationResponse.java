@@ -2,11 +2,13 @@ package com.basecamp.backend.domain.reservation.dto.response;
 
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-public record ReservationResponse(
+@JsonInclude(JsonInclude.Include.NON_NULL) // 필드에 null이 있으면 response에 포함 안 시키기
+public record CustomerReservationResponse(
         Long id,
         Long campId, //TODO: campId가 아니라 camp엔티티로 바꿔야 하는 점 고려
         LocalDate checkInDate,
@@ -16,11 +18,12 @@ public record ReservationResponse(
         String customerPhone,
         String specialRequest,
         ReservationStatus status,
+        LocalDateTime cancelDate,
         Long totalPrice,
         LocalDateTime createdAt
 ) {
-    public static ReservationResponse from(Reservation reservation) {
-        return new ReservationResponse(
+    public static CustomerReservationResponse from(Reservation reservation) {
+        return new CustomerReservationResponse(
                 reservation.getId(),
                 reservation.getCampId(),
                 reservation.getCheckInDate(),
@@ -30,6 +33,7 @@ public record ReservationResponse(
                 reservation.getCustomerPhone(),
                 reservation.getSpecialRequest(),
                 reservation.getStatus(),
+                reservation.getCancelDate(),
                 reservation.getTotalPrice(),
                 reservation.getCreatedAt()
         );
