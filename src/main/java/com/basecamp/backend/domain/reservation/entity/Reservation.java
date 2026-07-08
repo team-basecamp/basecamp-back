@@ -1,5 +1,7 @@
 package com.basecamp.backend.domain.reservation.entity;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -57,7 +59,7 @@ public class Reservation {
     @Column(name = "reject_reason", length = 200)
     private String rejectReason;
 
-    @Column(name = "cancel_date")
+    @Column(name = "cancel_date") //TODO: cancel_date -> canceled_at 변경 필요
     private LocalDateTime cancelDate;
 
     @Column(name = "total_price", nullable = false)
@@ -79,7 +81,7 @@ public class Reservation {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // --- 비즈니스 메서드 (상태 변경 도메인 로직) --- TODO: 필요할지 안 할지? -> 쓸거 같기는 함. 일단 두기로 ->필요없는 쪽으로 기움
+    // --- 비즈니스 메서드 (상태 변경 도메인 로직) ---
 
     public void pend(){
         this.status = ReservationStatus.PENDING;
@@ -95,6 +97,10 @@ public class Reservation {
     }
 
     public void cancel() {
+        if(this.status == ReservationStatus.CANCELLED || this.status == ReservationStatus.REJECTED) {
+            throw new BusinessException(ErrorCode.ALREADY_CANCELED_OR_REJECTED);
+        }
+
         this.status = ReservationStatus.CANCELLED;
         this.cancelDate = LocalDateTime.now();
     }

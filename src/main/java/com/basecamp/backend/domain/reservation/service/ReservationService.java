@@ -46,13 +46,14 @@ public class ReservationService {
 
     // 고객이 예약취소
     @Transactional
-    public void cancelReservation(Long reservationId){
-        Reservation canceled = reservationRepository.findById(reservationId)
+    public CustomerReservationResponse cancelReservation(Long reservationId){
+        Reservation cancelled = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
-        if(canceled.getStatus() == ReservationStatus.CANCELLED || canceled.getStatus() == ReservationStatus.REJECTED)
-            throw new BusinessException(ErrorCode.ALREADY_CANCELED_OR_REJECTED);
 
-        reservationRepository.delete(canceled);
+
+        cancelled.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
+
+        return CustomerReservationResponse.from(cancelled);
     }
 }

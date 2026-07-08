@@ -24,9 +24,9 @@ public class ReservationController {
     }
 
     @PostMapping("/{reservationId}/cancel")
-    public ResponseEntity<Void> cancelReservation(@PathVariable Long reservationId){
-        reservationService.cancelReservation(reservationId);
+    public ResponseEntity<CustomerReservationResponse> cancelReservation(@PathVariable Long reservationId){
+        CustomerReservationResponse response = reservationService.cancelReservation(reservationId);
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(response);
     }
 }

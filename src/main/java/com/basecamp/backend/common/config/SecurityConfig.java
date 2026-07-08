@@ -1,7 +1,8 @@
 package com.basecamp.backend.common.config;
 
-import java.util.List;
-
+import com.basecamp.backend.common.security.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,16 +16,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import com.basecamp.backend.common.security.CookieProperties;
-import com.basecamp.backend.common.security.CorsProperties;
-import com.basecamp.backend.common.security.JwtAccessDeniedHandler;
-import com.basecamp.backend.common.security.JwtAuthenticationEntryPoint;
-import com.basecamp.backend.common.security.JwtAuthenticationFilter;
-import com.basecamp.backend.common.security.JwtProperties;
-import com.basecamp.backend.common.security.JwtTokenProvider;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import lombok.RequiredArgsConstructor;
+import java.util.List;
 
 /**
  * Spring Security 설정.
