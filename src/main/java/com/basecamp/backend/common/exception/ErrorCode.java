@@ -29,6 +29,7 @@ public enum ErrorCode {
 	SOCIAL_TOKEN_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "O003", "소셜 토큰 발급에 실패했습니다."),
 	SOCIAL_USERINFO_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "O004", "소셜 사용자 정보 조회에 실패했습니다."),
 	INVALID_OAUTH_STATE(HttpStatus.BAD_REQUEST, "O005", "유효하지 않은 로그인 요청입니다(state 검증 실패)."),
+	EMAIL_ALREADY_REGISTERED(HttpStatus.CONFLICT, "O006", "이미 다른 소셜 계정으로 가입된 이메일입니다. 기존 로그인 방식을 이용해 주세요."),
 
 	// User
 	INVALID_EMAIL(HttpStatus.BAD_REQUEST, "U001", "유효하지 않은 이메일입니다."),
