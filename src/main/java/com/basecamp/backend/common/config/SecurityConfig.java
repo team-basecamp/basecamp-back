@@ -16,6 +16,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.basecamp.backend.common.security.CookieProperties;
 import com.basecamp.backend.common.security.CorsProperties;
 import com.basecamp.backend.common.security.JwtAccessDeniedHandler;
 import com.basecamp.backend.common.security.JwtAuthenticationEntryPoint;
@@ -34,7 +35,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class, CookieProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
 
