@@ -69,10 +69,12 @@ public class Post {
     }
 
     // 게시글 수정: 변경 감지(dirty checking)로 UPDATE 되도록 필드 값만 바꾼다.
+    // 얜 왜 반환값이 없고 Post는 생성자인디 왜 반환값이 있ㄴ느 함수 인것인가?
     public void update(String category, String title, String content) {
         this.category = category;
         this.title = title;
         this.content = content;
+        // 너 맞냐 now 있는거 ? 디비단 or 자바단?
         this.updatedAt = LocalDateTime.now();
     }
 }
