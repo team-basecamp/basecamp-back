@@ -12,6 +12,7 @@ import com.basecamp.backend.domain.camp.service.CampService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -157,10 +158,9 @@ public class CampController {
     public ResponseEntity<CampDetailResponseDto> registerCamp(
             @Valid // DTO에 붙어있는 검증 애너테이션 체크 하는 기능
             @RequestBody // 리액트가 준 JSON 형식을 Java가 이해할 수 있도록 연결 해주는 것.
-            CampRegistrationRequest request
+            CampRegistrationRequest request,
+            @AuthenticationPrincipal Long ownerId
     ){
-        // TODO : 임시 하드 코딩 : 실제 JWT 인증 연동 필요함 .
-        Long ownerId = 1L;
 
         // Service 호출
         Camp savedCamp = campService.registerCamp(request, ownerId);

@@ -62,8 +62,6 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.GET, "/api/v1/camps/**").permitAll()
 						// TODO: 로그인(AuthController) 구현 전까지 임시로 공개. 로그인 붙으면 ADMIN 권한으로 되돌릴 것.
 						.requestMatchers(HttpMethod.POST, "/api/v1/camps/fetch").permitAll()
-						// TODO: 로그인(AuthController) 구현 전까지 임시로 공개. 로그인 붙으면 인증된 사용자(캠핑업체)로 되돌릴 것.
-						.requestMatchers(HttpMethod.POST, "/api/v1/camps/register").permitAll()
 						.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
 						.anyRequest().authenticated())
 				.exceptionHandling(handler -> handler
