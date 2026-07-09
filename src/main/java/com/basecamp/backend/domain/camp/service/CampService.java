@@ -1,5 +1,8 @@
 package com.basecamp.backend.domain.camp.service;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
@@ -8,17 +11,20 @@ import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.camp.repository.CampSpecs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;  // ← 추가!
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.ResponseEntity;  // ← 추가!
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;  // ← 추가!
+import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -119,25 +125,25 @@ public class CampService {
                     }
                     System.out.println("=======================================\n");
 
-                    // 5️⃣ 받은 데이터가 없으면 종료
+                    // 받은 데이터가 없으면 종료
                     if (camps == null || camps.isEmpty()) {
                         System.out.println("✅ 모든 페이지를 받았습니다");
                         hasMoreData = false;  // 반복 종료
                     } else {
-                        // 6️⃣ DB에 저장
+                        //  DB에 저장
                         int savedCount = camps.size();
                         saveCampsFromApi(camps);
 
                         totalSaved += savedCount;
                         System.out.println("✅ 페이지 " + pageNo + ": " + savedCount + "개 저장됨");
 
-                        // 7️⃣ 받은 데이터가 numOfRows보다 적으면 마지막 페이지
+                        //  받은 데이터가 numOfRows보다 적으면 마지막 페이지
                         if (savedCount < numOfRows) {
                             System.out.println("✅ 마지막 페이지입니다");
                             hasMoreData = false;  // 반복 종료
                         }
 
-                        // 8️⃣ 다음 페이지로 이동
+                        //  다음 페이지로 이동
                         pageNo++;
                     }
                 } else {
@@ -145,10 +151,10 @@ public class CampService {
                 }
             }
 
-            System.out.println("🎉 총 " + totalSaved + "개의 캠핑장이 저장되었습니다");
+            System.out.println(" 총 " + totalSaved + "개의 캠핑장이 저장되었습니다");
 
         } catch (Exception e) {
-            System.out.println("❌ 고캠핑 API 호출 실패: " + e.getMessage());
+            System.out.println(" 고캠핑 API 호출 실패: " + e.getMessage());
             throw new RuntimeException("고캠핑 API 호출 실패", e);
         }
     }
@@ -233,11 +239,9 @@ public class CampService {
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class GocampingApiResponse {
         private ResponseBody response;
-
         public ResponseBody getResponse() {
             return response;
         }
-
         public void setResponse(ResponseBody response) {
             this.response = response;
         }
@@ -246,11 +250,9 @@ public class CampService {
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class ResponseBody {
         private Body body;
-
         public Body getBody() {
             return body;
         }
-
         public void setBody(Body body) {
             this.body = body;
         }
@@ -259,11 +261,9 @@ public class CampService {
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class Body {
         private Items items;
-
         public Items getItems() {
             return items;
         }
-
         public void setItems(Items items) {
             this.items = items;
         }
@@ -272,14 +272,50 @@ public class CampService {
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class Items {
         private List<GocampingApiResponseDto> item;
-
         public List<GocampingApiResponseDto> getItem() {
             return item;
         }
-
         public void setItem(List<GocampingApiResponseDto> item) {
             this.item = item;
         }
+    }
+
+    // 캠핑장 등록 비지니스 로직
+    @Transactional
+    public Camp registerCamp(CampRegistrationRequest request,Long ownerId){
+        // 권한 검증 : ownerId가 없다면 등록이 불가하도록 설정
+        // ownerId == null : 인증 정보 자체가 없는 것 ( 로그인을 안함, 토큰이 없음 )
+        // ownerId <= 0 : 이상한 값 ( 있을 수 없는 ID )
+        if(ownerId == null || ownerId <= 0) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED,"캠핑장 등록 권한이 없습니다.");
+        }
+
+        // DTO -> Entity 변환 하는 코드
+        Camp camp = Camp.builder()
+                .facltNm(request.getFacltNm())
+                .addr1(request.getAddr1())
+                .addr2(request.getAddr2())
+                .tel(request.getTel())
+                .induty(request.getInduty())
+                .price(request.getPrice())
+                .gnrlSiteCo(request.getGnrlSiteCo() != null ? request.getGnrlSiteCo() : 0)
+                .autoSiteCo(request.getAutoSiteCo() != null ? request.getAutoSiteCo() : 0)
+                .glampSiteCo(request.getGlampSiteCo() != null ? request.getGlampSiteCo() : 0)
+                .lineIntro(request.getLineIntro())
+                .firstImageUrl(request.getFirstImageUrl())
+                .ownerId(ownerId)
+                .contentId(null)
+                .manageSttus("운영")
+                .averageRating(new BigDecimal("0.00"))
+                .reservationCount(0)
+                .createdAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")))
+                .build();
+
+        // DB에  camping 장 저장
+        Camp savedCamp = campRepository.save(camp);
+
+        return savedCamp;
+
     }
 
 }
