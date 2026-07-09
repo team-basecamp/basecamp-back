@@ -17,6 +17,8 @@ public enum ErrorCode {
 	INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "A002", "유효하지 않은 토큰입니다."),
 	EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "A003", "만료된 토큰입니다."),
 	ACCESS_DENIED(HttpStatus.FORBIDDEN, "A004", "접근 권한이 없습니다."),
+	REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "A005", "refresh 토큰이 없습니다. 다시 로그인해 주세요."),
+	INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "A006", "유효하지 않은 refresh 토큰입니다. 다시 로그인해 주세요."),
 
 	// Reservation
 	INVALID_RESERVATION_PERIOD(HttpStatus.BAD_REQUEST, "R001", "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."),
