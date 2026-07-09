@@ -38,6 +38,8 @@ public enum ErrorCode {
 	// User
 	INVALID_EMAIL(HttpStatus.BAD_REQUEST, "U001", "유효하지 않은 이메일입니다."),
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "U002", "회원 정보를 찾을 수 없습니다."),
+	USER_ALREADY_BLACKLISTED(HttpStatus.CONFLICT, "U003", "이미 제재된 회원입니다."),
+	USER_NOT_BLACKLISTED(HttpStatus.CONFLICT, "U004", "제재 상태가 아닌 회원입니다."),
 
 	// Camp
 	CAMP_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "캠핑장을 찾을 수 없습니다."),
