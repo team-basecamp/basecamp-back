@@ -6,6 +6,10 @@ import java.time.LocalDate;
 
 
 public record ReservationCreateRequest(
+        @NotNull(message = "캠핑장 ID는 필수입니다.")
+        @Positive(message = "캠핑장 ID가 올바르지 않습니다.")
+        Long campId,            // 이 값은 front에서 받아오기
+
         @NotBlank(message = "예약자 이름은 필수입니다.")
         String customerName,    // 예약자 이름
 
