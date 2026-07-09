@@ -2,8 +2,9 @@ package com.basecamp.backend.domain.reservation.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
-import com.basecamp.backend.domain.reservation.dto.response.CustomerReservationResponse;
+import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
@@ -21,9 +22,10 @@ import java.time.LocalDateTime;
 public class ReservationService {
 
     private final ReservationRepository reservationRepository;
+    private final CampRepository campRepository;
 
     @Transactional
-    public CustomerReservationResponse createReservation(ReservationCreateRequest request) {
+    public ReservationResponse createReservation(ReservationCreateRequest request) {
         if (!request.checkOutDate().isAfter(request.checkInDate())) {
             throw new BusinessException(ErrorCode.INVALID_RESERVATION_PERIOD, "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다.");
         }
@@ -43,23 +45,33 @@ public class ReservationService {
                 .build();
 
         Reservation saved = reservationRepository.save(reservation);
-        return CustomerReservationResponse.from(saved);
+        return ReservationResponse.from(saved);
     }
 
     // 고객이 예약취소
     @Transactional
-    public CustomerReservationResponse cancelReservation(Long reservationId){
+    public ReservationResponse cancelReservation(Long reservationId){
         Reservation cancelled = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
         cancelled.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
 
-        return CustomerReservationResponse.from(cancelled);
+        return ReservationResponse.from(cancelled);
     }
 
     // 해당 유저 아이디의 예약목록 보여주기
-    public Page<CustomerReservationResponse> findAllReservations(Long userId, Pageable pageable){
+    public Page<ReservationResponse> findAllReservations(Long userId, Pageable pageable){
         return reservationRepository.findAllByUserId(userId, pageable)
-                .map(CustomerReservationResponse::from);
+                .map(ReservationResponse::from);
+    }
+
+    // 해당 캠핑장의 예약목록 보여주기
+    public Page<ReservationResponse> findAllReservationsByCamp(Long campId, Pageable pageable){
+        if (!campRepository.existsById(campId)) {
+            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND);
+        }
+
+        return reservationRepository.findAllByCampIdAndStatusNot(campId, ReservationStatus.CANCELLED, pageable)
+                .map(ReservationResponse::from);
     }
 }
