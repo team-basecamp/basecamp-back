@@ -11,8 +11,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +25,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.basecamp.backend.common.exception.BusinessException;
@@ -53,6 +59,23 @@ class AuthControllerTest {
 
 	@MockBean
 	private CookieUtil cookieUtil;
+
+	private static final Long USER_ID = 1L;
+
+	/**
+	 * 보안 필터를 껐으므로({@code addFilters = false}) {@code @AuthenticationPrincipal} 이 읽을 인증을 직접 세팅한다.
+	 * principal 타입은 {@code JwtAuthenticationFilter} 와 동일하게 {@code Long userId} 다.
+	 */
+	@BeforeEach
+	void setUpAuthentication() {
+		SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+				USER_ID, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
+	}
+
+	@AfterEach
+	void clearAuthentication() {
+		SecurityContextHolder.clearContext();
+	}
 
 	@Test
 	@DisplayName("login_유효한provider와code_200과access는body_refresh는Set-Cookie")
@@ -157,6 +180,70 @@ class AuthControllerTest {
 		mockMvc.perform(post("/api/v1/auth/token/refresh"))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value(ErrorCode.INVALID_REFRESH_TOKEN.getCode()));
+	}
+
+	@Test
+	@DisplayName("logout_204와_만료된refresh쿠키를내려준다")
+	void logout_204와_만료된refresh쿠키를내려준다() throws Exception {
+		// given
+		given(cookieUtil.resolveRefreshToken(any())).willReturn(Optional.of("refresh-token"));
+		given(cookieUtil.deleteRefreshTokenCookie()).willReturn(deletedCookie());
+
+		// when & then
+		mockMvc.perform(post("/api/v1/auth/logout"))
+				.andExpect(status().isNoContent())
+				.andExpect(cookie().maxAge("refreshToken", 0));
+
+		verify(authService).logout(USER_ID, "refresh-token");
+	}
+
+	@Test
+	@DisplayName("logout_쿠키없어도_204로_멱등하게성공한다")
+	void logout_쿠키없어도_204로_멱등하게성공한다() throws Exception {
+		// given
+		given(cookieUtil.resolveRefreshToken(any())).willReturn(Optional.empty());
+		given(cookieUtil.deleteRefreshTokenCookie()).willReturn(deletedCookie());
+
+		// when & then
+		mockMvc.perform(post("/api/v1/auth/logout"))
+				.andExpect(status().isNoContent());
+
+		verify(authService).logout(USER_ID, null);
+	}
+
+	@Test
+	@DisplayName("withdraw_204와_탈퇴사유를_서비스로전달한다")
+	void withdraw_204와_탈퇴사유를_서비스로전달한다() throws Exception {
+		// given
+		given(cookieUtil.resolveRefreshToken(any())).willReturn(Optional.of("refresh-token"));
+		given(cookieUtil.deleteRefreshTokenCookie()).willReturn(deletedCookie());
+
+		// when & then
+		mockMvc.perform(post("/api/v1/auth/withdraw")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"reason\":\"더 이상 이용하지 않아요\"}"))
+				.andExpect(status().isNoContent())
+				.andExpect(cookie().maxAge("refreshToken", 0));
+
+		verify(authService).withdraw(USER_ID, "더 이상 이용하지 않아요", "refresh-token");
+	}
+
+	@Test
+	@DisplayName("withdraw_사유가500자초과_400과C001")
+	void withdraw_사유가500자초과_400() throws Exception {
+		// given: @Size(max = 500) 검증 실패 → MethodArgumentNotValidException
+		String tooLong = "가".repeat(501);
+
+		// when & then
+		mockMvc.perform(post("/api/v1/auth/withdraw")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"reason\":\"" + tooLong + "\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value(ErrorCode.INVALID_INPUT_VALUE.getCode()));
+	}
+
+	private ResponseCookie deletedCookie() {
+		return ResponseCookie.from("refreshToken", "").httpOnly(true).path("/api/v1/auth").maxAge(0).build();
 	}
 
 }
