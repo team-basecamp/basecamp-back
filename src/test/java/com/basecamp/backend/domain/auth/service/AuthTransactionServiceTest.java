@@ -22,10 +22,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.test.util.ReflectionTestUtils;
+
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.security.JwtProperties;
 import com.basecamp.backend.common.security.JwtTokenProvider;
+import com.basecamp.backend.domain.auth.client.OAuthUserInfo;
 import com.basecamp.backend.domain.auth.entity.BlacklistReason;
 import com.basecamp.backend.domain.auth.entity.TokenBlacklist;
 import com.basecamp.backend.domain.auth.repository.TokenBlacklistRepository;
@@ -69,8 +72,67 @@ class AuthTransactionServiceTest {
 				jwtTokenProvider, Clock.fixed(NOW, ZONE));
 	}
 
+	private static final String EMAIL = "user@example.com";
+
 	private User activeUser() {
-		return User.register("camper", "user@example.com", null, Provider.KAKAO);
+		return User.register("camper", EMAIL, null, Provider.KAKAO);
+	}
+
+	private User activeUserWithId(long id) {
+		User user = activeUser();
+		ReflectionTestUtils.setField(user, "id", id);
+		return user;
+	}
+
+	private OAuthUserInfo kakaoUserInfo() {
+		return new OAuthUserInfo(Provider.KAKAO, EMAIL, "camper", null);
+	}
+
+	@Test
+	@DisplayName("upsert_탈퇴회원의이메일로재로그인_기존행을부활시키지않고_새user_id로가입한다")
+	void upsert_탈퇴회원의이메일로재로그인_기존행을부활시키지않고_새userId로가입한다() {
+		// given: 탈퇴 회원은 활성 회원 조회에 잡히지 않는다(soft delete 된 옛 행은 email 을 그대로 들고 남아 있다).
+		given(userRepository.findByEmailAndDeletedAtIsNull(EMAIL)).willReturn(Optional.empty());
+		given(userRepository.save(any(User.class))).willAnswer(invocation -> {
+			User saved = invocation.getArgument(0);
+			ReflectionTestUtils.setField(saved, "id", 2L);
+			return saved;
+		});
+
+		// when
+		LoginResult result = authTransactionService.upsertUserAndIssueToken(kakaoUserInfo());
+
+		// then: 옛 행(user_id=1)을 되살리는 대신 새 행이 만들어진다.
+		verify(userRepository).save(any(User.class));
+		assertThat(result.response().userId()).isEqualTo(2L);
+		assertThat(result.response().email()).isEqualTo(EMAIL);
+	}
+
+	@Test
+	@DisplayName("upsert_활성회원_동일provider_기존행을갱신하고_가입하지않는다")
+	void upsert_활성회원_동일provider_기존행을갱신하고_가입하지않는다() {
+		// given
+		given(userRepository.findByEmailAndDeletedAtIsNull(EMAIL)).willReturn(Optional.of(activeUserWithId(1L)));
+
+		// when
+		LoginResult result = authTransactionService.upsertUserAndIssueToken(kakaoUserInfo());
+
+		// then
+		assertThat(result.response().userId()).isEqualTo(1L);
+		verify(userRepository, never()).save(any(User.class));
+	}
+
+	@Test
+	@DisplayName("upsert_활성회원_다른provider_O006을던진다")
+	void upsert_활성회원_다른provider_O006을던진다() {
+		// given: 카카오로 가입된 활성 회원의 이메일로 네이버 로그인을 시도한다.
+		given(userRepository.findByEmailAndDeletedAtIsNull(EMAIL)).willReturn(Optional.of(activeUserWithId(1L)));
+		OAuthUserInfo naverUserInfo = new OAuthUserInfo(Provider.NAVER, EMAIL, "camper", null);
+
+		// when & then
+		assertBusinessException(
+				() -> authTransactionService.upsertUserAndIssueToken(naverUserInfo),
+				ErrorCode.EMAIL_ALREADY_REGISTERED);
 	}
 
 	@Test
@@ -155,6 +217,81 @@ class AuthTransactionServiceTest {
 		assertBusinessException(
 				() -> authTransactionService.rotateRefreshToken(USER_ID, JTI, NOW.plusSeconds(3600)),
 				ErrorCode.ACCESS_DENIED);
+	}
+
+	@Test
+	@DisplayName("blacklistToken_이미등록된jti_중복저장하지않는다")
+	void blacklistToken_이미등록된jti_중복저장하지않는다() {
+		// given: 로그아웃을 두 번 눌러도 결과가 같아야 한다(멱등).
+		given(tokenBlacklistRepository.existsByJti(JTI)).willReturn(true);
+
+		// when
+		authTransactionService.blacklistToken(
+				USER_ID, new RefreshTokenInfo(JTI, NOW.plusSeconds(3600)), BlacklistReason.LOGOUT);
+
+		// then
+		verify(tokenBlacklistRepository, never()).saveAndFlush(any());
+	}
+
+	@Test
+	@DisplayName("withdrawUser_정상_탈퇴처리하고_refresh토큰을_WITHDRAWAL사유로_폐기한다")
+	void withdrawUser_정상_탈퇴처리하고_refresh토큰을_WITHDRAWAL사유로_폐기한다() {
+		// given
+		User user = activeUser();
+		given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+		given(tokenBlacklistRepository.existsByJti(JTI)).willReturn(false);
+
+		// when
+		authTransactionService.withdrawUser(USER_ID, "사유", new RefreshTokenInfo(JTI, NOW.plusSeconds(3600)));
+
+		// then
+		assertThat(user.isWithdrawn()).isTrue();
+		assertThat(user.getWithdrawalReason()).isEqualTo("사유");
+
+		ArgumentCaptor<TokenBlacklist> captor = ArgumentCaptor.forClass(TokenBlacklist.class);
+		verify(tokenBlacklistRepository).saveAndFlush(captor.capture());
+		assertThat(captor.getValue().getReason()).isEqualTo(BlacklistReason.WITHDRAWAL);
+	}
+
+	@Test
+	@DisplayName("withdrawUser_refresh토큰없음_탈퇴만처리한다")
+	void withdrawUser_refresh토큰없음_탈퇴만처리한다() {
+		// given
+		User user = activeUser();
+		given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+
+		// when
+		authTransactionService.withdrawUser(USER_ID, null, null);
+
+		// then
+		assertThat(user.isWithdrawn()).isTrue();
+		verify(tokenBlacklistRepository, never()).saveAndFlush(any());
+	}
+
+	@Test
+	@DisplayName("withdrawUser_이미탈퇴한회원_U002를던진다")
+	void withdrawUser_이미탈퇴한회원_U002를던진다() {
+		// given: access 토큰은 탈퇴 후에도 만료 전까지 유효하므로 중복 탈퇴 요청이 가능하다.
+		User withdrawn = activeUser();
+		withdrawn.withdraw("사유", Clock.fixed(NOW, ZONE));
+		given(userRepository.findById(USER_ID)).willReturn(Optional.of(withdrawn));
+
+		// when & then
+		assertBusinessException(
+				() -> authTransactionService.withdrawUser(USER_ID, "사유", null),
+				ErrorCode.USER_NOT_FOUND);
+	}
+
+	@Test
+	@DisplayName("withdrawUser_존재하지않는회원_U002를던진다")
+	void withdrawUser_존재하지않는회원_U002를던진다() {
+		// given
+		given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
+
+		// when & then
+		assertBusinessException(
+				() -> authTransactionService.withdrawUser(USER_ID, "사유", null),
+				ErrorCode.USER_NOT_FOUND);
 	}
 
 	private void assertBusinessException(Runnable action, ErrorCode expected) {

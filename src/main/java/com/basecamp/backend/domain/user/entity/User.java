@@ -50,7 +50,11 @@ public class User {
 	@Column(name = "nickname", nullable = false, length = 50)
 	private String nickname;
 
-	@Column(name = "email", nullable = false, length = 100, unique = true)
+	/**
+	 * 소셜 계정 이메일. 유니크 제약은 활성 회원에게만 걸린다(V9 의 {@code uq_users_email_active} 파생 컬럼).
+	 * 탈퇴 회원의 행은 email 을 그대로 보존하므로 여기에 {@code unique = true} 를 두면 실제 스키마와 어긋난다.
+	 */
+	@Column(name = "email", nullable = false, length = 100)
 	private String email;
 
 	/**

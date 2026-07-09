@@ -54,7 +54,8 @@ public class AuthTransactionService {
 	 * 재시도 여부는 호출자({@link AuthService})가 결정한다.</p>
 	 */
 	public LoginResult upsertUserAndIssueToken(OAuthUserInfo userInfo) {
-		User user = userRepository.findByEmail(userInfo.email())
+		// 탈퇴 회원은 조회되지 않으므로 register 경로를 타 새 user_id 로 재가입한다(옛 행은 그대로 보존).
+		User user = userRepository.findByEmailAndDeletedAtIsNull(userInfo.email())
 				.map(existing -> updateExisting(existing, userInfo))
 				.orElseGet(() -> register(userInfo));
 
@@ -101,6 +102,42 @@ public class AuthTransactionService {
 		String accessToken = jwtTokenProvider.createAccessToken(userId, role);
 		String refreshToken = jwtTokenProvider.createRefreshToken(userId, role);
 		return new TokenRefreshResult(TokenRefreshResponse.of(accessToken), refreshToken);
+	}
+
+	/**
+	 * 토큰을 블랙리스트에 올려 폐기한다. 이미 등록돼 있으면 아무것도 하지 않는다(로그아웃을 두 번 눌러도 결과는 같아야 한다).
+	 *
+	 * <p>동시 요청으로 {@code existsByJti} 검사를 둘 다 통과하면 {@code idx_bl_jti}(UNIQUE) 가 막고
+	 * {@link org.springframework.dao.DataIntegrityViolationException} 이 전파된다. 이때도 "폐기됨"이라는 목표 상태는
+	 * 이미 달성됐으므로 호출자가 무시하거나 재시도한다. (제약 위반 후 같은 트랜잭션을 계속 쓸 수 없어 여기서 삼키지 않는다.)</p>
+	 */
+	public void blacklistToken(Long userId, RefreshTokenInfo token, BlacklistReason reason) {
+		if (tokenBlacklistRepository.existsByJti(token.jti())) {
+			return;
+		}
+		LocalDateTime expiresAt = LocalDateTime.ofInstant(token.expiresAt(), clock.getZone());
+		tokenBlacklistRepository.saveAndFlush(TokenBlacklist.of(userId, token.jti(), reason, expiresAt));
+	}
+
+	/**
+	 * 회원을 탈퇴 처리(soft delete)하고, 함께 넘어온 refresh 토큰을 폐기한다.
+	 *
+	 * <p>탈퇴와 토큰 폐기는 한 트랜잭션이어야 한다. 탈퇴만 되고 토큰이 살아 있으면 재발급이 계속 가능해진다.</p>
+	 *
+	 * @param refreshToken 쿠키에 유효한 refresh 토큰이 없으면 {@code null}
+	 */
+	public void withdrawUser(Long userId, String reason, RefreshTokenInfo refreshToken) {
+		User user = userRepository.findById(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+		// access 토큰은 무상태라 탈퇴 후에도 만료 전까지 유효하다. 그 토큰으로 다시 탈퇴를 요청할 수 있으므로 여기서 막는다.
+		if (user.isWithdrawn()) {
+			throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+		}
+
+		user.withdraw(reason, clock);
+		if (refreshToken != null) {
+			blacklistToken(userId, refreshToken, BlacklistReason.WITHDRAWAL);
+		}
 	}
 
 	private User register(OAuthUserInfo userInfo) {

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -27,6 +29,7 @@ import com.basecamp.backend.common.security.JwtTokenProvider;
 import com.basecamp.backend.common.security.OAuthStateProvider;
 import com.basecamp.backend.domain.auth.client.SocialClientResolver;
 import com.basecamp.backend.domain.auth.dto.response.TokenRefreshResponse;
+import com.basecamp.backend.domain.auth.entity.BlacklistReason;
 
 /**
  * {@link AuthService#refresh(String)} 단위 테스트.
@@ -144,6 +147,98 @@ class AuthServiceTest {
 
 		// when & then
 		assertBusinessException(() -> authService.refresh(refreshToken), ErrorCode.INVALID_REFRESH_TOKEN);
+	}
+
+	@Test
+	@DisplayName("logout_유효한refresh쿠키_해당jti를_LOGOUT사유로_폐기한다")
+	void logout_유효한refresh쿠키_해당jti를_LOGOUT사유로_폐기한다() {
+		// given
+		String refreshToken = jwtTokenProvider.createRefreshToken(USER_ID, ROLE);
+		String jti = jwtTokenProvider.getJti(jwtTokenProvider.parseClaims(refreshToken));
+
+		// when
+		authService.logout(USER_ID, refreshToken);
+
+		// then
+		ArgumentCaptor<RefreshTokenInfo> captor = ArgumentCaptor.forClass(RefreshTokenInfo.class);
+		verify(authTransactionService).blacklistToken(eq(USER_ID), captor.capture(), eq(BlacklistReason.LOGOUT));
+		assertThat(captor.getValue().jti()).isEqualTo(jti);
+	}
+
+	@Test
+	@DisplayName("logout_쿠키없음_폐기할것이없어_조용히성공한다")
+	void logout_쿠키없음_폐기할것이없어_조용히성공한다() {
+		// given & when: 로그아웃은 멱등해야 하므로 예외를 던지지 않는다.
+		authService.logout(USER_ID, null);
+
+		// then
+		verify(authTransactionService, never()).blacklistToken(anyLong(), any(), any());
+	}
+
+	@Test
+	@DisplayName("logout_만료된refresh토큰_이미무력하므로_폐기하지않는다")
+	void logout_만료된refresh토큰_이미무력하므로_폐기하지않는다() {
+		// given
+		JwtTokenProvider expiredProvider =
+				new JwtTokenProvider(new JwtProperties(SECRET, ACCESS_TTL_MS, -1_000L));
+		String expired = expiredProvider.createRefreshToken(USER_ID, ROLE);
+
+		// when
+		authService.logout(USER_ID, expired);
+
+		// then
+		verify(authTransactionService, never()).blacklistToken(anyLong(), any(), any());
+	}
+
+	@Test
+	@DisplayName("logout_다른회원의refresh토큰_타인토큰폐기를막는다")
+	void logout_다른회원의refresh토큰_타인토큰폐기를막는다() {
+		// given: access 토큰(=principal)의 주인과 쿠키 토큰의 주인이 다르다.
+		String othersToken = jwtTokenProvider.createRefreshToken(999L, ROLE);
+
+		// when
+		authService.logout(USER_ID, othersToken);
+
+		// then
+		verify(authTransactionService, never()).blacklistToken(anyLong(), any(), any());
+	}
+
+	@Test
+	@DisplayName("logout_동시요청으로jti중복_예외없이성공한다")
+	void logout_동시요청으로jti중복_예외없이성공한다() {
+		// given: 다른 요청이 먼저 같은 jti 를 등록했다. 목표 상태(폐기됨)는 이미 달성됐다.
+		String refreshToken = jwtTokenProvider.createRefreshToken(USER_ID, ROLE);
+		willThrow(new DataIntegrityViolationException("duplicate jti"))
+				.given(authTransactionService).blacklistToken(anyLong(), any(), any());
+
+		// when & then
+		authService.logout(USER_ID, refreshToken);
+	}
+
+	@Test
+	@DisplayName("withdraw_유효한쿠키_탈퇴와토큰폐기를_한트랜잭션에위임한다")
+	void withdraw_유효한쿠키_탈퇴와토큰폐기를_한트랜잭션에위임한다() {
+		// given
+		String refreshToken = jwtTokenProvider.createRefreshToken(USER_ID, ROLE);
+		String jti = jwtTokenProvider.getJti(jwtTokenProvider.parseClaims(refreshToken));
+
+		// when
+		authService.withdraw(USER_ID, "사유", refreshToken);
+
+		// then
+		ArgumentCaptor<RefreshTokenInfo> captor = ArgumentCaptor.forClass(RefreshTokenInfo.class);
+		verify(authTransactionService).withdrawUser(eq(USER_ID), eq("사유"), captor.capture());
+		assertThat(captor.getValue().jti()).isEqualTo(jti);
+	}
+
+	@Test
+	@DisplayName("withdraw_쿠키없음_토큰없이_탈퇴만위임한다")
+	void withdraw_쿠키없음_토큰없이_탈퇴만위임한다() {
+		// given & when
+		authService.withdraw(USER_ID, "사유", null);
+
+		// then: 폐기할 토큰이 없어도 탈퇴 자체는 진행되어야 한다.
+		verify(authTransactionService).withdrawUser(USER_ID, "사유", null);
 	}
 
 	private void assertBusinessException(Runnable action, ErrorCode expected) {
