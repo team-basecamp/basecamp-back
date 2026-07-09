@@ -1,5 +1,9 @@
 package com.basecamp.backend.domain.auth.service;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -9,8 +13,13 @@ import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.security.JwtTokenProvider;
 import com.basecamp.backend.domain.auth.client.OAuthUserInfo;
 import com.basecamp.backend.domain.auth.dto.response.LoginResponse;
+import com.basecamp.backend.domain.auth.dto.response.TokenRefreshResponse;
+import com.basecamp.backend.domain.auth.entity.BlacklistReason;
+import com.basecamp.backend.domain.auth.entity.TokenBlacklist;
+import com.basecamp.backend.domain.auth.repository.TokenBlacklistRepository;
 import com.basecamp.backend.domain.user.entity.Image;
 import com.basecamp.backend.domain.user.entity.User;
+import com.basecamp.backend.domain.user.entity.UserStatus;
 import com.basecamp.backend.domain.user.repository.ImageRepository;
 import com.basecamp.backend.domain.user.repository.UserRepository;
 
@@ -33,7 +42,9 @@ public class AuthTransactionService {
 
 	private final UserRepository userRepository;
 	private final ImageRepository imageRepository;
+	private final TokenBlacklistRepository tokenBlacklistRepository;
 	private final JwtTokenProvider jwtTokenProvider;
+	private final Clock clock;
 
 	/**
 	 * email 기준으로 회원을 upsert 하고 자체 JWT(access/refresh)를 발급한다.
@@ -53,6 +64,43 @@ public class AuthTransactionService {
 
 		// LAZY 연관(profileImage) 접근이 필요하므로 응답 body 는 트랜잭션 내부에서 조립한다.
 		return new LoginResult(LoginResponse.from(user, accessToken), refreshToken);
+	}
+
+	/**
+	 * refresh 토큰을 회전(rotation)한다. 이전 토큰을 블랙리스트에 올려 폐기하고 access/refresh 를 새로 발급한다.
+	 *
+	 * <p>무상태 JWT 는 서명만 맞으면 만료 전까지 유효하므로, 새 토큰을 내려주는 것만으로는 이전 토큰이 죽지 않는다.
+	 * 이전 {@code jti} 를 블랙리스트에 등록해야 비로소 "탈취 토큰의 유효 기간 = 다음 정상 재발급까지"가 성립한다(#39).</p>
+	 *
+	 * <p>이미 폐기된 jti 로 재발급을 요청하면 탈취 의심으로 보고 거부한다(refresh token reuse detection).
+	 * 동시 요청으로 {@code existsByJti} 검사를 둘 다 통과하더라도 {@code idx_bl_jti}(UNIQUE) 가 최종 방어선이며,
+	 * 이때 발생하는 {@link org.springframework.dao.DataIntegrityViolationException} 은 호출자가 401 로 변환한다.</p>
+	 *
+	 * <p>role 은 토큰 클레임을 믿지 않고 DB 에서 다시 읽는다. 권한 변경·탈퇴·제재가 재발급 시점에 반영되어야 한다.</p>
+	 *
+	 * @param refreshExpiresAt 폐기할 토큰의 만료 시각. 이 시각이 지나면 블랙리스트 레코드를 정리해도 된다.
+	 */
+	public TokenRefreshResult rotateRefreshToken(Long userId, String jti, Instant refreshExpiresAt) {
+		User user = userRepository.findById(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
+		if (user.isWithdrawn()) {
+			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+		}
+		if (user.getStatus() == UserStatus.BLACKLISTED) {
+			throw new BusinessException(ErrorCode.ACCESS_DENIED);
+		}
+		if (tokenBlacklistRepository.existsByJti(jti)) {
+			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+		}
+
+		LocalDateTime expiresAt = LocalDateTime.ofInstant(refreshExpiresAt, clock.getZone());
+		tokenBlacklistRepository.saveAndFlush(
+				TokenBlacklist.of(userId, jti, BlacklistReason.REFRESH_ROTATED, expiresAt));
+
+		String role = user.getRole().name();
+		String accessToken = jwtTokenProvider.createAccessToken(userId, role);
+		String refreshToken = jwtTokenProvider.createRefreshToken(userId, role);
+		return new TokenRefreshResult(TokenRefreshResponse.of(accessToken), refreshToken);
 	}
 
 	private User register(OAuthUserInfo userInfo) {

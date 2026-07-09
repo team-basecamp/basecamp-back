@@ -1,7 +1,9 @@
 package com.basecamp.backend.common.security;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
@@ -15,8 +17,11 @@ import lombok.Getter;
 /**
  * JWT(access/refresh) 생성 · 검증 · 파싱 담당.
  *
- * <p>클레임 구성: {@code sub}=userId, {@code role}=회원 권한, {@code type}=access|refresh</p>
+ * <p>클레임 구성: {@code jti}=토큰 고유 식별자(UUID), {@code sub}=userId, {@code role}=회원 권한,
+ * {@code type}=access|refresh</p>
  * <p>인증 필터는 이 Provider가 파싱한 클레임만으로 인증을 구성한다(무상태).</p>
+ * <p>{@code jti} 는 무효화된 토큰을 블랙리스트에 기록·조회하기 위한 키다. 토큰 원문 대신 jti 를 저장하므로
+ * 저장소가 유출되어도 유효한 토큰이 함께 새지 않는다.</p>
  */
 @Getter
 @Component
@@ -49,6 +54,7 @@ public class JwtTokenProvider {
 		Date now = new Date();
 		Date expiry = new Date(now.getTime() + expirationMs);
 		return Jwts.builder()
+				.id(UUID.randomUUID().toString())
 				.subject(String.valueOf(userId))
 				.claim(CLAIM_ROLE, role)
 				.claim(CLAIM_TYPE, type)
@@ -82,6 +88,20 @@ public class JwtTokenProvider {
 
 	public String getType(Claims claims) {
 		return claims.get(CLAIM_TYPE, String.class);
+	}
+
+	/** 블랙리스트 등록·조회 키로 쓰이는 토큰 고유 식별자. */
+	public String getJti(Claims claims) {
+		return claims.getId();
+	}
+
+	/**
+	 * 토큰 만료 시각. 블랙리스트 레코드의 수명(만료된 토큰은 서명 검증에서 이미 걸러지므로 더 보관할 필요가 없다)을 정하는 데 쓴다.
+	 *
+	 * <p>타임존 해석 없이 다루도록 {@link Instant} 로 반환한다. 저장 시점에 {@code Clock} 의 존으로 변환한다.</p>
+	 */
+	public Instant getExpiresAt(Claims claims) {
+		return claims.getExpiration().toInstant();
 	}
 
 }

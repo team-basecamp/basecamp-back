@@ -1,10 +1,15 @@
 package com.basecamp.backend.common.security;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Optional;
 
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -36,6 +41,23 @@ public class CookieUtil {
 		return baseBuilder("")
 				.maxAge(0)
 				.build();
+	}
+
+	/**
+	 * 요청 쿠키에서 refresh 토큰을 꺼낸다. 쿠키 이름이 설정값이라 {@code @CookieValue}(상수만 허용) 대신 직접 읽는다.
+	 *
+	 * @return 쿠키가 없거나 값이 비어 있으면 {@link Optional#empty()}
+	 */
+	public Optional<String> resolveRefreshToken(HttpServletRequest request) {
+		Cookie[] cookies = request.getCookies();
+		if (cookies == null) {
+			return Optional.empty();
+		}
+		return Arrays.stream(cookies)
+				.filter(cookie -> cookieProperties.getName().equals(cookie.getName()))
+				.map(Cookie::getValue)
+				.filter(StringUtils::hasText)
+				.findFirst();
 	}
 
 	private ResponseCookie.ResponseCookieBuilder baseBuilder(String value) {
