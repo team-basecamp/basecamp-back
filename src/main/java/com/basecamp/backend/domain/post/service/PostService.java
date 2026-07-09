@@ -4,7 +4,6 @@ import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
-import com.basecamp.backend.domain.post.dto.response.PostUpdateResponse;
 import com.basecamp.backend.domain.post.entity.Post;
 import com.basecamp.backend.domain.post.repository.PostRepository;
 import com.basecamp.backend.domain.user.entity.User;
@@ -13,21 +12,19 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-// 여기는 뭐냐 정체가 머냐
+// 게시글 비즈니스 로직. 기본은 읽기 전용 트랜잭션, 쓰기 메서드에만 @Transactional을 따로 건다.
+@Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-// 생성자 추가해야함
-
-
-@Service
 public class PostService {
 
+    // 게시글 저장/조회 리포지토리
     private final PostRepository postRepository;
+    // 작성자 회원 조회 리포지토리
     private final UserRepository userRepository;
 
-    // 트랜잭션 확인, 추가로 널값 테스트 등 추가 할 게 없나?
-    // 게시글에 뭐 추가로 이미지 정도 추가할각 생각해볼까?
-    @Transactional // 이걸 붙이면 읽기 전용이 아님
+    // 게시글 작성: 작성자를 검증한 뒤 새 글을 저장하고 상세 응답으로 반환한다. (쓰기 트랜잭션)
+    @Transactional
     public PostDetailResponse createPost(Long userId, String category, String title, String content){
         // 작성자 회원을 먼저 조회한다. 응답에 nickname을 담아야 하므로 프록시(getReferenceById)가 아닌
         // findById로 실제 로딩하고, 존재하지 않으면 예외로 막는다.
@@ -43,17 +40,16 @@ public class PostService {
     }
 
 
+    // 게시글 수정: 대상 글을 조회해 내용을 바꾸고 상세 응답으로 반환한다. (쓰기 트랜잭션)
     @Transactional
     public PostDetailResponse update(Long id, PostUpdateRequest request) {
         // 수정할 게시글 조회, 없으면 예외
         Post post = postRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
 
-        // 변경 감지로 UPDATE (트랜잭션 커밋 시점에 반영)
-        // 변경 감지???? ㅖㅖㅖㅖㅖㅖ?
+        // 변경 감지(dirty checking)로 트랜잭션 커밋 시점에 UPDATE 반영
         post.update(request.category(), request.title(), request.content());
 
-        // 여긴 왜 dto 변환 하고 kk
         return PostDetailResponse.from(post);
     }
 

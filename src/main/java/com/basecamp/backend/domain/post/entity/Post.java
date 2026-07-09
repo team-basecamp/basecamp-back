@@ -5,95 +5,80 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-//import jakarta.persistence.Entity;
-//import jakarta.persistence.Table;
-//import jakarta.persistence.Column;
-//import jakarta.persistence.Id;
-//import jakarta.persistence.GeneratedValue;
-//import jakarta.persistence.GenerationType;
 
 import java.time.LocalDateTime;
 
-// 클래스명과 테이블명이 달라도 되나요?
-//네, 완전히 달라도 됩니다.
+// 게시글 엔티티. posts 테이블과 매핑되며, 게시판 글 한 건을 표현한다.
 @Entity
-
 @Getter
-// Entity를 생성할 때 기본 생성자(매개변수가 없는 생성자)가 반드시 필요
-// 외부에서 마음대로 new Post()를 호출하는 것은 막기 위해서입니다.
-@NoArgsConstructor(access = AccessLevel.PROTECTED) // 왜?
-
+// 기본 생성자는 JPA가 요구하지만 외부에서 new Post() 남용을 막기 위해 PROTECTED로 제한
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "posts")
-// 생성하는 시간 자바단이냐 디비단이냐? ?
 public class Post {
-// nullable 세팅해야하나?
+
+    // 게시글 PK (AUTO_INCREMENT)
     @Id
     @Column(name = "post_id")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long postId;
 
-    // posts.user_id (FK) → users. 목록/상세에서 매번 회원을 조인하지 않도록 LAZY.
-    // 작성자 닉네임 등 회원 정보가 필요할 때만 프록시가 초기화된다.
+    // 작성자 회원 (posts.user_id FK → users).
+    // 목록/상세에서 매번 회원을 조인하지 않도록 LAZY, 닉네임 등 회원 정보 접근 시에만 프록시 초기화.
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // 얘 디폴트 있으면 좋을 듯
+    // 게시판 카테고리 (GENERAL / CAMP_MATE / RESERVATION_TRANSFER)
     @Column(length = 30, nullable = false)
     private String category;
 
+    // 게시글 제목
     @Column(length = 200, nullable = false)
     private String title;
 
-    // 얘도 정체가 뭐냐  TEXT 맞냐
+    // 게시글 본문 (TEXT)
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
+    // 조회수 (생성 시 0으로 시작)
     @Column(name = "view_count", nullable = false)
     private Integer viewCount;
 
+    // 게시글 상태 (ACTIVE / BLINDED / DELETED)
     @Column(length = 20, nullable = false)
     private String status;
 
+    // 관리자 블라인드 처리 사유 (없으면 null)
     @Column(name = "blind_reason", length = 200)
     private String blindReason;
 
+    // 작성 일시
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    // 수정 일시 (수정 전에는 null)
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // 이건 머냐 왜 만들었냐
-    // userId, category 더 필요한가? -> 예시 자료에는 없네?
-    // post 말고 void로 create로 하는게 맞을 수도 변수명 물론 생성자니까 관습
-    // 적인거 뭐 있는디
+    // 게시글 생성자. 작성자·카테고리·제목·본문을 받고 나머지 초기값(조회수/상태/작성시각)은 여기서 채운다.
     public Post(User user, String category, String title, String content) {
         // 작성자: 인증된 사용자(JWT principal)로 조회한 회원 엔티티
         this.user = user;
         this.category = category;
         this.title = title;
         this.content = content;
-        // DB에 DEFAULT가 있어도 JPA가 NULL로 밀어넣으면 적용되지 않아 자바단에서 채운다.
+        // DB DEFAULT가 있어도 JPA가 NULL로 밀어넣으면 적용되지 않아 자바단에서 초기값을 채운다.
         this.viewCount = 0;
         this.status = "ACTIVE";
         this.createdAt = LocalDateTime.now();
     }
 
-    // 게시글 수정: 변경 감지(dirty checking)로 UPDATE 되도록 필드 값만 바꾼다.
-    // 얜 왜 반환값이 없고 Post는 생성자인디 왜 반환값이 있ㄴ느 함수 인것인가?
+    // 게시글 수정. 변경 감지(dirty checking)로 트랜잭션 커밋 시점에 UPDATE 되도록 필드 값만 바꾼다.
     public void update(String category, String title, String content) {
         this.category = category;
         this.title = title;
         this.content = content;
-        // 너 맞냐 now 있는거 ? 디비단 or 자바단?
         this.updatedAt = LocalDateTime.now();
-    }
-
-    // 작성자 id만 필요할 때 쓰는 편의 메서드.
-    // LAZY 프록시에서 getId()는 프록시 초기화(추가 쿼리) 없이 식별자를 돌려준다.
-    public Long getUserId() {
-        return user == null ? null : user.getId();
     }
 }
 
