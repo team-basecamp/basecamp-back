@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.auth.service;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +12,7 @@ import org.springframework.util.StringUtils;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.security.JwtTokenProvider;
+import com.basecamp.backend.common.security.TokenBlacklistCache;
 import com.basecamp.backend.domain.auth.client.OAuthUserInfo;
 import com.basecamp.backend.domain.auth.dto.response.LoginResponse;
 import com.basecamp.backend.domain.auth.dto.response.TokenRefreshResponse;
@@ -43,6 +45,7 @@ public class AuthTransactionService {
 	private final UserRepository userRepository;
 	private final ImageRepository imageRepository;
 	private final TokenBlacklistRepository tokenBlacklistRepository;
+	private final TokenBlacklistCache tokenBlacklistCache;
 	private final JwtTokenProvider jwtTokenProvider;
 	private final Clock clock;
 
@@ -94,9 +97,9 @@ public class AuthTransactionService {
 			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
 		}
 
-		LocalDateTime expiresAt = LocalDateTime.ofInstant(refreshExpiresAt, clock.getZone());
-		tokenBlacklistRepository.saveAndFlush(
-				TokenBlacklist.of(userId, jti, BlacklistReason.REFRESH_ROTATED, expiresAt));
+		// 재사용 탐지는 MySQL(위 existsByJti)이 담당한다. 캐시 미스로 폐기된 refresh 토큰이 되살아나면 안 되기 때문이다.
+		// 캐시 기록은 access 토큰 검증 경로와 키 공간을 공유하므로 여기서도 함께 남긴다.
+		blacklistToken(userId, new TokenInfo(jti, refreshExpiresAt), BlacklistReason.REFRESH_ROTATED);
 
 		String role = user.getRole().name();
 		String accessToken = jwtTokenProvider.createAccessToken(userId, role);
@@ -105,39 +108,50 @@ public class AuthTransactionService {
 	}
 
 	/**
-	 * 토큰을 블랙리스트에 올려 폐기한다. 이미 등록돼 있으면 아무것도 하지 않는다(로그아웃을 두 번 눌러도 결과는 같아야 한다).
+	 * 토큰들을 블랙리스트에 올려 폐기한다(로그아웃/탈퇴 시 access + refresh 를 함께 넘긴다).
+	 */
+	public void blacklistTokens(Long userId, List<TokenInfo> tokens, BlacklistReason reason) {
+		tokens.forEach(token -> blacklistToken(userId, token, reason));
+	}
+
+	/**
+	 * 토큰 하나를 블랙리스트에 올려 폐기한다. 이미 등록돼 있으면 아무것도 하지 않는다(로그아웃을 두 번 눌러도 결과는 같아야 한다).
+	 *
+	 * <p><b>이중 기록:</b> MySQL 은 영속 기록·감사용, Redis 는 인증 필터가 매 요청 조회하는 캐시다(#39 §5).
+	 * Redis 를 <b>먼저</b> 쓴다. DB 가 뒤이어 롤백되면 캐시에만 남는 유령 항목이 생기지만, 그건 "죽지 않아야 할 토큰이
+	 * 죽는" 방향이라 안전하다. 반대 순서였다면 커밋과 캐시 반영 사이에 폐기된 토큰이 통과하는 창이 열린다.</p>
 	 *
 	 * <p>동시 요청으로 {@code existsByJti} 검사를 둘 다 통과하면 {@code idx_bl_jti}(UNIQUE) 가 막고
 	 * {@link org.springframework.dao.DataIntegrityViolationException} 이 전파된다. 이때도 "폐기됨"이라는 목표 상태는
 	 * 이미 달성됐으므로 호출자가 무시하거나 재시도한다. (제약 위반 후 같은 트랜잭션을 계속 쓸 수 없어 여기서 삼키지 않는다.)</p>
 	 */
-	public void blacklistToken(Long userId, RefreshTokenInfo token, BlacklistReason reason) {
+	public void blacklistToken(Long userId, TokenInfo token, BlacklistReason reason) {
 		if (tokenBlacklistRepository.existsByJti(token.jti())) {
 			return;
 		}
+		tokenBlacklistCache.blacklist(token.jti(), token.expiresAt(), Instant.now(clock));
+
 		LocalDateTime expiresAt = LocalDateTime.ofInstant(token.expiresAt(), clock.getZone());
 		tokenBlacklistRepository.saveAndFlush(TokenBlacklist.of(userId, token.jti(), reason, expiresAt));
 	}
 
 	/**
-	 * 회원을 탈퇴 처리(soft delete)하고, 함께 넘어온 refresh 토큰을 폐기한다.
+	 * 회원을 탈퇴 처리(soft delete)하고, 함께 넘어온 토큰들을 폐기한다.
 	 *
 	 * <p>탈퇴와 토큰 폐기는 한 트랜잭션이어야 한다. 탈퇴만 되고 토큰이 살아 있으면 재발급이 계속 가능해진다.</p>
 	 *
-	 * @param refreshToken 쿠키에 유효한 refresh 토큰이 없으면 {@code null}
+	 * @param tokens 폐기할 access/refresh 토큰. 유효한 토큰이 없으면 빈 리스트
 	 */
-	public void withdrawUser(Long userId, String reason, RefreshTokenInfo refreshToken) {
+	public void withdrawUser(Long userId, String reason, List<TokenInfo> tokens) {
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-		// access 토큰은 무상태라 탈퇴 후에도 만료 전까지 유효하다. 그 토큰으로 다시 탈퇴를 요청할 수 있으므로 여기서 막는다.
+		// 폐기 전에 이미 탈퇴한 회원이라면 중복 요청이다(access 토큰이 아직 살아 있을 수 있다).
 		if (user.isWithdrawn()) {
 			throw new BusinessException(ErrorCode.USER_NOT_FOUND);
 		}
 
 		user.withdraw(reason, clock);
-		if (refreshToken != null) {
-			blacklistToken(userId, refreshToken, BlacklistReason.WITHDRAWAL);
-		}
+		blacklistTokens(userId, tokens, BlacklistReason.WITHDRAWAL);
 	}
 
 	private User register(OAuthUserInfo userInfo) {

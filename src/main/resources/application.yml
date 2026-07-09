@@ -26,6 +26,15 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+  data:
+    redis:
+      # 토큰 블랙리스트 조회 캐시. Lettuce 는 지연 연결이라 Redis 가 없어도 애플리케이션은 기동된다.
+      # 조회 실패 시 필터는 fail-open(경고 로그 후 통과)하므로 로컬 개발에는 Redis 가 없어도 된다.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 1s
+      connect-timeout: 1s
+
   security:
     oauth2:
       client:
