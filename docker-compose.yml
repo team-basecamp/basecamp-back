@@ -1,0 +1,22 @@
+# BaseCamp 로컬 개발용 인프라.
+#
+#   docker compose up -d     # 띄우기
+#   docker compose ps        # 상태 확인
+#   docker compose down      # 내리기
+#
+# 자세한 설명은 docs/docker-setting.md 참고.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: basecamp-redis
+    ports:
+      # application.yml 의 기본값(localhost:6379)과 맞춘다. 이 포트만 열면 별도 환경변수가 필요 없다.
+      - "6379:6379"
+    # Docker Desktop 을 켤 때마다 알아서 올라온다(직접 멈춘 경우는 제외).
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3

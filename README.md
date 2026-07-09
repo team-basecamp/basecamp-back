@@ -43,11 +43,15 @@ CREATE DATABASE basecamp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 로그아웃·탈퇴한 access token을 만료 전에 거부하려면 Redis가 필요합니다. 인증 필터가 매 요청마다 조회하는 캐시라, 영속 기록(MySQL `token_blacklist`)을 직접 조회하지 않기 위한 것입니다.
 
+프로젝트 루트에서:
+
 ```bash
-docker run -d --name basecamp-redis -p 6379:6379 redis:7-alpine
+docker compose up -d
 ```
 
-> Redis가 없거나 조회에 실패하면 필터는 **fail-open**(경고 로그 후 통과)합니다. Redis를 단일 장애점으로 만들지 않기 위한 선택이며, 이때 동작은 "access token은 만료(기본 30분)까지 유효"로 퇴화합니다. Refresh token 재발급 경로는 캐시가 아니라 MySQL을 조회하므로 Redis 상태와 무관하게 항상 정확합니다.
+> Redis가 없거나 조회에 실패하면 필터는 **fail-open**(경고 로그 후 통과)합니다. Redis를 단일 장애점으로 만들지 않기 위한 선택이며, 이때 동작은 "access token은 만료(기본 30분)까지 유효"로 퇴화합니다. Refresh token 재발급 경로는 Redis를 쓰지도 읽지도 않으므로(재사용 탐지는 MySQL 담당) Redis 상태와 무관합니다.
+>
+> Docker가 처음이라면 [docs/docker-setting.md](docs/docker-setting.md)를 참고하세요.
 
 ### 4. 환경변수 설정
 
