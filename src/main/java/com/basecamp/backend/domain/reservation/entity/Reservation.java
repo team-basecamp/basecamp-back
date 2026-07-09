@@ -88,10 +88,18 @@ public class Reservation {
     }
 
     public void approve() {
+        if (this.status != ReservationStatus.PENDING) {
+            throw new BusinessException(ErrorCode.RESERVATION_NOT_PENDING);
+        }
+
         this.status = ReservationStatus.RESERVED;
     }
 
     public void reject(String reason) {
+        if (this.status != ReservationStatus.PENDING) {
+            throw new BusinessException(ErrorCode.RESERVATION_NOT_PENDING);
+        }
+
         this.status = ReservationStatus.REJECTED;
         this.rejectReason = reason;
     }

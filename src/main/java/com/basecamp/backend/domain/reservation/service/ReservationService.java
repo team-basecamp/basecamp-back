@@ -4,6 +4,7 @@ import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
+import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
@@ -57,6 +58,28 @@ public class ReservationService {
         cancelled.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
 
         return ReservationResponse.from(cancelled);
+    }
+
+    // 업체가 대기중인 예약을 수락
+    @Transactional
+    public ReservationResponse approveReservation(Long reservationId){
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        reservation.approve(); // 예약상태변경(RESERVED)
+
+        return ReservationResponse.from(reservation);
+    }
+
+    // 업체가 대기중인 예약을 거절(사유 필수)
+    @Transactional
+    public ReservationResponse rejectReservation(Long reservationId, ReservationRejectRequest request){
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        reservation.reject(request.reason()); // 예약상태변경(REJECTED, reject_reason값 할당)
+
+        return ReservationResponse.from(reservation);
     }
 
     // 해당 유저 아이디의 예약목록 보여주기
