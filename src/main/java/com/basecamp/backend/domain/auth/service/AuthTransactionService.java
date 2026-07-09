@@ -54,7 +54,8 @@ public class AuthTransactionService {
 	 * 재시도 여부는 호출자({@link AuthService})가 결정한다.</p>
 	 */
 	public LoginResult upsertUserAndIssueToken(OAuthUserInfo userInfo) {
-		User user = userRepository.findByEmail(userInfo.email())
+		// 탈퇴 회원은 조회되지 않으므로 register 경로를 타 새 user_id 로 재가입한다(옛 행은 그대로 보존).
+		User user = userRepository.findByEmailAndDeletedAtIsNull(userInfo.email())
 				.map(existing -> updateExisting(existing, userInfo))
 				.orElseGet(() -> register(userInfo));
 

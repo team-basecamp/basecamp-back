@@ -71,8 +71,9 @@ public class AuthService {
 		try {
 			return authTransactionService.upsertUserAndIssueToken(userInfo);
 		} catch (DataIntegrityViolationException e) {
-			// 동시 최초 가입 경합: 다른 요청이 먼저 같은 email 로 INSERT 를 커밋한 경우 UNIQUE 제약 위반이 난다.
-			// 승자 row 는 이미 커밋됐으므로, 한 번 재시도하면 findByEmail 이 이를 찾아 update 경로로 정상 처리된다.
+			// 동시 최초 가입 경합: 다른 요청이 먼저 같은 email 로 INSERT 를 커밋하면
+			// 활성 회원 유니크 제약(uq_users_email_active)을 위반한다.
+			// 승자 row 는 이미 커밋됐으므로, 한 번 재시도하면 조회가 이를 찾아 update 경로로 정상 처리된다.
 			return authTransactionService.upsertUserAndIssueToken(userInfo);
 		}
 	}
