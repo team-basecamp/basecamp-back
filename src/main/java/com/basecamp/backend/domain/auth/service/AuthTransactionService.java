@@ -4,6 +4,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.security.JwtTokenProvider;
 import com.basecamp.backend.domain.auth.client.OAuthUserInfo;
 import com.basecamp.backend.domain.auth.dto.response.LoginResponse;
@@ -60,6 +62,12 @@ public class AuthTransactionService {
 	}
 
 	private User updateExisting(User user, OAuthUserInfo userInfo) {
+		// email 이 유일 식별키다. 같은 이메일이라도 최초 가입과 다른 provider 로 로그인하면
+		// 기존 계정을 덮어쓰지 않고 차단한다(다른 소셜로 가입 시도 → 409).
+		if (user.getProvider() != userInfo.provider()) {
+			throw new BusinessException(ErrorCode.EMAIL_ALREADY_REGISTERED);
+		}
+
 		// 재로그인 시 소셜 프로필(닉네임 + 이미지)을 동기화한다.
 		Image current = user.getProfileImage();
 		Image profileImage = syncImage(current, userInfo.profileImageUrl());
