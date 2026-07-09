@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import org.springframework.web.bind.annotation.*;
 
@@ -25,14 +26,17 @@ public class PostController {
     private final PostService postService;
 
 
-    // valid 안써도 되ㅑㅑ냐ㅑ?
+    // valid 안써도 되ㅑㅑ냐ㅑ? -> 했는지 찜찜
 
-    // 카테고리에 General 외 3개 내에서만 선택할 수 있게
-    // 아니 id 반환하면 안될거 같은디
+    // 카테고리에 General 외 3개 내에서만 선택할 수 있게 -> 해결
+    // 아니 id 반환하면 안될거 같은디 -> 해결
     // 게시글 작성
     @PostMapping("/api/v1/posts")
-    public ResponseEntity<PostCreateResponse> createPost(@RequestBody @Valid PostCreateRequest request) {
-        PostCreateResponse response = postService.createPost(request.category(), request.title(), request.content());
+    public ResponseEntity<PostCreateResponse> createPost(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody @Valid PostCreateRequest request) {
+        // request.category() 이렇게 들고 오는거 약간 찜찜한디
+        PostCreateResponse response = postService.createPost(userId, request.category(), request.title(), request.content());
         // ok는 200이고 created는 201이라 표준임, craeted만 저거도 나머지는 다 ok써도 됨( 단 예외처리해줘야함 ).
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

@@ -62,10 +62,18 @@ public class Post {
 
     // 이건 머냐 왜 만들었냐
     // userId, category 더 필요한가? -> 예시 자료에는 없네?
-    public Post(String category, String title, String content) {
+    // post 말고 void로 create로 하는게 맞을 수도 변수명 물론 생성자니까 관습
+    // 적인거 뭐 있는디
+    public Post(Long userId, String category, String title, String content) {
+        // 작성자: 인증된 사용자(JWT principal)에서 넘어온 로그인 회원 id
+        this.userId = userId;
         this.category = category;
         this.title = title;
         this.content = content;
+        // DB에 DEFAULT가 있어도 JPA가 NULL로 밀어넣으면 적용되지 않아 자바단에서 채운다.
+        this.viewCount = 0;
+        this.status = "ACTIVE";
+        this.createdAt = LocalDateTime.now();
     }
 
     // 게시글 수정: 변경 감지(dirty checking)로 UPDATE 되도록 필드 값만 바꾼다.

@@ -11,7 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-// 여기는 뭐냐 정체가 둘이
+// 여기는 뭐냐 정체가 머냐
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 // 생성자 추가해야함
@@ -25,8 +25,12 @@ public class PostService {
     // 트랜잭션 확인, 추가로 널값 테스트 등 추가 할 게 없나?
     // 게시글에 뭐 추가로 이미지 정도 추가할각 생각해볼까?
     @Transactional // 이걸 붙이면 읽기 전용이 아님
-    public PostCreateResponse createPost(String category,String title, String content){
-        Post post = new Post(category, title, content);
+    public PostCreateResponse createPost(Long userId, String category, String title, String content){
+        // 테스트용 아래한줄
+//        Post post = new Post(1L, category, title, content);
+
+        // 비회원 개발자일 때 화면이동 -> 이거는 데이터가 없으니까 굳이 예외처리가 필요 없나? -> ㅇㅇ 없음.
+        Post post = new Post(userId, category, title, content);
         // 저장한 뒤 방금 쓴 게시글을 그대로 볼 수 있게 응답 DTO로 변환해 반환
         Post saved = postRepository.save(post);
         return PostCreateResponse.from(saved);
@@ -40,7 +44,7 @@ public class PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
 
         // 변경 감지로 UPDATE (트랜잭션 커밋 시점에 반영)
-        // 변경 감지????
+        // 변경 감지???? ㅖㅖㅖㅖㅖㅖ?
         post.update(request.category(), request.title(), request.content());
 
         // 여긴 왜 dto 변환 하고 kk

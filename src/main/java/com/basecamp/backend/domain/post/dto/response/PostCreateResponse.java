@@ -19,7 +19,7 @@ public record PostCreateResponse(
 ) {
 
     // 엔티티 → DTO 변환 정적 팩토리
-    // ? 얜 언제 쓰는거쟈너ㅑㅑ
+    // ? 얜 언제 쓰는거냐ㅑㅑㅑ
     public static PostCreateResponse from(Post post) {
         return new PostCreateResponse(
                 post.getPostId(),
