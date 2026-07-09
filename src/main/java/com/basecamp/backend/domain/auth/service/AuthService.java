@@ -1,5 +1,7 @@
 package com.basecamp.backend.domain.auth.service;
 
+import java.util.Optional;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -10,6 +12,7 @@ import com.basecamp.backend.common.security.JwtTokenProvider;
 import com.basecamp.backend.common.security.OAuthStateProvider;
 import com.basecamp.backend.domain.auth.client.OAuthUserInfo;
 import com.basecamp.backend.domain.auth.client.SocialClientResolver;
+import com.basecamp.backend.domain.auth.entity.BlacklistReason;
 import com.basecamp.backend.domain.user.entity.Provider;
 
 import io.jsonwebtoken.Claims;
@@ -114,6 +117,73 @@ public class AuthService {
 			// 정상 사용자의 중복 요청일 수도 있으나, 토큰 재사용과 구분할 수 없으므로 보수적으로 거부한다.
 			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
 		}
+	}
+
+	/**
+	 * 로그아웃. refresh 토큰을 폐기해 재발급 경로를 끊는다. 쿠키 삭제는 컨트롤러가 담당한다.
+	 *
+	 * <p>쿠키가 없거나 이미 만료·위조된 토큰이면 폐기할 것이 없으므로 조용히 성공시킨다(멱등).</p>
+	 *
+	 * <p><b>한계:</b> access 토큰은 무상태라 만료(기본 30분) 전까지 계속 유효하다. 즉시 무효화하려면
+	 * {@code JwtAuthenticationFilter} 가 매 요청 블랙리스트를 조회해야 하고, 그 조회 빈도를 감당하려면
+	 * Redis 캐시가 필요하다(#39 §5). 지금은 "재발급 경로에서만 조회"하는 축소 운영 옵션을 택했다.</p>
+	 */
+	public void logout(Long userId, String refreshToken) {
+		Optional<RefreshTokenInfo> token = parseRefreshToken(userId, refreshToken);
+		if (token.isEmpty()) {
+			return;
+		}
+		try {
+			authTransactionService.blacklistToken(userId, token.get(), BlacklistReason.LOGOUT);
+		} catch (DataIntegrityViolationException e) {
+			// 동시 로그아웃으로 다른 요청이 먼저 등록했다. 목표 상태(폐기됨)는 이미 달성됐다.
+		}
+	}
+
+	/**
+	 * 회원 탈퇴(soft delete) + refresh 토큰 폐기. 쿠키 삭제는 컨트롤러가 담당한다.
+	 */
+	public void withdraw(Long userId, String reason, String refreshToken) {
+		RefreshTokenInfo token = parseRefreshToken(userId, refreshToken).orElse(null);
+		try {
+			authTransactionService.withdrawUser(userId, reason, token);
+		} catch (DataIntegrityViolationException e) {
+			// 토큰 폐기가 UNIQUE(jti) 를 위반해 탈퇴까지 함께 롤백된 경우.
+			// 재시도하면 이미 등록된 jti 를 건너뛰고 탈퇴만 처리된다.
+			authTransactionService.withdrawUser(userId, reason, token);
+		}
+	}
+
+	/**
+	 * 쿠키에서 온 refresh 토큰에서 폐기에 필요한 정보만 뽑는다. 폐기할 수 없는 토큰이면 {@link Optional#empty()}.
+	 *
+	 * <p>로그아웃/탈퇴는 멱등해야 하므로 예외를 던지지 않는다. 만료·위조 토큰은 이미 무력하고,
+	 * jti 없는 토큰(#39 이전 발급)은 폐기 대상을 특정할 수 없어 그냥 무시한다.</p>
+	 */
+	private Optional<RefreshTokenInfo> parseRefreshToken(Long userId, String refreshToken) {
+		if (!StringUtils.hasText(refreshToken)) {
+			return Optional.empty();
+		}
+
+		Claims claims;
+		try {
+			claims = jwtTokenProvider.parseClaims(refreshToken);
+		} catch (JwtException | IllegalArgumentException e) {
+			// ExpiredJwtException 포함. 만료된 토큰은 서명 검증 단계에서 이미 거부되므로 폐기할 필요가 없다.
+			return Optional.empty();
+		}
+
+		if (!JwtTokenProvider.TOKEN_TYPE_REFRESH.equals(jwtTokenProvider.getType(claims))
+				|| !userId.equals(jwtTokenProvider.getUserId(claims))) {
+			// 남의 쿠키를 실어보내 타인의 토큰을 폐기시키는 것을 막는다(access 토큰이 신원의 기준).
+			return Optional.empty();
+		}
+
+		String jti = jwtTokenProvider.getJti(claims);
+		if (!StringUtils.hasText(jti)) {
+			return Optional.empty();
+		}
+		return Optional.of(new RefreshTokenInfo(jti, jwtTokenProvider.getExpiresAt(claims)));
 	}
 
 }

@@ -157,6 +157,81 @@ class AuthTransactionServiceTest {
 				ErrorCode.ACCESS_DENIED);
 	}
 
+	@Test
+	@DisplayName("blacklistToken_이미등록된jti_중복저장하지않는다")
+	void blacklistToken_이미등록된jti_중복저장하지않는다() {
+		// given: 로그아웃을 두 번 눌러도 결과가 같아야 한다(멱등).
+		given(tokenBlacklistRepository.existsByJti(JTI)).willReturn(true);
+
+		// when
+		authTransactionService.blacklistToken(
+				USER_ID, new RefreshTokenInfo(JTI, NOW.plusSeconds(3600)), BlacklistReason.LOGOUT);
+
+		// then
+		verify(tokenBlacklistRepository, never()).saveAndFlush(any());
+	}
+
+	@Test
+	@DisplayName("withdrawUser_정상_탈퇴처리하고_refresh토큰을_WITHDRAWAL사유로_폐기한다")
+	void withdrawUser_정상_탈퇴처리하고_refresh토큰을_WITHDRAWAL사유로_폐기한다() {
+		// given
+		User user = activeUser();
+		given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+		given(tokenBlacklistRepository.existsByJti(JTI)).willReturn(false);
+
+		// when
+		authTransactionService.withdrawUser(USER_ID, "사유", new RefreshTokenInfo(JTI, NOW.plusSeconds(3600)));
+
+		// then
+		assertThat(user.isWithdrawn()).isTrue();
+		assertThat(user.getWithdrawalReason()).isEqualTo("사유");
+
+		ArgumentCaptor<TokenBlacklist> captor = ArgumentCaptor.forClass(TokenBlacklist.class);
+		verify(tokenBlacklistRepository).saveAndFlush(captor.capture());
+		assertThat(captor.getValue().getReason()).isEqualTo(BlacklistReason.WITHDRAWAL);
+	}
+
+	@Test
+	@DisplayName("withdrawUser_refresh토큰없음_탈퇴만처리한다")
+	void withdrawUser_refresh토큰없음_탈퇴만처리한다() {
+		// given
+		User user = activeUser();
+		given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+
+		// when
+		authTransactionService.withdrawUser(USER_ID, null, null);
+
+		// then
+		assertThat(user.isWithdrawn()).isTrue();
+		verify(tokenBlacklistRepository, never()).saveAndFlush(any());
+	}
+
+	@Test
+	@DisplayName("withdrawUser_이미탈퇴한회원_U002를던진다")
+	void withdrawUser_이미탈퇴한회원_U002를던진다() {
+		// given: access 토큰은 탈퇴 후에도 만료 전까지 유효하므로 중복 탈퇴 요청이 가능하다.
+		User withdrawn = activeUser();
+		withdrawn.withdraw("사유", Clock.fixed(NOW, ZONE));
+		given(userRepository.findById(USER_ID)).willReturn(Optional.of(withdrawn));
+
+		// when & then
+		assertBusinessException(
+				() -> authTransactionService.withdrawUser(USER_ID, "사유", null),
+				ErrorCode.USER_NOT_FOUND);
+	}
+
+	@Test
+	@DisplayName("withdrawUser_존재하지않는회원_U002를던진다")
+	void withdrawUser_존재하지않는회원_U002를던진다() {
+		// given
+		given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
+
+		// when & then
+		assertBusinessException(
+				() -> authTransactionService.withdrawUser(USER_ID, "사유", null),
+				ErrorCode.USER_NOT_FOUND);
+	}
+
 	private void assertBusinessException(Runnable action, ErrorCode expected) {
 		assertThatThrownBy(action::run)
 				.isInstanceOf(BusinessException.class)
