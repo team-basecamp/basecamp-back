@@ -21,7 +21,6 @@ import com.basecamp.backend.domain.auth.entity.TokenBlacklist;
 import com.basecamp.backend.domain.auth.repository.TokenBlacklistRepository;
 import com.basecamp.backend.domain.user.entity.Image;
 import com.basecamp.backend.domain.user.entity.User;
-import com.basecamp.backend.domain.user.entity.UserStatus;
 import com.basecamp.backend.domain.user.repository.ImageRepository;
 import com.basecamp.backend.domain.user.repository.UserRepository;
 
@@ -90,8 +89,8 @@ public class AuthTransactionService {
 		if (user.isWithdrawn()) {
 			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
 		}
-		if (user.getStatus() == UserStatus.BLACKLISTED) {
-			throw new BusinessException(ErrorCode.ACCESS_DENIED);
+		if (user.isBlacklisted()) {
+			throw new BusinessException(ErrorCode.BLACKLISTED_USER);
 		}
 		if (tokenBlacklistRepository.existsByJti(jti)) {
 			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
@@ -161,6 +160,11 @@ public class AuthTransactionService {
 	}
 
 	private User updateExisting(User user, OAuthUserInfo userInfo) {
+		// 제재된 회원은 소셜 로그인으로 새 토큰을 받을 수 없다. 이걸 막지 않으면 재발급을 차단해도 제재가 무력화된다(#18).
+		if (user.isBlacklisted()) {
+			throw new BusinessException(ErrorCode.BLACKLISTED_USER);
+		}
+
 		// email 이 유일 식별키다. 같은 이메일이라도 최초 가입과 다른 provider 로 로그인하면
 		// 기존 계정을 덮어쓰지 않고 차단한다(다른 소셜로 가입 시도 → 409).
 		if (user.getProvider() != userInfo.provider()) {

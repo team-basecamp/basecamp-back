@@ -44,6 +44,7 @@ public class SecurityConfig {
 
 	private final JwtTokenProvider jwtTokenProvider;
 	private final TokenBlacklistCache tokenBlacklistCache;
+	private final UserRevocationCache userRevocationCache;
 	private final CorsProperties corsProperties;
 	private final ObjectMapper objectMapper;
 
@@ -68,7 +69,8 @@ public class SecurityConfig {
 				.exceptionHandling(handler -> handler
 						.authenticationEntryPoint(new JwtAuthenticationEntryPoint(objectMapper))
 						.accessDeniedHandler(new JwtAccessDeniedHandler(objectMapper)))
-				.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistCache),
+				.addFilterBefore(
+						new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistCache, userRevocationCache),
 						UsernamePasswordAuthenticationFilter.class);
 
 		return http.build();

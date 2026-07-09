@@ -30,6 +30,9 @@ class JwtAuthenticationFilterTest {
 	@Mock
 	private TokenBlacklistCache tokenBlacklistCache;
 
+	@Mock
+	private UserRevocationCache userRevocationCache;
+
 	private JwtTokenProvider jwtTokenProvider;
 	private JwtAuthenticationFilter filter;
 	private MockHttpServletRequest request;
@@ -39,7 +42,7 @@ class JwtAuthenticationFilterTest {
 	@BeforeEach
 	void setUp() {
 		jwtTokenProvider = new JwtTokenProvider(new JwtProperties(SECRET, 1_800_000L, 1_209_600_000L));
-		filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistCache);
+		filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistCache, userRevocationCache);
 		request = new MockHttpServletRequest();
 		response = new MockHttpServletResponse();
 		chain = new MockFilterChain();
@@ -100,6 +103,22 @@ class JwtAuthenticationFilterTest {
 
 		// then: Redis 가 죽었다고 전체 인증이 막히면 안 된다.
 		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("doFilter_제재된회원_인증하지않고_BLACKLISTED_USER를남긴다")
+	void doFilter_제재된회원_인증하지않고_BLACKLISTED_USER를남긴다() throws Exception {
+		// given: 토큰 자체는 폐기되지 않았지만(jti 블랙리스트에 없음) 회원이 관리자에게 제재됐다.
+		withBearer(jwtTokenProvider.createAccessToken(USER_ID, ROLE));
+		given(tokenBlacklistCache.isBlacklisted(org.mockito.ArgumentMatchers.anyString())).willReturn(false);
+		given(userRevocationCache.isRevoked(USER_ID)).willReturn(true);
+
+		// when
+		filter.doFilter(request, response, chain);
+
+		// then: SecurityResponseWriter 가 ErrorCode 의 상태를 그대로 쓰므로 401 이 아니라 403 이 나간다.
+		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+		assertThat(errorCode()).isEqualTo(ErrorCode.BLACKLISTED_USER);
 	}
 
 	@Test

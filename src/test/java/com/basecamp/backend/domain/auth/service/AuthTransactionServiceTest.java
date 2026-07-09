@@ -93,6 +93,12 @@ class AuthTransactionServiceTest {
 		return user;
 	}
 
+	private User blacklistedUser() {
+		User user = activeUser();
+		user.blacklist("어뷰징", Clock.fixed(NOW, ZONE));
+		return user;
+	}
+
 	private OAuthUserInfo kakaoUserInfo() {
 		return new OAuthUserInfo(Provider.KAKAO, EMAIL, "camper", null);
 	}
@@ -215,17 +221,27 @@ class AuthTransactionServiceTest {
 	}
 
 	@Test
-	@DisplayName("rotateRefreshToken_제재된회원_A004를던진다")
-	void rotateRefreshToken_제재된회원_A004를던진다() {
+	@DisplayName("rotateRefreshToken_제재된회원_A007를던진다")
+	void rotateRefreshToken_제재된회원_A007를던진다() {
 		// given
-		User blacklisted = activeUser();
-		blacklisted.blacklist();
-		given(userRepository.findById(USER_ID)).willReturn(Optional.of(blacklisted));
+		given(userRepository.findById(USER_ID)).willReturn(Optional.of(blacklistedUser()));
 
 		// when & then
 		assertBusinessException(
 				() -> authTransactionService.rotateRefreshToken(USER_ID, JTI, NOW.plusSeconds(3600)),
-				ErrorCode.ACCESS_DENIED);
+				ErrorCode.BLACKLISTED_USER);
+	}
+
+	@Test
+	@DisplayName("upsert_제재된회원의_소셜재로그인_A007를던진다")
+	void upsert_제재된회원의_소셜재로그인_A007를던진다() {
+		// given: 재발급만 막고 재로그인을 열어두면 제재가 무력화된다(#18).
+		given(userRepository.findByEmailAndDeletedAtIsNull(EMAIL)).willReturn(Optional.of(blacklistedUser()));
+
+		// when & then
+		assertBusinessException(
+				() -> authTransactionService.upsertUserAndIssueToken(kakaoUserInfo()),
+				ErrorCode.BLACKLISTED_USER);
 	}
 
 	@Test
