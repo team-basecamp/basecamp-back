@@ -1,5 +1,6 @@
 package com.basecamp.backend.domain.post.entity;
 
+import com.basecamp.backend.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -31,8 +32,11 @@ public class Post {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long postId;
 
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
+    // posts.user_id (FK) → users. 목록/상세에서 매번 회원을 조인하지 않도록 LAZY.
+    // 작성자 닉네임 등 회원 정보가 필요할 때만 프록시가 초기화된다.
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     // 얘 디폴트 있으면 좋을 듯
     @Column(length = 30, nullable = false)
@@ -64,9 +68,9 @@ public class Post {
     // userId, category 더 필요한가? -> 예시 자료에는 없네?
     // post 말고 void로 create로 하는게 맞을 수도 변수명 물론 생성자니까 관습
     // 적인거 뭐 있는디
-    public Post(Long userId, String category, String title, String content) {
-        // 작성자: 인증된 사용자(JWT principal)에서 넘어온 로그인 회원 id
-        this.userId = userId;
+    public Post(User user, String category, String title, String content) {
+        // 작성자: 인증된 사용자(JWT principal)로 조회한 회원 엔티티
+        this.user = user;
         this.category = category;
         this.title = title;
         this.content = content;
@@ -84,6 +88,12 @@ public class Post {
         this.content = content;
         // 너 맞냐 now 있는거 ? 디비단 or 자바단?
         this.updatedAt = LocalDateTime.now();
+    }
+
+    // 작성자 id만 필요할 때 쓰는 편의 메서드.
+    // LAZY 프록시에서 getId()는 프록시 초기화(추가 쿼리) 없이 식별자를 돌려준다.
+    public Long getUserId() {
+        return user == null ? null : user.getId();
     }
 }
 

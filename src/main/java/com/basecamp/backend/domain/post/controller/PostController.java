@@ -2,7 +2,7 @@ package com.basecamp.backend.domain.post.controller;
 
 import com.basecamp.backend.domain.post.dto.request.PostCreateRequest;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
-import com.basecamp.backend.domain.post.dto.response.PostCreateResponse;
+import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
 import com.basecamp.backend.domain.post.dto.response.PostUpdateResponse;
 import com.basecamp.backend.domain.post.service.PostService;
 
@@ -32,11 +32,11 @@ public class PostController {
     // 아니 id 반환하면 안될거 같은디 -> 해결
     // 게시글 작성
     @PostMapping("/api/v1/posts")
-    public ResponseEntity<PostCreateResponse> createPost(
+    public ResponseEntity<PostDetailResponse> createPost(
             @AuthenticationPrincipal Long userId,
             @RequestBody @Valid PostCreateRequest request) {
         // request.category() 이렇게 들고 오는거 약간 찜찜한디
-        PostCreateResponse response = postService.createPost(userId, request.category(), request.title(), request.content());
+        PostDetailResponse response = postService.createPost(userId, request.category(), request.title(), request.content());
         // ok는 200이고 created는 201이라 표준임, craeted만 저거도 나머지는 다 ok써도 됨( 단 예외처리해줘야함 ).
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -44,7 +44,7 @@ public class PostController {
     // 게시판 수정
     // PostResponse create update 따로 만드니? -> ㅇㅇㅇ
     @PostMapping("/api/v1/posts/{postId}/update")
-    public ResponseEntity<PostUpdateResponse> updatePost(
+    public ResponseEntity<PostDetailResponse> updatePost(
             @PathVariable("postId") Long id,
             @RequestBody @Valid PostUpdateRequest request) {
         return ResponseEntity.ok(postService.update(id, request));
