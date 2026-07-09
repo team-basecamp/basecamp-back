@@ -11,6 +11,7 @@ import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.camp.repository.CampSpecs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j // 실제 로깅 도구를 감싸는 창구/인터페이스, 이 클래스에서 로그 찍을 수 있는 로그는 변수를 자동으로 만들어 주는 애너테이션
 @Service
 @RequiredArgsConstructor
 public class CampService {
@@ -154,8 +156,8 @@ public class CampService {
             System.out.println(" 총 " + totalSaved + "개의 캠핑장이 저장되었습니다");
 
         } catch (Exception e) {
-            System.out.println(" 고캠핑 API 호출 실패: " + e.getMessage());
-            throw new RuntimeException("고캠핑 API 호출 실패", e);
+            log.error("고캠핑 API 호출 실패: {}", e.getMessage(), e);
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR,"고캠핑 API 호출 실패: " + e.getMessage());
         }
     }
 
@@ -312,9 +314,9 @@ public class CampService {
                 .build();
 
         // DB에  camping 장 저장
-        Camp savedCamp = campRepository.save(camp);
-
-        return savedCamp;
+        //Camp savedCamp = campRepository.save(camp);
+        //return savedCamp; code 한줄로 간결해지고 , 가독성 향상을 위해 소나 큐브는 값을 받아서 돌려주는 것이어서 변수를 만들 필요가 없다고 함.
+        return campRepository.save(camp);
 
     }
 
