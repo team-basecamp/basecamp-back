@@ -6,6 +6,7 @@ import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
 import com.basecamp.backend.domain.post.dto.response.PostUpdateResponse;
 import com.basecamp.backend.domain.post.service.PostService;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -31,6 +32,7 @@ public class PostController {
     // 카테고리에 General 외 3개 내에서만 선택할 수 있게 -> 해결
     // 아니 id 반환하면 안될거 같은디 -> 해결
     // 게시글 작성
+    @Operation(summary = "게시글 작성", description = "인증된 사용자가 새 게시글을 작성한다.")
     @PostMapping("/api/v1/posts")
     public ResponseEntity<PostDetailResponse> createPost(
             @AuthenticationPrincipal Long userId,

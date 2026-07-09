@@ -9,16 +9,19 @@ import lombok.Builder;
 
 @Builder
 public record PostCreateRequest(
-        @NotBlank
-        @Size(max = 30)
+        @NotBlank(message = "카테고리는 필수입니다.")
+        @Size(max = 30, message = "카테고리는 최대 30자까지 입력 가능합니다.")
         // GENERAL / CAMP_MATE / RESERVATION_TRANSFER 셋 중 하나만 허용
-        @Pattern(regexp = "GENERAL|CAMP_MATE|RESERVATION_TRANSFER")
+        @Pattern(
+                regexp = "GENERAL|CAMP_MATE|RESERVATION_TRANSFER",
+                message = "카테고리는 GENERAL, CAMP_MATE, RESERVATION_TRANSFER 중 하나여야 합니다."
+        )
         String category,
 
-        @NotBlank
-        @Size(max = 200)
+        @NotBlank(message = "제목은 필수입니다.")
+        @Size(max = 200, message = "제목은 최대 200자까지 입력 가능합니다.")
         String title,
 
-        @NotBlank
+        @NotBlank(message = "내용은 필수입니다.")
         String content) {
 }

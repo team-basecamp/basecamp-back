@@ -49,16 +49,16 @@ public class Post {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
-    @Column(name = "view_count")
+    @Column(name = "view_count", nullable = false)
     private Integer viewCount;
 
-    @Column(length = 20)
+    @Column(length = 20, nullable = false)
     private String status;
 
     @Column(name = "blind_reason", length = 200)
     private String blindReason;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
