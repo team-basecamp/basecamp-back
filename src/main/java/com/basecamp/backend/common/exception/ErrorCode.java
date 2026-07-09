@@ -40,6 +40,10 @@ public enum ErrorCode {
 
 	// Camp
 	CAMP_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "캠핑장을 찾을 수 없습니다."),
+
+	// Post
+	POST_NOT_FOUND(HttpStatus.NOT_FOUND, "P001", "게시글을 찾을 수 없습니다."),
+	POST_BLINDED(HttpStatus.FORBIDDEN, "P002", "관리자에 의해 블라인드 처리된 게시글입니다."),
 	;
 
 	private final HttpStatus status;

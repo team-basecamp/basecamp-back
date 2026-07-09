@@ -18,10 +18,36 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class PostService {
 
+    // 게시글 상태값 (posts.status: ACTIVE / BLINDED / DELETED)
+    private static final String STATUS_BLINDED = "BLINDED";
+    private static final String STATUS_DELETED = "DELETED";
+
     // 게시글 저장/조회 리포지토리
     private final PostRepository postRepository;
     // 작성자 회원 조회 리포지토리
     private final UserRepository userRepository;
+
+    // 게시글 상세 조회: 단건을 조회해 상세 응답으로 반환한다. (클래스 기본 readOnly 트랜잭션)
+    //
+    // 노출 정책 — posts.status에 따라 갈린다.
+    //   ACTIVE  : 정상 반환
+    //   DELETED : 소프트 삭제된 글. 없는 글과 구분되면 "삭제된 글이 여기 있었다"는 사실이 새므로 404로 통일.
+    //   BLINDED : 관리자가 가린 글. 삭제와 달리 존재 자체는 감출 필요가 없어 사유를 알 수 있는 403으로 구분.
+    public PostDetailResponse getDetail(Long postId) {
+        // 응답에 nickname이 필요하므로 작성자까지 fetch join으로 함께 로딩한다.
+        Post post = postRepository.findWithUserByPostId(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+        if (STATUS_DELETED.equals(post.getStatus())) {
+            throw new BusinessException(ErrorCode.POST_NOT_FOUND);
+        }
+
+        if (STATUS_BLINDED.equals(post.getStatus())) {
+            throw new BusinessException(ErrorCode.POST_BLINDED);
+        }
+
+        return PostDetailResponse.from(post);
+    }
 
     // 게시글 작성: 작성자를 검증한 뒤 새 글을 저장하고 상세 응답으로 반환한다. (쓰기 트랜잭션)
     @Transactional
