@@ -97,8 +97,8 @@ public class AuthTransactionService {
 		}
 
 		// 재사용 탐지는 MySQL(위 existsByJti)이 담당한다. 캐시 미스로 폐기된 refresh 토큰이 되살아나면 안 되기 때문이다.
-		// 캐시 기록은 access 토큰 검증 경로와 키 공간을 공유하므로 여기서도 함께 남긴다.
-		blacklistToken(userId, new TokenInfo(jti, refreshExpiresAt), BlacklistReason.REFRESH_ROTATED);
+		// 따라서 이 경로는 Redis 를 쓰지도, 읽지도 않는다(재발급이 Redis 장애에 묶이지 않는다).
+		blacklistToken(userId, TokenInfo.refresh(jti, refreshExpiresAt), BlacklistReason.REFRESH_ROTATED);
 
 		String role = user.getRole().name();
 		String accessToken = jwtTokenProvider.createAccessToken(userId, role);
@@ -116,9 +116,15 @@ public class AuthTransactionService {
 	/**
 	 * 토큰 하나를 블랙리스트에 올려 폐기한다. 이미 등록돼 있으면 아무것도 하지 않는다(로그아웃을 두 번 눌러도 결과는 같아야 한다).
 	 *
-	 * <p><b>이중 기록:</b> MySQL 은 영속 기록·감사용, Redis 는 인증 필터가 매 요청 조회하는 캐시다(#39 §5).
-	 * Redis 를 <b>먼저</b> 쓴다. DB 가 뒤이어 롤백되면 캐시에만 남는 유령 항목이 생기지만, 그건 "죽지 않아야 할 토큰이
-	 * 죽는" 방향이라 안전하다. 반대 순서였다면 커밋과 캐시 반영 사이에 폐기된 토큰이 통과하는 창이 열린다.</p>
+	 * <p><b>이중 기록:</b> MySQL 은 영속 기록·감사용, Redis 는 인증 필터가 매 요청 조회하는 캐시다(#39 §5).</p>
+	 *
+	 * <p><b>Redis 에는 access 토큰만 올린다.</b> 인증 필터는 access 토큰의 jti 만 조회한다(refresh 토큰으로는 애초에
+	 * 인증되지 않는다). refresh 의 재사용 탐지는 MySQL {@code existsByJti} 가 담당하므로, refresh jti 를 캐시에 넣으면
+	 * 한 번도 읽히지 않는 키가 회전마다 최대 refresh 수명(14일)만큼 쌓이고 재발급이 Redis 장애에 묶인다.</p>
+	 *
+	 * <p>access 토큰은 Redis 를 <b>먼저</b> 쓴다. DB 가 뒤이어 롤백되면 캐시에만 남는 유령 항목이 생기지만, 그건
+	 * "죽지 않아야 할 토큰이 죽는" 방향이라 안전하고 TTL 로 자동 정리된다. 반대 순서였다면 커밋과 캐시 반영 사이에
+	 * 폐기된 토큰이 통과하는 창이 열린다.</p>
 	 *
 	 * <p>동시 요청으로 {@code existsByJti} 검사를 둘 다 통과하면 {@code idx_bl_jti}(UNIQUE) 가 막고
 	 * {@link org.springframework.dao.DataIntegrityViolationException} 이 전파된다. 이때도 "폐기됨"이라는 목표 상태는
@@ -128,7 +134,9 @@ public class AuthTransactionService {
 		if (tokenBlacklistRepository.existsByJti(token.jti())) {
 			return;
 		}
-		tokenBlacklistCache.blacklist(token.jti(), token.expiresAt(), Instant.now(clock));
+		if (token.accessToken()) {
+			tokenBlacklistCache.blacklist(token.jti(), token.expiresAt(), Instant.now(clock));
+		}
 
 		LocalDateTime expiresAt = LocalDateTime.ofInstant(token.expiresAt(), clock.getZone());
 		tokenBlacklistRepository.saveAndFlush(TokenBlacklist.of(userId, token.jti(), reason, expiresAt));

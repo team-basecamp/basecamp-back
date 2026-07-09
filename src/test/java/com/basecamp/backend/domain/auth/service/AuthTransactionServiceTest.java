@@ -170,6 +170,10 @@ class AuthTransactionServiceTest {
 		assertThat(saved.getReason()).isEqualTo(BlacklistReason.REFRESH_ROTATED);
 		assertThat(saved.getExpiresAt()).isEqualTo(LocalDateTime.ofInstant(expiresAt, ZONE));
 
+		// 재발급 경로는 Redis 를 쓰지도 읽지도 않는다. 캐시 장애가 재발급을 막아선 안 되고,
+		// 폐기된 refresh 토큰이 캐시 미스로 되살아나서도 안 되기 때문이다(재사용 탐지는 MySQL 담당).
+		verify(tokenBlacklistCache, never()).blacklist(anyString(), any(), any());
+
 		// 새 refresh 토큰은 폐기된 것과 다른 jti 를 가져야 한다(아니면 발급 즉시 블랙리스트에 걸린다).
 		assertThat(result.response().accessToken()).isNotBlank();
 		assertThat(result.response().tokenType()).isEqualTo("Bearer");
@@ -245,20 +249,35 @@ class AuthTransactionServiceTest {
 	}
 
 	@Test
-	@DisplayName("blacklistToken_MySQL과Redis에_함께기록한다")
-	void blacklistToken_MySQL과Redis에_함께기록한다() {
+	@DisplayName("blacklistToken_access토큰_Redis를먼저쓰고_MySQL에도기록한다")
+	void blacklistToken_access토큰_Redis를먼저쓰고_MySQL에도기록한다() {
 		// given
-		Instant expiresAt = NOW.plusSeconds(3600);
+		Instant expiresAt = NOW.plusSeconds(1800);
 		given(tokenBlacklistRepository.existsByJti(JTI)).willReturn(false);
 
 		// when
-		authTransactionService.blacklistToken(USER_ID, new TokenInfo(JTI, expiresAt), BlacklistReason.LOGOUT);
+		authTransactionService.blacklistToken(USER_ID, TokenInfo.access(JTI, expiresAt), BlacklistReason.LOGOUT);
 
 		// then: MySQL 은 영속 기록·감사, Redis 는 인증 필터가 매 요청 조회하는 캐시다(#39 §5).
 		// Redis 를 먼저 써야 커밋과 캐시 반영 사이에 폐기된 토큰이 통과하는 창이 열리지 않는다.
 		InOrder inOrder = inOrder(tokenBlacklistCache, tokenBlacklistRepository);
 		inOrder.verify(tokenBlacklistCache).blacklist(JTI, expiresAt, NOW);
 		inOrder.verify(tokenBlacklistRepository).saveAndFlush(any(TokenBlacklist.class));
+	}
+
+	@Test
+	@DisplayName("blacklistToken_refresh토큰_Redis에는쓰지않고_MySQL에만기록한다")
+	void blacklistToken_refresh토큰_Redis에는쓰지않고_MySQL에만기록한다() {
+		// given: 인증 필터는 access 토큰의 jti 만 조회한다(refresh 로는 인증되지 않는다).
+		given(tokenBlacklistRepository.existsByJti(JTI)).willReturn(false);
+
+		// when
+		authTransactionService.blacklistToken(
+				USER_ID, TokenInfo.refresh(JTI, NOW.plusSeconds(1_209_600)), BlacklistReason.LOGOUT);
+
+		// then: 캐시에 넣어봐야 한 번도 읽히지 않고, 최대 14일짜리 키만 쌓인다. 재사용 탐지는 MySQL 이 한다.
+		verify(tokenBlacklistCache, never()).blacklist(anyString(), any(), any());
+		verify(tokenBlacklistRepository).saveAndFlush(any(TokenBlacklist.class));
 	}
 
 	@Test
@@ -269,7 +288,7 @@ class AuthTransactionServiceTest {
 
 		// when
 		authTransactionService.blacklistToken(
-				USER_ID, new TokenInfo(JTI, NOW.plusSeconds(3600)), BlacklistReason.LOGOUT);
+				USER_ID, TokenInfo.access(JTI, NOW.plusSeconds(1800)), BlacklistReason.LOGOUT);
 
 		// then
 		verify(tokenBlacklistRepository, never()).saveAndFlush(any());
@@ -284,8 +303,8 @@ class AuthTransactionServiceTest {
 		given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
 		given(tokenBlacklistRepository.existsByJti(anyString())).willReturn(false);
 		List<TokenInfo> tokens = List.of(
-				new TokenInfo("access-jti", NOW.plusSeconds(1800)),
-				new TokenInfo(JTI, NOW.plusSeconds(3600)));
+				TokenInfo.access("access-jti", NOW.plusSeconds(1800)),
+				TokenInfo.refresh(JTI, NOW.plusSeconds(3600)));
 
 		// when
 		authTransactionService.withdrawUser(USER_ID, "사유", tokens);

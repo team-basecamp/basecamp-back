@@ -1,5 +1,6 @@
 package com.basecamp.backend.domain.auth.service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -196,7 +197,11 @@ public class AuthService {
 		if (!StringUtils.hasText(jti)) {
 			return Optional.empty();
 		}
-		return Optional.of(new TokenInfo(jti, jwtTokenProvider.getExpiresAt(claims)));
+
+		Instant expiresAt = jwtTokenProvider.getExpiresAt(claims);
+		return Optional.of(JwtTokenProvider.TOKEN_TYPE_ACCESS.equals(expectedType)
+				? TokenInfo.access(jti, expiresAt)
+				: TokenInfo.refresh(jti, expiresAt));
 	}
 
 }
