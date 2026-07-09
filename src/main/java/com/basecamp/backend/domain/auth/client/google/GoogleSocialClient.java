@@ -43,6 +43,9 @@ public class GoogleSocialClient implements SocialClient {
 	public OAuthUserInfo fetchUserInfo(String authorizationCode, String state) {
 		// 구글은 state 를 토큰 교환에 사용하지 않는다(파라미터는 인터페이스 공통 시그니처를 위해 받되 무시).
 		ClientRegistration registration = clientRegistrationRepository.findByRegistrationId(REGISTRATION_ID);
+		if (registration == null) {
+			throw new BusinessException(ErrorCode.SOCIAL_TOKEN_FETCH_FAILED);
+		}
 		String accessToken = oauth2TokenClient.fetchAccessToken(registration, authorizationCode);
 		return requestUser(registration, accessToken).toOAuthUserInfo();
 	}

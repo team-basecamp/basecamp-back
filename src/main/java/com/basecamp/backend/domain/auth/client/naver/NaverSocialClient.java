@@ -42,6 +42,9 @@ public class NaverSocialClient implements SocialClient {
 	@Override
 	public OAuthUserInfo fetchUserInfo(String authorizationCode, String state) {
 		ClientRegistration registration = clientRegistrationRepository.findByRegistrationId(REGISTRATION_ID);
+		if (registration == null) {
+			throw new BusinessException(ErrorCode.SOCIAL_TOKEN_FETCH_FAILED);
+		}
 		String accessToken = oauth2TokenClient.fetchAccessToken(registration, authorizationCode, state);
 		return requestUser(registration, accessToken).toOAuthUserInfo();
 	}
