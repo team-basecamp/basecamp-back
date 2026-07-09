@@ -79,85 +79,62 @@ public class CampService {
     @Transactional
     public void fetchAndSaveCampsFromGocampingApi() {
         try {
-            int pageNo = 1;  //  첫 번째 페이지부터 시작
-            int numOfRows = 100;  // 한 번에 100개씩 받기
-            boolean hasMoreData = true;  //  "더 받을 데이터가 있나?" 플래그
+            int pageNo = 1;
+            int numOfRows = 100;
+            boolean hasMoreData = true;
+            int totalSaved = 0;
 
-            int totalSaved = 0;  //  저장된 총 개수 추적
-
-            // 더 받을 데이터가 있으면 계속 반복
             while (hasMoreData) {
-                // API URL 구성 (페이지 번호 포함)
                 String url = gocampingApiUrl + "?serviceKey=" + gocampingApiKey
                         + "&numOfRows=" + numOfRows
-                        + "&pageNo=" + pageNo  // ← 페이지 번호 변경
+                        + "&pageNo=" + pageNo
                         + "&MobileOS=ETC&MobileApp=basecamp&_type=json";
 
-                System.out.println("고캠핑 API 호출 중... (페이지: " + pageNo + ")");
+                log.info("고캠핑 API 호출 중... (페이지: {})", pageNo);
 
-                // API 호출
                 ResponseEntity<GocampingApiResponse> response =
                         restTemplate.getForEntity(url, GocampingApiResponse.class);
 
-                // 응답 처리
                 if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                     ResponseBody responseBody = response.getBody().getResponse();
                     Body body = responseBody != null ? responseBody.getBody() : null;
                     Items items = body != null ? body.getItems() : null;
                     List<GocampingApiResponseDto> camps = items != null ? items.getItem() : null;
 
-                    System.out.println("========== 고캠핑 API 응답 데이터 ==========");
-                    System.out.println("페이지: " + pageNo);
-                    System.out.println("받은 캠핑장 개수: " + camps.size());
-                    System.out.println("\n--- 첫 번째 캠핑장 데이터 ---");
-                    if (!camps.isEmpty()) {
+                    log.debug("고캠핑 API 응답 - 페이지: {}, 받은 캠핑장 개수: {}", pageNo, camps != null ? camps.size() : 0);
+                    if (camps != null && !camps.isEmpty()) {
                         GocampingApiResponseDto firstCamp = camps.get(0);
-                        System.out.println("contentId: " + firstCamp.getContentId());
-                        System.out.println("facltNm: " + firstCamp.getFacltNm());
-                        System.out.println("addr1: " + firstCamp.getAddr1());
-                        System.out.println("mapX: " + firstCamp.getMapX());
-                        System.out.println("mapY: " + firstCamp.getMapY());
-                        System.out.println("tel: " + firstCamp.getTel());
-                        System.out.println("induty: " + firstCamp.getInduty());
-                        System.out.println("gnrlSiteCo: " + firstCamp.getGnrlSiteCo());
-                        System.out.println("autoSiteCo: " + firstCamp.getAutoSiteCo());
-                        System.out.println("glampSiteCo: " + firstCamp.getGlampSiteCo());
-                        System.out.println("firstImageUrl: " + firstCamp.getFirstImageUrl());
-                        System.out.println("manageSttus: " + firstCamp.getManageSttus());
+                        log.debug("첫 번째 캠핑장 - contentId: {}, facltNm: {}, addr1: {}",
+                                firstCamp.getContentId(), firstCamp.getFacltNm(), firstCamp.getAddr1());
                     }
-                    System.out.println("=======================================\n");
 
-                    // 받은 데이터가 없으면 종료
                     if (camps == null || camps.isEmpty()) {
-                        System.out.println("✅ 모든 페이지를 받았습니다");
-                        hasMoreData = false;  // 반복 종료
+                        log.info("모든 페이지를 받았습니다");
+                        hasMoreData = false;
                     } else {
-                        //  DB에 저장
                         int savedCount = camps.size();
                         saveCampsFromApi(camps);
 
                         totalSaved += savedCount;
-                        System.out.println("✅ 페이지 " + pageNo + ": " + savedCount + "개 저장됨");
+                        log.info("페이지 {}: {}개 저장됨", pageNo, savedCount);
 
-                        //  받은 데이터가 numOfRows보다 적으면 마지막 페이지
                         if (savedCount < numOfRows) {
-                            System.out.println("✅ 마지막 페이지입니다");
-                            hasMoreData = false;  // 반복 종료
+                            log.info("마지막 페이지입니다");
+                            hasMoreData = false;
                         }
 
-                        //  다음 페이지로 이동
                         pageNo++;
                     }
                 } else {
-                    throw new RuntimeException("API 응답이 비정상입니다");
+                    throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "고캠핑 API 응답이 비정상입니다");
                 }
             }
 
-            System.out.println(" 총 " + totalSaved + "개의 캠핑장이 저장되었습니다");
+            log.info("총 {}개의 캠핑장이 저장되었습니다", totalSaved);
 
         } catch (Exception e) {
-            log.error("고캠핑 API 호출 실패: {}", e.getMessage(), e);
-            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR,"고캠핑 API 호출 실패: " + e.getMessage());
+            log.error("고캠핑 API 호출 실패: {}", e.getClass().getSimpleName());
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "고캠핑 API 호출 중 오류가 발생했습니다");
         }
     }
 
@@ -314,8 +291,6 @@ public class CampService {
                 .build();
 
         // DB에  camping 장 저장
-        //Camp savedCamp = campRepository.save(camp);
-        //return savedCamp; code 한줄로 간결해지고 , 가독성 향상을 위해 소나 큐브는 값을 받아서 돌려주는 것이어서 변수를 만들 필요가 없다고 함.
         return campRepository.save(camp);
 
     }
