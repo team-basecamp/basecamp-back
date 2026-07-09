@@ -5,6 +5,11 @@ import com.basecamp.backend.domain.reservation.dto.response.CustomerReservationR
 import com.basecamp.backend.domain.reservation.service.ReservationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,5 +33,15 @@ public class ReservationController {
         CustomerReservationResponse response = reservationService.cancelReservation(reservationId);
 
         return ResponseEntity.ok(response);
+    }
+
+    // TODO: 인증 미구현으로인한 하드코딩, Authentication authentication 나중에 넣을 파라미터
+    @GetMapping("/me")
+    public ResponseEntity<Page<CustomerReservationResponse>> findMyReservation(
+            @ParameterObject
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ){
+        //Long userId = Long.parseLong(authentication.getName()); // service에 전달할 파라미터
+        return ResponseEntity.ok(reservationService.findAllReservations(1l, pageable));
     }
 }
