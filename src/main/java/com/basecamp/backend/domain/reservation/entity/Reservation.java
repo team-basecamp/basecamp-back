@@ -81,6 +81,11 @@ public class Reservation {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    // 동시에 들어온 수락/거절 요청으로 상태가 뒤엉키는 것을 막기 위한 낙관적 락
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     // --- 비즈니스 메서드 (상태 변경 도메인 로직) ---
 
     public void pend(){
