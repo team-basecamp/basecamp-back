@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Optional;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,11 +24,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.security.CookieUtil;
 import com.basecamp.backend.domain.auth.dto.response.LoginResponse;
+import com.basecamp.backend.domain.auth.dto.response.TokenRefreshResponse;
 import com.basecamp.backend.domain.auth.service.AuthService;
 import com.basecamp.backend.domain.auth.service.LoginResult;
+import com.basecamp.backend.domain.auth.service.TokenRefreshResult;
 import com.basecamp.backend.domain.user.entity.Provider;
 
 /**
@@ -100,6 +105,58 @@ class AuthControllerTest {
 						.content("{\"code\":\"\"}"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value(ErrorCode.INVALID_INPUT_VALUE.getCode()));
+	}
+
+	@Test
+	@DisplayName("refresh_유효한쿠키_200과새access는body_회전된refresh는Set-Cookie")
+	void refresh_유효한쿠키_200과새access는body_회전된refresh는쿠키() throws Exception {
+		// given
+		given(cookieUtil.resolveRefreshToken(any())).willReturn(Optional.of("old-refresh"));
+		given(authService.refresh("old-refresh"))
+				.willReturn(new TokenRefreshResult(TokenRefreshResponse.of("new-access"), "new-refresh"));
+		ResponseCookie rotated = ResponseCookie.from("refreshToken", "new-refresh")
+				.httpOnly(true).path("/api/v1/auth").build();
+		given(cookieUtil.createRefreshTokenCookie("new-refresh")).willReturn(rotated);
+
+		// when & then
+		mockMvc.perform(post("/api/v1/auth/token/refresh"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.accessToken").value("new-access"))
+				.andExpect(jsonPath("$.tokenType").value("Bearer"))
+				.andExpect(header().exists(HttpHeaders.SET_COOKIE))
+				// 회전: 응답 쿠키는 요청에 실려온 이전 토큰이 아니라 새 토큰이어야 한다.
+				.andExpect(cookie().value("refreshToken", "new-refresh"))
+				.andExpect(cookie().httpOnly("refreshToken", true));
+
+		verify(authService).refresh("old-refresh");
+	}
+
+	@Test
+	@DisplayName("refresh_쿠키없음_401과A005")
+	void refresh_쿠키없음_401() throws Exception {
+		// given: 쿠키를 찾지 못하면 컨트롤러가 null 을 넘기고, 서비스가 A005 로 막는다.
+		given(cookieUtil.resolveRefreshToken(any())).willReturn(Optional.empty());
+		given(authService.refresh(null))
+				.willThrow(new BusinessException(ErrorCode.REFRESH_TOKEN_NOT_FOUND));
+
+		// when & then
+		mockMvc.perform(post("/api/v1/auth/token/refresh"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value(ErrorCode.REFRESH_TOKEN_NOT_FOUND.getCode()));
+	}
+
+	@Test
+	@DisplayName("refresh_이미폐기된토큰_401과A006")
+	void refresh_이미폐기된토큰_401() throws Exception {
+		// given: 회전으로 폐기된 토큰의 재제출(탈취 의심).
+		given(cookieUtil.resolveRefreshToken(any())).willReturn(Optional.of("rotated-out"));
+		given(authService.refresh("rotated-out"))
+				.willThrow(new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
+
+		// when & then
+		mockMvc.perform(post("/api/v1/auth/token/refresh"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value(ErrorCode.INVALID_REFRESH_TOKEN.getCode()));
 	}
 
 }

@@ -18,12 +18,15 @@ import com.basecamp.backend.common.security.CookieUtil;
 import com.basecamp.backend.domain.auth.dto.request.LoginRequest;
 import com.basecamp.backend.domain.auth.dto.response.LoginResponse;
 import com.basecamp.backend.domain.auth.dto.response.LoginStateResponse;
+import com.basecamp.backend.domain.auth.dto.response.TokenRefreshResponse;
 import com.basecamp.backend.domain.auth.service.AuthService;
 import com.basecamp.backend.domain.auth.service.LoginResult;
+import com.basecamp.backend.domain.auth.service.TokenRefreshResult;
 import com.basecamp.backend.domain.user.entity.Provider;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -62,6 +65,24 @@ public class AuthController {
 			@PathVariable String provider,
 			@Valid @RequestBody LoginRequest request) {
 		LoginResult result = authService.login(parseProvider(provider), request.code(), request.state());
+		ResponseCookie refreshCookie = cookieUtil.createRefreshTokenCookie(result.refreshToken());
+		return ResponseEntity.ok()
+				.header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+				.body(result.response());
+	}
+
+	/**
+	 * access 토큰 재발급. refresh 토큰은 body 가 아니라 HttpOnly 쿠키에서 읽으므로 요청 body 가 없다.
+	 * 회전(rotation)된 새 refresh 토큰이 {@code Set-Cookie} 로 기존 쿠키를 덮어쓴다.
+	 */
+	@Operation(summary = "액세스 토큰 재발급",
+			description = "HttpOnly 쿠키의 refresh token 으로 access token 을 재발급한다. "
+					+ "이때 refresh token 도 새로 발급(회전)되어 Set-Cookie 로 교체되고, 이전 토큰은 즉시 폐기된다. "
+					+ "이미 폐기된 토큰으로 요청하면 탈취 의심으로 보아 401 을 반환한다. "
+					+ "쿠키를 전송하려면 프론트에서 credentials(withCredentials) 옵션이 필요하다.")
+	@PostMapping("/token/refresh")
+	public ResponseEntity<TokenRefreshResponse> refresh(HttpServletRequest request) {
+		TokenRefreshResult result = authService.refresh(cookieUtil.resolveRefreshToken(request).orElse(null));
 		ResponseCookie refreshCookie = cookieUtil.createRefreshTokenCookie(result.refreshToken());
 		return ResponseEntity.ok()
 				.header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
