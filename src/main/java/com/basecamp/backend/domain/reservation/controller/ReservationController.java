@@ -22,6 +22,7 @@ public class ReservationController {
 
     private final ReservationService reservationService;
 
+    // TODO: 인증 미구현으로인한 하드코딩, Authentication authentication 나중에 넣을 파라미터
     @PostMapping
     public ResponseEntity<ReservationResponse> createReservation(@Valid @RequestBody ReservationCreateRequest request) {
         ReservationResponse response = reservationService.createReservation(request);
