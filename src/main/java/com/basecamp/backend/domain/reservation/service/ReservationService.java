@@ -8,6 +8,8 @@ import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,10 +52,14 @@ public class ReservationService {
         Reservation cancelled = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
-
-
         cancelled.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
 
         return CustomerReservationResponse.from(cancelled);
+    }
+
+    // 해당 유저 아이디의 예약목록 보여주기
+    public Page<CustomerReservationResponse> findAllReservations(Long userId, Pageable pageable){
+        return reservationRepository.findAllByUserId(userId, pageable)
+                .map(CustomerReservationResponse::from);
     }
 }
