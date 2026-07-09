@@ -1,7 +1,7 @@
 package com.basecamp.backend.domain.reservation.controller;
 
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
-import com.basecamp.backend.domain.reservation.dto.response.CustomerReservationResponse;
+import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
 import com.basecamp.backend.domain.reservation.service.ReservationService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -23,15 +23,15 @@ public class ReservationController {
     private final ReservationService reservationService;
 
     @PostMapping
-    public ResponseEntity<CustomerReservationResponse> createReservation(@Valid @RequestBody ReservationCreateRequest request) {
-        CustomerReservationResponse response = reservationService.createReservation(request);
+    public ResponseEntity<ReservationResponse> createReservation(@Valid @RequestBody ReservationCreateRequest request) {
+        ReservationResponse response = reservationService.createReservation(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/{reservationId}/cancel")
-    public ResponseEntity<CustomerReservationResponse> cancelReservation(@PathVariable Long reservationId){
-        CustomerReservationResponse response = reservationService.cancelReservation(reservationId);
+    public ResponseEntity<ReservationResponse> cancelReservation(@PathVariable Long reservationId){
+        ReservationResponse response = reservationService.cancelReservation(reservationId);
 
         return ResponseEntity.ok(response);
     }
@@ -39,11 +39,21 @@ public class ReservationController {
     // TODO: 인증 미구현으로인한 하드코딩, Authentication authentication 나중에 넣을 파라미터
     @Operation(summary = "내 예약 목록 조회", description = "로그인한 사용자의 예약 목록을 페이지네이션으로 조회합니다.")
     @GetMapping("/me")
-    public ResponseEntity<Page<CustomerReservationResponse>> findMyReservation(
+    public ResponseEntity<Page<ReservationResponse>> findMyReservation(
             @ParameterObject
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ){
         //Long userId = Long.parseLong(authentication.getName()); // service에 전달할 파라미터
         return ResponseEntity.ok(reservationService.findAllReservations(1l, pageable));
+    }
+
+    @Operation(summary = "캠핑장 업체별 예약 목록 조회", description = "특정 캠핑장의 예약 목록을 페이지네이션으로 조회합니다.(CANCELLED 상태 제외)")
+    @GetMapping("/camps/{campId}")
+    public ResponseEntity<Page<ReservationResponse>> findReservationsByCamp(
+            @PathVariable Long campId,
+            @ParameterObject
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ){
+        return ResponseEntity.ok(reservationService.findAllReservationsByCamp(campId, pageable));
     }
 }

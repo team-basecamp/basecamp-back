@@ -35,6 +35,9 @@ public enum ErrorCode {
 
 	// User
 	INVALID_EMAIL(HttpStatus.BAD_REQUEST, "U001", "유효하지 않은 이메일입니다."),
+
+	// Camp
+	CAMP_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "캠핑장을 찾을 수 없습니다."),
 	;
 
 	private final HttpStatus status;
