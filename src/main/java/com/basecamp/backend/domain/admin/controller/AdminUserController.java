@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,6 +47,7 @@ public class AdminUserController {
 			@Parameter(description = "회원 상태 필터") @RequestParam(required = false) UserStatus status,
 			@Parameter(description = "권한 필터") @RequestParam(required = false) Role role,
 			@Parameter(description = "닉네임 또는 이메일 검색어") @RequestParam(required = false) String keyword,
+			@ParameterObject
 			@PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 		return ResponseEntity.ok(adminUserService.findUsers(status, role, keyword, pageable));
 	}
@@ -66,6 +68,7 @@ public class AdminUserController {
 			description = "제재 상태인 회원을 제재 일시 최신순으로 조회한다.")
 	@GetMapping("/blacklist")
 	public ResponseEntity<Page<BlacklistedUserResponse>> findBlacklistedUsers(
+			@ParameterObject
 			@PageableDefault(size = 20, sort = "blacklistedAt", direction = Sort.Direction.DESC) Pageable pageable) {
 		return ResponseEntity.ok(adminUserService.findBlacklistedUsers(pageable));
 	}
