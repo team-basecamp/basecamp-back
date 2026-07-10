@@ -161,6 +161,9 @@ public class CampController {
         }
     }
 
+    // 업체가 직접 등록하는 캠핑장(camps.owner_id). 공공데이터에서 온 캠핑장(content_id)과 배타적이다.
+    // CAMP_OWNER 만 등록할 수 있다. 승격 경로는 #53 의 관리자 심사다.
+    @PreAuthorize("hasRole('CAMP_OWNER')")
     @PostMapping("/register")
     public ResponseEntity<CampDetailResponseDto> registerCamp(
             @Valid // DTO에 붙어있는 검증 애너테이션 체크 하는 기능
