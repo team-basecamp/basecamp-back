@@ -1,5 +1,6 @@
 package com.basecamp.backend.domain.post.controller;
 
+import com.basecamp.backend.common.model.AuthUser;
 import com.basecamp.backend.domain.post.dto.request.PostCreateRequest;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
@@ -27,9 +28,9 @@ public class PostController {
     @Operation(summary = "게시글 작성", description = "인증된 사용자가 새 게시글을 작성한다.")
     @PostMapping("/api/v1/posts")
     public ResponseEntity<PostDetailResponse> createPost(
-            @AuthenticationPrincipal Long userId,          // JWT에서 꺼낸 로그인 회원 id
+            @AuthenticationPrincipal AuthUser user,           // JWT에서 꺼낸 로그인 회원 (id, role)
             @RequestBody @Valid PostCreateRequest request) {  // 작성 요청 본문(검증 대상)
-        PostDetailResponse response = postService.createPost(userId, request.category(), request.title(), request.content());
+        PostDetailResponse response = postService.createPost(user.id(), request.category(), request.title(), request.content());
         // 생성 성공은 201 Created 로 응답
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

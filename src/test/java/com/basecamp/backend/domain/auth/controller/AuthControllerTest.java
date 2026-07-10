@@ -32,13 +32,15 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.common.security.CookieUtil;
+import com.basecamp.backend.common.model.AuthUser;
+import com.basecamp.backend.security.CookieUtil;
 import com.basecamp.backend.domain.auth.dto.response.LoginResponse;
 import com.basecamp.backend.domain.auth.dto.response.TokenRefreshResponse;
 import com.basecamp.backend.domain.auth.service.AuthService;
 import com.basecamp.backend.domain.auth.service.LoginResult;
 import com.basecamp.backend.domain.auth.service.TokenRefreshResult;
 import com.basecamp.backend.domain.user.entity.Provider;
+import com.basecamp.backend.common.enums.Role;
 
 /**
  * {@link AuthController} 슬라이스 테스트.
@@ -64,12 +66,13 @@ class AuthControllerTest {
 
 	/**
 	 * 보안 필터를 껐으므로({@code addFilters = false}) {@code @AuthenticationPrincipal} 이 읽을 인증을 직접 세팅한다.
-	 * principal 타입은 {@code JwtAuthenticationFilter} 와 동일하게 {@code Long userId} 다.
+	 * principal 타입은 {@code JwtAuthenticationFilter} 와 동일하게 {@link AuthUser} 여야 한다.
+	 * 타입이 어긋나면 컨트롤러 파라미터에 예외 없이 {@code null} 이 들어와 NPE 로만 드러난다.
 	 */
 	@BeforeEach
 	void setUpAuthentication() {
 		SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-				USER_ID, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
+				new AuthUser(USER_ID, Role.CUSTOMER), null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
 	}
 
 	@AfterEach
@@ -183,22 +186,24 @@ class AuthControllerTest {
 	}
 
 	@Test
-	@DisplayName("logout_204와_만료된refresh쿠키를내려준다")
+	@DisplayName("logout_204와_만료된refresh쿠키를내려주고_access토큰도_서비스로전달한다")
 	void logout_204와_만료된refresh쿠키를내려준다() throws Exception {
 		// given
 		given(cookieUtil.resolveRefreshToken(any())).willReturn(Optional.of("refresh-token"));
 		given(cookieUtil.deleteRefreshTokenCookie()).willReturn(deletedCookie());
 
 		// when & then
-		mockMvc.perform(post("/api/v1/auth/logout"))
+		mockMvc.perform(post("/api/v1/auth/logout")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
 				.andExpect(status().isNoContent())
 				.andExpect(cookie().maxAge("refreshToken", 0));
 
-		verify(authService).logout(USER_ID, "refresh-token");
+		// access 토큰도 폐기해야 인증 필터가 즉시 거부한다.
+		verify(authService).logout(USER_ID, "access-token", "refresh-token");
 	}
 
 	@Test
-	@DisplayName("logout_쿠키없어도_204로_멱등하게성공한다")
+	@DisplayName("logout_쿠키와헤더가없어도_204로_멱등하게성공한다")
 	void logout_쿠키없어도_204로_멱등하게성공한다() throws Exception {
 		// given
 		given(cookieUtil.resolveRefreshToken(any())).willReturn(Optional.empty());
@@ -208,11 +213,11 @@ class AuthControllerTest {
 		mockMvc.perform(post("/api/v1/auth/logout"))
 				.andExpect(status().isNoContent());
 
-		verify(authService).logout(USER_ID, null);
+		verify(authService).logout(USER_ID, null, null);
 	}
 
 	@Test
-	@DisplayName("withdraw_204와_탈퇴사유를_서비스로전달한다")
+	@DisplayName("withdraw_204와_탈퇴사유_토큰들을_서비스로전달한다")
 	void withdraw_204와_탈퇴사유를_서비스로전달한다() throws Exception {
 		// given
 		given(cookieUtil.resolveRefreshToken(any())).willReturn(Optional.of("refresh-token"));
@@ -220,12 +225,13 @@ class AuthControllerTest {
 
 		// when & then
 		mockMvc.perform(post("/api/v1/auth/withdraw")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer access-token")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"reason\":\"더 이상 이용하지 않아요\"}"))
 				.andExpect(status().isNoContent())
 				.andExpect(cookie().maxAge("refreshToken", 0));
 
-		verify(authService).withdraw(USER_ID, "더 이상 이용하지 않아요", "refresh-token");
+		verify(authService).withdraw(USER_ID, "더 이상 이용하지 않아요", "access-token", "refresh-token");
 	}
 
 	@Test

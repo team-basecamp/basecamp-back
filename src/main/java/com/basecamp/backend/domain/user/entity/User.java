@@ -8,6 +8,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import org.springframework.util.StringUtils;
 
+import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 
@@ -91,6 +92,14 @@ public class User {
 	@Column(name = "withdrawal_reason", length = 500)
 	private String withdrawalReason;
 
+	/** 관리자 제재 사유. 제재 중일 때만 값이 있다(해제 시 NULL 로 되돌린다). */
+	@Column(name = "blacklist_reason", length = 200)
+	private String blacklistReason;
+
+	/** 관리자 제재 일시. 제재 중일 때만 값이 있다. */
+	@Column(name = "blacklisted_at")
+	private LocalDateTime blacklistedAt;
+
 	@Builder
 	private User(String nickname, String email, Image profileImage, Provider provider, Role role, UserStatus status) {
 		this.nickname = nickname;
@@ -142,21 +151,36 @@ public class User {
 	}
 
 	/**
-	 * 관리자 제재(블랙리스트) 처리.
+	 * 관리자 제재(강제 로그아웃) 처리. 사유와 시각을 함께 기록한다.
+	 *
+	 * <p>제재 중에는 소셜 로그인·토큰 재발급이 모두 차단되고, 이미 발급된 access 토큰은
+	 * 인증 필터가 거부한다({@code UserRevocationCache}).</p>
+	 *
+	 * @param clock 제재 시각 산정에 사용할 시계(서버 타임존 의존 제거 및 테스트 용이성 확보를 위해 주입받는다)
 	 */
-	public void blacklist() {
+	public void blacklist(String reason, Clock clock) {
 		this.status = UserStatus.BLACKLISTED;
+		this.blacklistReason = reason;
+		this.blacklistedAt = LocalDateTime.now(clock);
 	}
 
 	/**
-	 * 제재 해제. 상태를 {@link UserStatus#ACTIVE} 로 복구한다.
+	 * 제재 해제. 상태를 {@link UserStatus#ACTIVE} 로 복구하고 제재 정보를 지운다.
+	 *
+	 * <p>제재 중에는 토큰이 발급되지 않았으므로, 해제 후 사용자는 다시 로그인해야 한다.</p>
 	 */
 	public void activate() {
 		this.status = UserStatus.ACTIVE;
+		this.blacklistReason = null;
+		this.blacklistedAt = null;
 	}
 
 	public boolean isWithdrawn() {
 		return this.status == UserStatus.WITHDRAWN;
+	}
+
+	public boolean isBlacklisted() {
+		return this.status == UserStatus.BLACKLISTED;
 	}
 
 }

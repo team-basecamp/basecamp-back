@@ -23,6 +23,7 @@
 
 - JDK 21
 - MySQL 8.x
+- (선택) Redis 7.x — 토큰 블랙리스트 조회 캐시. 없어도 앱은 기동되며 로그아웃된 access token이 만료 전까지 유효한 상태로 퇴화합니다.
 - (선택) IntelliJ IDEA
 
 ### 1. 저장소 클론
@@ -38,7 +39,21 @@ cd basecamp-back
 CREATE DATABASE basecamp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 3. 환경변수 설정
+### 3. Redis 실행 (선택)
+
+로그아웃·탈퇴한 access token을 만료 전에 거부하려면 Redis가 필요합니다. 인증 필터가 매 요청마다 조회하는 캐시라, 영속 기록(MySQL `token_blacklist`)을 직접 조회하지 않기 위한 것입니다.
+
+프로젝트 루트에서:
+
+```bash
+docker compose up -d
+```
+
+> Redis가 없거나 조회에 실패하면 필터는 **fail-open**(경고 로그 후 통과)합니다. Redis를 단일 장애점으로 만들지 않기 위한 선택이며, 이때 동작은 "access token은 만료(기본 30분)까지 유효"로 퇴화합니다. Refresh token 재발급 경로는 Redis를 쓰지도 읽지도 않으므로(재사용 탐지는 MySQL 담당) Redis 상태와 무관합니다.
+>
+> Docker가 처음이라면 [docs/docker-setting.md](docs/docker-setting.md)를 참고하세요.
+
+### 4. 환경변수 설정
 
 `src/main/resources/application.yml`은 아래 환경변수를 참조합니다. 로컬 실행 시 IntelliJ Run Configuration의 Environment variables 또는 시스템 환경변수로 설정하세요. 값을 설정하지 않으면 `:` 뒤에 명시된 기본값(로컬 개발용)이 사용됩니다.
 
@@ -47,6 +62,8 @@ CREATE DATABASE basecamp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 | `DB_URL` | MySQL JDBC URL | `jdbc:mysql://localhost:3306/basecamp?...` |
 | `DB_USERNAME` | DB 사용자명 | `root` |
 | `DB_PASSWORD` | DB 비밀번호 | `password` |
+| `REDIS_HOST` | Redis 호스트 (토큰 블랙리스트 캐시) | `localhost` |
+| `REDIS_PORT` | Redis 포트 | `6379` |
 | `SERVER_PORT` | 서버 포트 | `8080` |
 | `JWT_SECRET` | JWT 서명 키 | 로컬 개발용 임시 값 |
 | `JWT_ACCESS_EXPIRATION` | Access Token 만료시간(ms) | `1800000` (30분) |
@@ -66,7 +83,7 @@ CREATE DATABASE basecamp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 > 실제 키 값이나 운영 DB 정보는 절대 커밋하지 마세요. 필요 시 `application-secret.yml`(gitignore 처리됨)을 만들어 관리하는 것을 권장합니다.
 
-### 4. 빌드 및 실행
+### 5. 빌드 및 실행
 
 ```bash
 ./gradlew build
@@ -75,7 +92,7 @@ CREATE DATABASE basecamp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 또는 IntelliJ에서 `BasecampApplication`을 직접 실행합니다.
 
-### 5. Swagger 접속
+### 6. Swagger 접속
 
 서버 실행 후 아래 주소에서 API 문서를 확인할 수 있습니다.
 
