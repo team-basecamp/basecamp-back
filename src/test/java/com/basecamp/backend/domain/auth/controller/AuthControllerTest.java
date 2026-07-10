@@ -32,13 +32,15 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.common.security.CookieUtil;
+import com.basecamp.backend.common.model.AuthUser;
+import com.basecamp.backend.security.CookieUtil;
 import com.basecamp.backend.domain.auth.dto.response.LoginResponse;
 import com.basecamp.backend.domain.auth.dto.response.TokenRefreshResponse;
 import com.basecamp.backend.domain.auth.service.AuthService;
 import com.basecamp.backend.domain.auth.service.LoginResult;
 import com.basecamp.backend.domain.auth.service.TokenRefreshResult;
 import com.basecamp.backend.domain.user.entity.Provider;
+import com.basecamp.backend.common.enums.Role;
 
 /**
  * {@link AuthController} 슬라이스 테스트.
@@ -64,12 +66,13 @@ class AuthControllerTest {
 
 	/**
 	 * 보안 필터를 껐으므로({@code addFilters = false}) {@code @AuthenticationPrincipal} 이 읽을 인증을 직접 세팅한다.
-	 * principal 타입은 {@code JwtAuthenticationFilter} 와 동일하게 {@code Long userId} 다.
+	 * principal 타입은 {@code JwtAuthenticationFilter} 와 동일하게 {@link AuthUser} 여야 한다.
+	 * 타입이 어긋나면 컨트롤러 파라미터에 예외 없이 {@code null} 이 들어와 NPE 로만 드러난다.
 	 */
 	@BeforeEach
 	void setUpAuthentication() {
 		SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-				USER_ID, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
+				new AuthUser(USER_ID, Role.CUSTOMER), null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
 	}
 
 	@AfterEach

@@ -1,6 +1,5 @@
-package com.basecamp.backend.common.config;
+package com.basecamp.backend.security;
 
-import com.basecamp.backend.common.security.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

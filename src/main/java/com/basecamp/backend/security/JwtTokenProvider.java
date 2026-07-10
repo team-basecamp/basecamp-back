@@ -1,4 +1,4 @@
-package com.basecamp.backend.common.security;
+package com.basecamp.backend.security;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;

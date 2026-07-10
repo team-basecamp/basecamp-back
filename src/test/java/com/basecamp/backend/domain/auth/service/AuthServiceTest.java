@@ -25,9 +25,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.common.security.JwtProperties;
-import com.basecamp.backend.common.security.JwtTokenProvider;
-import com.basecamp.backend.common.security.OAuthStateProvider;
+import com.basecamp.backend.security.JwtProperties;
+import com.basecamp.backend.security.JwtTokenProvider;
+import com.basecamp.backend.security.OAuthStateProvider;
 import com.basecamp.backend.domain.auth.client.SocialClientResolver;
 import com.basecamp.backend.domain.auth.dto.response.TokenRefreshResponse;
 import com.basecamp.backend.domain.auth.entity.BlacklistReason;

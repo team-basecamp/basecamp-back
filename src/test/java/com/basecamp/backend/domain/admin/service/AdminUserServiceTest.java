@@ -23,7 +23,7 @@ import org.springframework.data.redis.RedisConnectionFailureException;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.common.security.UserRevocationCache;
+import com.basecamp.backend.security.UserRevocationCache;
 import com.basecamp.backend.domain.user.entity.Provider;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;

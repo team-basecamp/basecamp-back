@@ -1,4 +1,4 @@
-package com.basecamp.backend.domain.user.entity;
+package com.basecamp.backend.common.enums;
 
 /**
  * 회원 권한. {@code users.role} 컬럼(VARCHAR)에 문자열로 저장된다.
