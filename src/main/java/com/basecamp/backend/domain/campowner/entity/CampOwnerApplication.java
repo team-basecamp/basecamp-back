@@ -19,6 +19,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -83,6 +84,19 @@ public class CampOwnerApplication {
 	@Column(name = "updated_at")
 	private LocalDateTime updatedAt;
 
+	/**
+	 * 낙관적 락 버전(V13). 관리자 두 명이 같은 신청을 동시에 승인/반려할 때 나중 커밋이 앞선 심사 이력을
+	 * 덮어쓰는 것을 막는다.
+	 *
+	 * <p>{@link #requirePending()} 만으로는 부족하다. {@code findById} 는 잠금 없는 스냅샷 읽기라 두 트랜잭션이
+	 * 모두 {@code PENDING} 을 보고 검사를 통과한 뒤, 나중에 커밋한 쪽이 {@code status}·{@code processedBy}·
+	 * {@code processedAt} 을 덮어쓴다. 버전이 어긋난 두 번째 UPDATE 는 0건이 되어 실패한다
+	 * ({@code ObjectOptimisticLockingFailureException} → {@code C005}).</p>
+	 */
+	@Version
+	@Column(name = "version", nullable = false)
+	private Long version;
+
 	private CampOwnerApplication(Long userId, String businessNumber, String businessName, String representativeName) {
 		this.userId = userId;
 		this.businessNumber = businessNumber;
@@ -123,8 +137,11 @@ public class CampOwnerApplication {
 	}
 
 	/**
-	 * 이미 승인·반려된 신청을 다시 처리하면 심사 이력(처리자·처리 시각)이 덮인다. 엔티티에서 최종 방어한다.
-	 * 관리자 두 명이 동시에 승인 버튼을 누르는 상황이 실제로 가능하다.
+	 * 이미 승인·반려된 신청을 다시 처리하면 심사 이력(처리자·처리 시각)이 덮인다.
+	 *
+	 * <p><b>이건 순차 재요청만 막는다.</b> 관리자가 승인 버튼을 두 번 누른 경우처럼 앞선 트랜잭션이 이미 커밋된
+	 * 상황에서 {@code CO004} 를 돌려준다. 두 요청이 <i>겹치면</i> 둘 다 {@code PENDING} 을 읽고 여기를 통과하므로,
+	 * 진짜 동시성 방어는 {@link #version} 의 낙관적 락이 한다.</p>
 	 */
 	private void requirePending() {
 		if (!isPending()) {
