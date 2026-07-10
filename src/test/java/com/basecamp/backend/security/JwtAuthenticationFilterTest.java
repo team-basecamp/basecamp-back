@@ -1,4 +1,4 @@
-package com.basecamp.backend.common.security;
+package com.basecamp.backend.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -15,7 +15,9 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.common.model.AuthUser;
 
 /**
  * {@link JwtAuthenticationFilter} 단위 테스트. Step 8 의 핵심인 "폐기된 access 토큰 즉시 거부"를 검증한다.
@@ -62,8 +64,8 @@ class JwtAuthenticationFilterTest {
 	}
 
 	@Test
-	@DisplayName("doFilter_유효한access토큰_userId를principal로_인증한다")
-	void doFilter_유효한access토큰_userId를principal로_인증한다() throws Exception {
+	@DisplayName("doFilter_유효한access토큰_AuthUser를principal로_인증한다")
+	void doFilter_유효한access토큰_AuthUser를principal로_인증한다() throws Exception {
 		// given
 		withBearer(jwtTokenProvider.createAccessToken(USER_ID, ROLE));
 		given(tokenBlacklistCache.isBlacklisted(org.mockito.ArgumentMatchers.anyString())).willReturn(false);
@@ -71,9 +73,28 @@ class JwtAuthenticationFilterTest {
 		// when
 		filter.doFilter(request, response, chain);
 
-		// then
-		assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo(USER_ID);
+		// then: principal 은 컨트롤러가 @AuthenticationPrincipal 로 받는 값이다. 타입이 어긋나면 조용히 null 이 되므로 고정한다.
+		assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal())
+				.isEqualTo(new AuthUser(USER_ID, Role.CUSTOMER));
+		assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+				.extracting("authority")
+				.containsExactly("ROLE_CUSTOMER");
 		assertThat(errorCode()).isNull();
+	}
+
+	@Test
+	@DisplayName("doFilter_알수없는role_인증하지않고_INVALID_TOKEN을남긴다")
+	void doFilter_알수없는role_인증하지않고_INVALID_TOKEN을남긴다() throws Exception {
+		// given: 서명은 유효하지만 role 클레임이 Role enum 에 없는 값이다.
+		//        Role 로 좁혀두지 않으면 "ROLE_HACKER" 라는 임의 권한이 authorities 에 실린다.
+		withBearer(jwtTokenProvider.createAccessToken(USER_ID, "HACKER"));
+
+		// when
+		filter.doFilter(request, response, chain);
+
+		// then
+		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+		assertThat(errorCode()).isEqualTo(ErrorCode.INVALID_TOKEN);
 	}
 
 	@Test
