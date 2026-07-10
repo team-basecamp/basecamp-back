@@ -1,11 +1,16 @@
 package com.basecamp.backend.domain.camp.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,10 +19,16 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.common.model.AuthUser;
+import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
 
 /**
@@ -123,6 +134,86 @@ class CampControllerSecurityTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("[]"))
 				.andExpect(status().isOk());
+	}
+
+	// --- POST /camps/register : 업체가 직접 등록하는 캠핑장. CAMP_OWNER 만 허용한다(#53). ---
+
+	private static final Long OWNER_ID = 7L;
+
+	/** 유효한 요청 본문. @Valid 는 @PreAuthorize 보다 먼저 돌므로, 400 이 아니라 403 을 보려면 본문이 유효해야 한다. */
+	private static final String VALID_CAMP_JSON = """
+			{"facltNm":"베이스캠프 오토캠핑장","addr1":"강원도 춘천시 어디로 1","tel":"033-123-4567",
+			 "induty":"오토캠핑","price":50000}
+			""";
+
+	/**
+	 * {@code @WithMockUser} 는 principal 로 스프링의 {@code User} 를 넣는다. 그러면 컨트롤러의
+	 * {@code @AuthenticationPrincipal AuthUser} 가 조용히 {@code null} 이 되어 NPE 로 실패한다.
+	 * 인가 통과 경로를 검증하려면 실제 principal 타입({@link AuthUser})을 넣어야 한다.
+	 */
+	private RequestPostProcessor as(Long userId, Role role) {
+		return authentication(new UsernamePasswordAuthenticationToken(
+				new AuthUser(userId, role), null, List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))));
+	}
+
+	@Test
+	@DisplayName("register_비로그인_401을반환한다")
+	void register_비로그인_401을반환한다() throws Exception {
+		// given & when & then
+		mockMvc.perform(post("/api/v1/camps/register")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(VALID_CAMP_JSON))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	@DisplayName("register_일반회원_403과A004")
+	void register_일반회원_403과A004() throws Exception {
+		// given: 로그인만으로 캠핑장을 등록할 수 있으면 안 된다. 업체 승격(#53)을 거쳐야 한다.
+
+		// when & then
+		mockMvc.perform(post("/api/v1/camps/register")
+						.with(as(OWNER_ID, Role.CUSTOMER))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(VALID_CAMP_JSON))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.getCode()));
+
+		verify(campService, never()).registerCamp(any(), any());
+	}
+
+	@Test
+	@DisplayName("register_관리자_403과A004")
+	void register_관리자_403과A004() throws Exception {
+		// given: 관리자도 등록할 수 없다. camps.owner_id 는 실제 업체를 가리켜야 하고, 관리자 계정이 소유자가 되면 안 된다.
+
+		// when & then
+		mockMvc.perform(post("/api/v1/camps/register")
+						.with(as(9L, Role.ADMIN))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(VALID_CAMP_JSON))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.getCode()));
+
+		verify(campService, never()).registerCamp(any(), any());
+	}
+
+	@Test
+	@DisplayName("register_캠핑업체_201과_토큰의회원id를owner로넘긴다")
+	void register_캠핑업체_201로통과한다() throws Exception {
+		// given
+		given(campService.registerCamp(any(), eq(OWNER_ID)))
+				.willReturn(Camp.builder().facltNm("베이스캠프 오토캠핑장").addr1("강원도 춘천시 어디로 1").build());
+
+		// when & then
+		mockMvc.perform(post("/api/v1/camps/register")
+						.with(as(OWNER_ID, Role.CAMP_OWNER))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(VALID_CAMP_JSON))
+				.andExpect(status().isCreated());
+
+		// 소유자는 요청 본문이 아니라 access 토큰에서 꺼낸 회원 id 여야 한다.
+		verify(campService).registerCamp(any(), eq(OWNER_ID));
 	}
 
 }
