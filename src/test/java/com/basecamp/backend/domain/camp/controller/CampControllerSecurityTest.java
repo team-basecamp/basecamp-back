@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,6 +29,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.model.AuthUser;
+import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
 
@@ -134,6 +136,45 @@ class CampControllerSecurityTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("[]"))
 				.andExpect(status().isOk());
+	}
+
+	@Test
+	@DisplayName("my_비로그인_401을반환한다")
+	void my_비로그인_401을반환한다() throws Exception {
+		// given: "내 캠핑장"은 GET /api/v1/camps/** 공개 규칙 아래에 있다. SecurityConfig 가 그보다 먼저
+		//        /camps/my 를 authenticated() 로 잡아주기 때문에만 보호된다(먼저 매칭된 규칙이 이긴다).
+		//        규칙 순서가 뒤바뀌면 @PreAuthorize 가 대신 막아 401 이 아니라 403 이 나가므로 이 테스트가 깨진다.
+
+		// when & then
+		mockMvc.perform(get("/api/v1/camps/my"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	@DisplayName("my_일반회원_403과A004")
+	void my_일반회원_403과A004() throws Exception {
+		// given: 캠핑장을 등록할 수 있는 건 CAMP_OWNER 뿐이므로 조회 권한도 같아야 한다.
+
+		// when & then
+		mockMvc.perform(get("/api/v1/camps/my").with(as(OWNER_ID, Role.CUSTOMER)))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.getCode()));
+
+		verify(campService, never()).getMyCamps(any());
+	}
+
+	@Test
+	@DisplayName("my_캠핑업체_200과_토큰의회원id로조회한다")
+	void my_캠핑업체_200으로통과한다() throws Exception {
+		// given
+		given(campService.getMyCamps(OWNER_ID)).willReturn(CampListResponseDto.ok(List.of(), 0L));
+
+		// when & then
+		mockMvc.perform(get("/api/v1/camps/my").with(as(OWNER_ID, Role.CAMP_OWNER)))
+				.andExpect(status().isOk());
+
+		// 조회 대상은 요청 파라미터가 아니라 access 토큰에서 꺼낸 회원 id 여야 한다.
+		verify(campService).getMyCamps(OWNER_ID);
 	}
 
 	// --- POST /camps/register : 업체가 직접 등록하는 캠핑장. CAMP_OWNER 만 허용한다(#53). ---
