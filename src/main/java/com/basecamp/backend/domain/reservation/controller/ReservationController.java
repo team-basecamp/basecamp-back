@@ -27,7 +27,9 @@ public class ReservationController {
     @Operation(summary = "예약하기", description = "고객이 해당 캠핑장에 예약을 합니다. 이 때 예약상태는 대기(PENDING)입니다.")
     @PostMapping
     public ResponseEntity<ReservationResponse> createReservation(@Valid @RequestBody ReservationCreateRequest request) {
-        ReservationResponse response = reservationService.createReservation(request);
+        //Long userId = Long.parseLong(authentication.getName()); // service에 전달할 파라미터
+        Long tempUserId = 1L; // temp value
+        ReservationResponse response = reservationService.createReservation(request, tempUserId);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

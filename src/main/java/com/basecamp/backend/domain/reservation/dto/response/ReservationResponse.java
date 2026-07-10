@@ -33,7 +33,7 @@ public record ReservationResponse(
                 reservation.getCustomerPhone(),
                 reservation.getSpecialRequest(),
                 reservation.getStatus(),
-                reservation.getCancelDate(),
+                reservation.getCancelAt(),
                 reservation.getTotalPrice(),
                 reservation.getCreatedAt()
         );
