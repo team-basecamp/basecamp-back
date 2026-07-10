@@ -18,6 +18,9 @@ public interface CampRepository extends JpaRepository<Camp,Long>, JpaSpecificati
     // contentId로 캠핑장 찾기
     Optional<Camp> findByContentId(Long contentId);
 
+    // 소유자(owner_id) 기준으로 등록한 캠핑장 조회, 최근 등록순
+    List<Camp> findByOwnerIdOrderByCreatedAtDesc(Long ownerId);
+
     // 모든 캠핑장의 contentId 리스트 조회
     @Query("SELECT c.contentId FROM Camp c")
     List<Long> findAllContentIds();

@@ -9,6 +9,7 @@ import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -155,6 +156,15 @@ public class CampController {
         }
     }
 
+    // 로그인한 회원이 등록한 캠핑장 목록 조회 ("내 캠핑장")
+    @Operation(summary = "내 캠핑장 목록 조회",
+            description = "인증된 사용자가 등록한 캠핑장을 최근 등록순으로 조회합니다.")
+    @GetMapping("/my")
+    public ResponseEntity<CampListResponseDto> getMyCamps(@AuthenticationPrincipal AuthUser owner) {
+        return ResponseEntity.ok(campService.getMyCamps(owner.id()));
+    }
+
+    // 캠핑장 등록
     @PostMapping("/register")
     public ResponseEntity<CampDetailResponseDto> registerCamp(
             @Valid // DTO에 붙어있는 검증 애너테이션 체크 하는 기능
@@ -162,16 +172,12 @@ public class CampController {
             CampRegistrationRequest request,
             @AuthenticationPrincipal AuthUser owner
     ){
-
         // Service 호출
         Camp savedCamp = campService.registerCamp(request, owner.id());
-
         // Entity -> Response DTO 변환하기
         CampResponseDto responseDto = CampResponseDto.from(savedCamp);
-
         // Envelope로 감싸기
         CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
-
         // 201 Created로 응답 반환
         return ResponseEntity.status(201).body(response);
     }
