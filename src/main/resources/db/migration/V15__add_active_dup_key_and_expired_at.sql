@@ -15,13 +15,21 @@
 --    중복 예약이 저장되고, 선결제 플로우에서 이중 결제로 이어질 수 있다.
 -- -------------------------------------------------------------
 ALTER TABLE reservations
-    ADD COLUMN active_dup_key VARCHAR(100)
+    ADD COLUMN active_dup_key VARCHAR(150)
         GENERATED ALWAYS AS (
-            IF(status IN ('PENDING_PAYMENT', 'PENDING', 'RESERVED'),
-               CONCAT(user_id, '-', camp_id, '-', check_in_date, '-', check_out_date),
-               NULL)
-            ) STORED
-        COMMENT '활성 예약 중복 방지 파생 키(취소/거절 시 NULL로 중복 허용)',
+            CASE
+                WHEN status IN ('PENDING_PAYMENT', 'PENDING', 'RESERVED')
+                    THEN CONCAT(
+                        CAST(user_id AS CHAR), '-',
+                        CAST(camp_id AS CHAR), '-',
+                        CAST(check_in_date AS CHAR), '-',
+                        CAST(check_out_date AS CHAR)
+                         )
+                ELSE NULL
+                END
+            ) VIRTUAL
+        COMMENT '활성 예약 중복 방지 파생 키(취소/거절 시 NULL로 중복 허용)';
+ALTER TABLE reservations
     ADD UNIQUE INDEX uq_rsv_active_dup (active_dup_key);
 
 -- -------------------------------------------------------------
