@@ -282,6 +282,7 @@ public class CampService {
                 .glampSiteCo(request.getGlampSiteCo() != null ? request.getGlampSiteCo() : 0)
                 .lineIntro(request.getLineIntro())
                 .firstImageUrl(request.getFirstImageUrl())
+                .homepage(request.getHomepage())
                 .ownerId(ownerId)
                 .contentId(null)
                 .manageSttus("운영")
@@ -293,6 +294,20 @@ public class CampService {
         // DB에  camping 장 저장
         return campRepository.save(camp);
 
+    }
+
+    // 로그인한 회원(ownerId)이 등록한 캠핑장 목록 조회
+    public CampListResponseDto getMyCamps(Long ownerId) {
+        if (ownerId == null || ownerId <= 0) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "로그인이 필요합니다.");
+        }
+
+        List<Camp> camps = campRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId);
+        List<CampResponseDto> dtos = camps.stream()
+                .map(CampResponseDto::from)
+                .toList();
+
+        return CampListResponseDto.ok(dtos, dtos.size());
     }
 
 }

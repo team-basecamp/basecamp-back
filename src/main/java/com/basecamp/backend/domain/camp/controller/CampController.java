@@ -154,6 +154,12 @@ public class CampController {
         }
     }
 
+    // 로그인한 회원이 등록한 캠핑장 목록 조회 ("내 캠핑장")
+    @GetMapping("/my")
+    public ResponseEntity<CampListResponseDto> getMyCamps(@AuthenticationPrincipal Long ownerId) {
+        return ResponseEntity.ok(campService.getMyCamps(ownerId));
+    }
+
     @PostMapping("/register")
     public ResponseEntity<CampDetailResponseDto> registerCamp(
             @Valid // DTO에 붙어있는 검증 애너테이션 체크 하는 기능
@@ -161,16 +167,12 @@ public class CampController {
             CampRegistrationRequest request,
             @AuthenticationPrincipal Long ownerId
     ){
-
         // Service 호출
         Camp savedCamp = campService.registerCamp(request, ownerId);
-
         // Entity -> Response DTO 변환하기
         CampResponseDto responseDto = CampResponseDto.from(savedCamp);
-
         // Envelope로 감싸기
         CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
-
         // 201 Created로 응답 반환
         return ResponseEntity.status(201).body(response);
     }
