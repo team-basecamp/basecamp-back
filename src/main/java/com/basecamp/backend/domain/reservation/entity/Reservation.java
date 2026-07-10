@@ -92,6 +92,16 @@ public class Reservation {
         this.status = ReservationStatus.PENDING;
     }
 
+    // PG 결제 확인 후 호출 (PENDING_PAYMENT -> PENDING)
+    public void confirmPayment() {
+        if (this.status != ReservationStatus.PENDING_PAYMENT) {
+            throw new BusinessException(ErrorCode.RESERVATION_NOT_PENDING_PAYMENT);
+        }
+
+        this.status = ReservationStatus.PENDING;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public void approve() {
         if (this.status != ReservationStatus.PENDING) {
             throw new BusinessException(ErrorCode.RESERVATION_NOT_PENDING);

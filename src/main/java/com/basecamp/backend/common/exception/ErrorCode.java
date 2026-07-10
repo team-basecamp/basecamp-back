@@ -46,6 +46,11 @@ public enum ErrorCode {
 
 	// Camp
 	CAMP_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "캠핑장을 찾을 수 없습니다."),
+
+	// Payment
+	PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "P001", "결제 정보를 찾을 수 없습니다."),
+	RESERVATION_NOT_PENDING_PAYMENT(HttpStatus.BAD_REQUEST, "P002", "결제 대기 상태의 예약만 결제할 수 있습니다."),
+	ALREADY_PAID(HttpStatus.CONFLICT, "P003", "이미 결제가 완료된 예약입니다."),
 	;
 
 	private final HttpStatus status;

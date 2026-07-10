@@ -24,7 +24,7 @@ public class ReservationController {
     private final ReservationService reservationService;
 
     // TODO: 인증 미구현으로인한 하드코딩, Authentication authentication 나중에 넣을 파라미터
-    @Operation(summary = "예약하기", description = "고객이 해당 캠핑장에 예약을 합니다. 이 때 예약상태는 대기(PENDING)입니다.")
+    @Operation(summary = "예약하기", description = "고객이 해당 캠핑장에 예약을 합니다. 이 때 예약상태는 결제 대기(PENDING_PAYMENT)입니다.")
     @PostMapping
     public ResponseEntity<ReservationResponse> createReservation(@Valid @RequestBody ReservationCreateRequest request) {
         //Long userId = Long.parseLong(authentication.getName()); // service에 전달할 파라미터

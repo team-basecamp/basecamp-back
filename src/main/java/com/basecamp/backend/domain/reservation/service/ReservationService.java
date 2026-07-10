@@ -30,7 +30,7 @@ public class ReservationService {
     public ReservationResponse createReservation(ReservationCreateRequest request, Long userId) {
         boolean duplicated = reservationRepository.existsOverbookingReservation(
                 userId, request.campId(),
-                List.of(ReservationStatus.PENDING, ReservationStatus.RESERVED),
+                List.of(ReservationStatus.PENDING, ReservationStatus.RESERVED, ReservationStatus.PENDING_PAYMENT),
                 request.checkInDate(), request.checkOutDate());
 
         if (duplicated) {
@@ -51,7 +51,7 @@ public class ReservationService {
                 .customerName(request.customerName())
                 .customerPhone(request.customerPhone())
                 .specialRequest(request.specialRequest())
-                .status(ReservationStatus.PENDING)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .createdAt(LocalDateTime.now())
                 .build();
 
