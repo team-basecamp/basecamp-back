@@ -10,6 +10,7 @@ import com.basecamp.backend.domain.payment.repository.PaymentRepository;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,7 +45,12 @@ public class PaymentService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        Payment saved = paymentRepository.save(payment);
+        Payment saved;
+        try {
+            saved = paymentRepository.saveAndFlush(payment);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.ALREADY_PAID);
+        }
         return PaymentResponse.from(saved);
     }
 }

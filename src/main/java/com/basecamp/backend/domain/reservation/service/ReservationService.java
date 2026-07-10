@@ -11,6 +11,7 @@ import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,13 @@ public class ReservationService {
     public ReservationResponse createReservation(ReservationCreateRequest request, Long userId) {
         LocalDateTime paymentValidAfter = LocalDateTime.now().minusMinutes(paymentWaitingExpiryMinutes);
 
+        // 0. 만료된 미결제 이탈 건 정리 → 유니크 키 해제
+        reservationRepository.expireStalePaymentWaiting(
+                userId, request.campId(),
+                ReservationStatus.PENDING_PAYMENT, ReservationStatus.CANCELLED,
+                paymentValidAfter);
+
+        // 1. 활성 예약 기간 겹침 검증 (순차 요청, 기간이 다른 겹침 차단)
         boolean duplicated = reservationRepository.existsOverbookingReservation(
                 userId,
                 request.campId(),
@@ -65,7 +73,13 @@ public class ReservationService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        Reservation saved = reservationRepository.save(reservation);
+        Reservation saved;
+        try {
+            saved = reservationRepository.saveAndFlush(reservation);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.DUPLICATE_RESERVATION);
+        }
+
         return ReservationResponse.from(saved);
     }
 
@@ -85,17 +99,6 @@ public class ReservationService {
     public ReservationResponse approveReservation(Long reservationId){
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
-
-        boolean conflicted = reservationRepository.existsConflictingReservation(
-                reservation.getCampId(),
-                reservation.getId(),  // 자기 자신 제외
-                ReservationStatus.RESERVED,
-                reservation.getCheckInDate(),
-                reservation.getCheckOutDate());
-
-        if (conflicted) {
-            throw new BusinessException(ErrorCode.RESERVATION_PERIOD_CONFLICT); // 409
-        }
 
         reservation.approve(); // 예약상태변경(RESERVED)
 

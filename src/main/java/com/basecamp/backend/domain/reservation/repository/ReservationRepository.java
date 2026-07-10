@@ -5,6 +5,7 @@ import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -41,6 +42,21 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
             @Param("paymentValidAfter") LocalDateTime paymentValidAfter,
             @Param("checkInDate") LocalDate checkInDate,
             @Param("checkOutDate") LocalDate checkOutDate);
+
+    @Modifying
+    @Query("""
+        update Reservation r
+        set r.status = :expiredStatus, r.version = r.version + 1
+        where r.userId = :userId
+          and r.campId = :campId
+          and r.status = :paymentWaiting
+          and r.createdAt <= :paymentValidAfter
+        """)
+    int expireStalePaymentWaiting(@Param("userId") Long userId,
+                                  @Param("campId") Long campId,
+                                  @Param("paymentWaiting") ReservationStatus paymentWaiting,
+                                  @Param("expiredStatus") ReservationStatus expiredStatus,
+                                  @Param("paymentValidAfter") LocalDateTime paymentValidAfter);
 
     // 예약날짜 충돌체크 쿼리
     @Query("""

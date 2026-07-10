@@ -28,7 +28,6 @@ public enum ErrorCode {
 	ALREADY_CANCELED_OR_REJECTED(HttpStatus.BAD_REQUEST, "R003", "이미 취소 되었거나 거절된 예약입니다."),
 	RESERVATION_NOT_PENDING(HttpStatus.BAD_REQUEST, "R004", "대기 중인 예약만 수락/거절할 수 있습니다."),
 	DUPLICATE_RESERVATION(HttpStatus.CONFLICT, "R005", "이미 같은 예약이 존재합니다."),
-	RESERVATION_PERIOD_CONFLICT(HttpStatus.CONFLICT, "R006", "해당 기간에 이미 확정된 예약이 존재합니다"),
 
 	// OAuth / Social Login
 	UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "O001", "지원하지 않는 소셜 로그인 제공자입니다."),
