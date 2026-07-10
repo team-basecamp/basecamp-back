@@ -56,24 +56,16 @@ public class CampController {
         }
     }
 
-// 특정 캠핑장 ID 검색
+// 특정 캠핑장 ID(PK) 로 조회 (상세페이지용 - 자체 등록 캠핑장은 contentId가 없어 이 엔드포인트로 통일 조회)
     @GetMapping("/{campId}")
-    public ResponseEntity<?> getCampById(@PathVariable Long campId) {
-        try {
-            // Service의 getCampId() 메서드 호출
-            Camp camp = campService.getCampId(campId);
+    public ResponseEntity<CampDetailResponseDto> getCampById(@PathVariable Long campId) {
+        Camp camp = campService.getCampId(campId);
 
-            if (camp == null) {
-                return ResponseEntity.status(404)
-                        .body("캠핑장을 찾을 수 없습니다");
-            }
-
-            return ResponseEntity.ok(camp);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("조회 실패: " + e.getMessage());
+        if (camp == null) {
+            throw new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
         }
+
+        return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
     }
 
 // 고캠핑 contentId로 캠핑장 조회 (상세페이지용)
