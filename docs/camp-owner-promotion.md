@@ -173,7 +173,7 @@ userRevocationCache.revoke(userId); // 기존 access 토큰 전부 무효화
 
 ## 6. 스키마
 
-새 마이그레이션 `V11__add_camp_owner_applications.sql`.
+새 마이그레이션 `V12__add_camp_owner_applications.sql`.
 
 ```sql
 CREATE TABLE camp_owner_applications (
@@ -298,7 +298,7 @@ public void approve(Long applicationId, Long adminId) {
 
 ### 포함
 
-- [ ] `V11__add_camp_owner_applications.sql`
+- [ ] `V12__add_camp_owner_applications.sql`
 - [ ] `CampOwnerApplication` 엔티티 + `ApplicationStatus` enum + 리포지토리
 - [ ] `User.promoteToCampOwner()` — 이미 `CAMP_OWNER`면 `CO003`
 - [ ] 회원용 신청 API 2개 (`domain/campowner`)
