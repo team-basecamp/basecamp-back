@@ -1,5 +1,7 @@
 package com.basecamp.backend.common.exception;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -10,8 +12,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestControllerAdvice
@@ -41,6 +41,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 		log.warn("ObjectOptimisticLockingFailureException: {}", ex.getMessage());
 		ErrorResponse response = ErrorResponse.of(ErrorCode.CONCURRENT_MODIFICATION);
 		return ResponseEntity.status(ErrorCode.CONCURRENT_MODIFICATION.getStatus()).body(response);
+	}
+
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	protected ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+		log.warn("DataIntegrityViolationException: {}", ex.getMessage());
+		ErrorResponse response = ErrorResponse.of(ErrorCode.ALREADY_PAID);
+		return ResponseEntity.status(ErrorCode.ALREADY_PAID.getStatus()).body(response);
 	}
 
 	@ExceptionHandler(AccessDeniedException.class)

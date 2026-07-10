@@ -12,8 +12,6 @@ import java.time.LocalDateTime;
 @Table(name = "reservations")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 public class Reservation {
 
     @Id
@@ -85,6 +83,24 @@ public class Reservation {
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
+
+    @Builder
+    private Reservation(Long userId, Long campId, LocalDate checkInDate, LocalDate checkOutDate,
+                         int guestCount, ReservationStatus status, Long totalPrice,
+                         String customerName, String customerPhone, String specialRequest,
+                         LocalDateTime createdAt) {
+        this.userId = userId;
+        this.campId = campId;
+        this.checkInDate = checkInDate;
+        this.checkOutDate = checkOutDate;
+        this.guestCount = guestCount;
+        this.status = status;
+        this.totalPrice = totalPrice;
+        this.customerName = customerName;
+        this.customerPhone = customerPhone;
+        this.specialRequest = specialRequest;
+        this.createdAt = createdAt;
+    }
 
     // --- 비즈니스 메서드 (상태 변경 도메인 로직) ---
 

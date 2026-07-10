@@ -113,3 +113,6 @@ logging:
   level:
     root: info
     com.basecamp.backend: debug
+
+payment:
+  waiting-expiry-minutes: ${PAYMENT_WAITING_EXPIRY:30}

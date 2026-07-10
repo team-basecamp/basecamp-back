@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -25,14 +26,19 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
         select count(r) > 0 from Reservation r
         where r.userId = :userId
           and r.campId = :campId
-          and r.status in :statuses
+          and (
+               r.status in :activeStatuses
+               or (r.status = :paymentWaiting and r.createdAt > :paymentValidAfter)
+          )
           and r.checkInDate < :checkOutDate
           and r.checkOutDate > :checkInDate
         """)
     boolean existsOverbookingReservation(
             @Param("userId") Long userId,
             @Param("campId") Long campId,
-            @Param("statuses") List<ReservationStatus> statuses,
+            @Param("activeStatuses") List<ReservationStatus> activeStatuses,
+            @Param("paymentWaiting") ReservationStatus paymentWaiting,
+            @Param("paymentValidAfter") LocalDateTime paymentValidAfter,
             @Param("checkInDate") LocalDate checkInDate,
             @Param("checkOutDate") LocalDate checkOutDate);
 

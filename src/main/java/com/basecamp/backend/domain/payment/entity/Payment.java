@@ -10,8 +10,6 @@ import java.time.LocalDateTime;
 @Table(name = "payments")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 public class Payment {
 
     @Id
@@ -39,4 +37,15 @@ public class Payment {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Builder
+    private Payment(Reservation reservation, Long amount, PaymentMethod paymentMethod,
+                     PaymentStatus status, LocalDateTime paidAt, LocalDateTime createdAt) {
+        this.reservation = reservation;
+        this.amount = amount;
+        this.paymentMethod = paymentMethod;
+        this.status = status;
+        this.paidAt = paidAt;
+        this.createdAt = createdAt;
+    }
 }

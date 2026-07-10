@@ -10,6 +10,7 @@ import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -26,12 +27,21 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final CampRepository campRepository;
 
+    @Value("${payment.waiting-expiry-minutes}")
+    private long paymentWaitingExpiryMinutes;
+
     @Transactional
     public ReservationResponse createReservation(ReservationCreateRequest request, Long userId) {
+        LocalDateTime paymentValidAfter = LocalDateTime.now().minusMinutes(paymentWaitingExpiryMinutes);
+
         boolean duplicated = reservationRepository.existsOverbookingReservation(
-                userId, request.campId(),
-                List.of(ReservationStatus.PENDING, ReservationStatus.RESERVED, ReservationStatus.PENDING_PAYMENT),
-                request.checkInDate(), request.checkOutDate());
+                userId,
+                request.campId(),
+                List.of(ReservationStatus.PENDING, ReservationStatus.RESERVED),  // PENDING_PAYMENT 제거
+                ReservationStatus.PENDING_PAYMENT,                                // 별도 파라미터로
+                paymentValidAfter,
+                request.checkInDate(),
+                request.checkOutDate());
 
         if (duplicated) {
             throw new BusinessException(ErrorCode.DUPLICATE_RESERVATION); // 409
