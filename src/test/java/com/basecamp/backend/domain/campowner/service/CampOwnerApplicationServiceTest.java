@@ -176,7 +176,7 @@ class CampOwnerApplicationServiceTest {
 		// given: 반려 후 재신청하면 여러 건이 쌓이므로 가장 최근 것을 본다.
 		CampOwnerApplication application = CampOwnerApplication.submit(USER_ID, VALID_BIZ_NUMBER, "상호", "홍길동");
 		ReflectionTestUtils.setField(application, "id", 3L);
-		given(applicationRepository.findFirstByUserIdOrderByCreatedAtDesc(USER_ID))
+		given(applicationRepository.findFirstByUserIdOrderByCreatedAtDescIdDesc(USER_ID))
 				.willReturn(Optional.of(application));
 
 		// when
@@ -191,7 +191,7 @@ class CampOwnerApplicationServiceTest {
 	@DisplayName("findMyLatestApplication_신청이력없음_CO001을던진다")
 	void findMyLatestApplication_신청이력없음_CO001을던진다() {
 		// given
-		given(applicationRepository.findFirstByUserIdOrderByCreatedAtDesc(anyLong())).willReturn(Optional.empty());
+		given(applicationRepository.findFirstByUserIdOrderByCreatedAtDescIdDesc(anyLong())).willReturn(Optional.empty());
 
 		// when & then
 		assertBusinessException(() -> campOwnerApplicationService.findMyLatestApplication(USER_ID),
