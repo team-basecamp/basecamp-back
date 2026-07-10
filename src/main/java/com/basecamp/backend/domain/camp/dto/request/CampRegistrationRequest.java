@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.validator.constraints.URL;
 
 @Getter
 @NoArgsConstructor
@@ -61,4 +62,9 @@ public class CampRegistrationRequest {
     // 대표 이미지 URL
     @Size(max = 255 ,message = "대표이미지 URL은 최대 255글자")
     private String firstImageUrl;
+
+    // 캠핑장 웹사이트
+    @URL(regexp = "^https?://.*", message = "웹사이트 URL은 http 또는 https로 시작해야 합니다")
+    @Size(max = 255, message = "웹사이트 URL은 최대 255글자")
+    private String homepage;
 }

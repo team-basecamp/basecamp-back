@@ -15,6 +15,7 @@ import java.util.List;
 @Builder
 public class CampResponseDto {
 
+    private Long campId;
     private Long contentId;
     private String facltNm;
     private String addr1;
@@ -46,6 +47,7 @@ public class CampResponseDto {
 
     public static CampResponseDto from(Camp camp) {
         return CampResponseDto.builder()
+                .campId(camp.getCampId())
                 .contentId(camp.getContentId())
                 .facltNm(camp.getFacltNm())
                 .addr1(camp.getAddr1())

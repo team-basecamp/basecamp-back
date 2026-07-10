@@ -31,9 +31,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.common.security.JwtProperties;
-import com.basecamp.backend.common.security.JwtTokenProvider;
-import com.basecamp.backend.common.security.TokenBlacklistCache;
+import com.basecamp.backend.security.JwtProperties;
+import com.basecamp.backend.security.JwtTokenProvider;
+import com.basecamp.backend.security.TokenBlacklistCache;
 import com.basecamp.backend.domain.auth.client.OAuthUserInfo;
 import com.basecamp.backend.domain.auth.entity.BlacklistReason;
 import com.basecamp.backend.domain.auth.entity.TokenBlacklist;
