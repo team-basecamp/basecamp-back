@@ -3,6 +3,7 @@ package com.basecamp.backend.common.exception;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -33,6 +34,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 		ErrorCode errorCode = ex.getErrorCode();
 		ErrorResponse response = ErrorResponse.of(errorCode, ex.getMessage());
 		return ResponseEntity.status(errorCode.getStatus()).body(response);
+	}
+
+	@ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+	protected ResponseEntity<ErrorResponse> handleObjectOptimisticLockingFailureException(ObjectOptimisticLockingFailureException ex) {
+		log.warn("ObjectOptimisticLockingFailureException: {}", ex.getMessage());
+		ErrorResponse response = ErrorResponse.of(ErrorCode.CONCURRENT_MODIFICATION);
+		return ResponseEntity.status(ErrorCode.CONCURRENT_MODIFICATION.getStatus()).body(response);
 	}
 
 	@ExceptionHandler(AccessDeniedException.class)
