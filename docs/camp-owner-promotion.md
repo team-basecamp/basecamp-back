@@ -231,7 +231,7 @@ POST /api/v1/camp-owner/applications      (인증 필요, ROLE_CUSTOMER)
 
 ```json
 {
-  "businessNumber": "1234567890",
+  "businessNumber": "2208162517",
   "businessName": "베이스캠프 오토캠핑장",
   "representativeName": "홍길동"
 }
@@ -296,23 +296,32 @@ public void approve(Long applicationId, Long adminId) {
 
 ## 9. 작업 범위
 
-### 포함
+### 포함 — 구현 완료
 
-- [ ] `V12__add_camp_owner_applications.sql`
-- [ ] `CampOwnerApplication` 엔티티 + `ApplicationStatus` enum + 리포지토리
-- [ ] `User.promoteToCampOwner()` — 이미 `CAMP_OWNER`면 `CO003`
-- [ ] 회원용 신청 API 2개 (`domain/campowner`)
-- [ ] 관리자용 심사 API 3개 (`domain/admin`)
-- [ ] `ErrorCode` `CO001`~`CO005` 추가
-- [ ] 승인 시 `UserRevocationCache.revoke()` 호출 및 롤백 보장
+- [x] `V12__add_camp_owner_applications.sql`
+- [x] `CampOwnerApplication` 엔티티 + `ApplicationStatus` enum + 리포지토리
+- [x] `User.promoteToCampOwner()` — 이미 `CAMP_OWNER`면 `CO003`
+- [x] 회원용 신청 API 2개 (`domain/campowner`)
+- [x] 관리자용 심사 API 3개 (`domain/admin`)
+- [x] `ErrorCode` `CO001`~`CO005` 추가
+- [x] 승인 시 `UserRevocationCache.revoke()` 호출 및 롤백 보장
+
+### 구현하며 설계에서 벗어난 점
+
+- **사업자등록번호 예시를 `1234567890` → `2208162517`로 바꿨다.** 전자는 체크섬을 통과하지 못한다. 문서·Swagger 예시로 두면 그대로 복사한 요청이 `CO005`로 떨어진다.
+- **`0000000000`을 추가로 막는다.** 가중치 합이 0이라 체크섬을 통과하지만, 앞 두 자리는 세무서 코드라 `00`인 사업자는 존재하지 않는다.
+- **탈퇴·제재 회원은 신청도 승인도 막는다.** 제재를 풀지 않은 채 권한만 올리면 해제되는 순간 업체 권한을 그대로 갖게 된다(`A007`).
+- **동시 신청은 `uq_coa_user_pending` 위반을 `CO002`로 변환**한다. `existsByUserIdAndStatus` 조회만으로는 조회와 INSERT 사이의 경합을 막지 못한다.
+- **회원 신청 API는 `@PreAuthorize("hasRole('CUSTOMER')")`로 보호한다.** `/api/v1/camp-owner/**`는 `/admin` 아래가 아니라 URL 규칙으로 묶이지 않는다.
 
 ### 제외 (별도 이슈)
 
 - 강등(승인 취소) — [5절](#5-승격-시-토큰-처리)의 fail-open 분석 참고. 제재와 동급 설계 필요
 - 국세청 사업자등록번호 진위 확인 API 연동
 - 증빙 서류 이미지 업로드 (`images` 연관)
-- `CAMP_OWNER` 전용 캠핑장 등록 API (`camps.owner_id` 채우기) — 이 이슈는 **권한 부여까지**만 다룬다
 - ADMIN 임명 API
+
+> `POST /api/v1/camps/register`는 원래 이 문서의 제외 항목이었으나, 승격 경로가 생겨 `CAMP_OWNER`를 실제로 부여할 수 있게 되었으므로 함께 `@PreAuthorize("hasRole('CAMP_OWNER')")`로 막았다. `camps.owner_id`를 채우는 등록 로직 자체는 기존 구현을 그대로 쓴다.
 
 ---
 
