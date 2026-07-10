@@ -17,7 +17,7 @@ public record CampOwnerApplicationResponse(
 		@Schema(description = "신청 회원 ID", example = "7")
 		Long userId,
 
-		@Schema(description = "사업자등록번호", example = "2208162517")
+		@Schema(description = "사업자등록번호", example = "1234567890")
 		String businessNumber,
 
 		@Schema(description = "상호명", example = "베이스캠프 오토캠핑장")

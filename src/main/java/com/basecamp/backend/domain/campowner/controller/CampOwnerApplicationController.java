@@ -36,8 +36,8 @@ public class CampOwnerApplicationController {
 
 	@Operation(summary = "캠핑업체 전환 신청",
 			description = "사업자 정보를 제출해 캠핑업체 권한 승격을 신청한다. 관리자가 승인해야 실제로 권한이 바뀐다. "
-					+ "이미 심사 중인 신청이 있으면 409(CO002), 이미 캠핑업체면 409(CO003), "
-					+ "사업자등록번호 체크섬이 맞지 않으면 400(CO005).")
+					+ "사업자등록번호는 숫자 10자리 형식만 검증한다(실체 확인은 관리자 심사). "
+					+ "이미 심사 중인 신청이 있으면 409(CO002), 이미 캠핑업체면 409(CO003).")
 	@PreAuthorize("hasRole('CUSTOMER')")
 	@PostMapping
 	public ResponseEntity<CampOwnerApplicationResponse> apply(

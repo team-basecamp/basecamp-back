@@ -40,7 +40,7 @@ import com.basecamp.backend.domain.user.repository.UserRepository;
 class CampOwnerApplicationServiceTest {
 
 	private static final Long USER_ID = 7L;
-	private static final String VALID_BIZ_NUMBER = "2208162517";
+	private static final String BIZ_NUMBER = "1234567890";
 	private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 	private static final Instant NOW = Instant.parse("2026-07-10T00:00:00Z");
 
@@ -71,12 +71,12 @@ class CampOwnerApplicationServiceTest {
 				.willAnswer(invocation -> invocation.getArgument(0));
 
 		// when
-		CampOwnerApplicationResponse response = campOwnerApplicationService.apply(USER_ID, request(VALID_BIZ_NUMBER));
+		CampOwnerApplicationResponse response = campOwnerApplicationService.apply(USER_ID, request(BIZ_NUMBER));
 
 		// then: 신청은 심사를 요청할 뿐 권한을 바꾸지 않는다.
 		assertThat(response.status()).isEqualTo(ApplicationStatus.PENDING.name());
 		assertThat(response.userId()).isEqualTo(USER_ID);
-		assertThat(response.businessNumber()).isEqualTo(VALID_BIZ_NUMBER);
+		assertThat(response.businessNumber()).isEqualTo(BIZ_NUMBER);
 		assertThat(response.processedAt()).isNull();
 	}
 
@@ -89,21 +89,26 @@ class CampOwnerApplicationServiceTest {
 		given(userRepository.findById(USER_ID)).willReturn(Optional.of(owner));
 
 		// when & then
-		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(VALID_BIZ_NUMBER)),
+		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(BIZ_NUMBER)),
 				ErrorCode.ALREADY_CAMP_OWNER);
 		verify(applicationRepository, never()).saveAndFlush(any());
 	}
 
 	@Test
-	@DisplayName("apply_체크섬이틀린사업자번호_CO005를던진다")
-	void apply_체크섬이틀린사업자번호_CO005를던진다() {
-		// given: 형식(숫자 10자리)은 맞아 Bean Validation 은 통과하지만 체크섬이 틀리다.
+	@DisplayName("apply_임의의10자리사업자번호_체크섬을보지않고통과한다")
+	void apply_임의의10자리사업자번호_통과한다() {
+		// given: 체크섬은 오타만 걸러낼 뿐 사업자 실재 여부를 알려주지 못한다. 실체 확인은 관리자 심사의 몫이다.
+		//        자릿수는 요청 DTO 의 @Pattern 이 검증한다(실패 시 400 C001).
 		given(userRepository.findById(USER_ID)).willReturn(Optional.of(activeUser()));
+		given(applicationRepository.existsByUserIdAndStatus(USER_ID, ApplicationStatus.PENDING)).willReturn(false);
+		given(applicationRepository.saveAndFlush(any(CampOwnerApplication.class)))
+				.willAnswer(invocation -> invocation.getArgument(0));
 
-		// when & then
-		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request("2208162518")),
-				ErrorCode.INVALID_BUSINESS_NUMBER);
-		verify(applicationRepository, never()).saveAndFlush(any());
+		// when
+		CampOwnerApplicationResponse response = campOwnerApplicationService.apply(USER_ID, request("1234567890"));
+
+		// then
+		assertThat(response.businessNumber()).isEqualTo("1234567890");
 	}
 
 	@Test
@@ -114,7 +119,7 @@ class CampOwnerApplicationServiceTest {
 		given(applicationRepository.existsByUserIdAndStatus(USER_ID, ApplicationStatus.PENDING)).willReturn(true);
 
 		// when & then
-		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(VALID_BIZ_NUMBER)),
+		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(BIZ_NUMBER)),
 				ErrorCode.CAMP_OWNER_APPLICATION_ALREADY_PENDING);
 		verify(applicationRepository, never()).saveAndFlush(any());
 	}
@@ -129,7 +134,7 @@ class CampOwnerApplicationServiceTest {
 				.willThrow(new DataIntegrityViolationException("duplicate user_id_pending"));
 
 		// when & then: 500 이 아니라 "이미 심사 중"으로 응답해야 한다.
-		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(VALID_BIZ_NUMBER)),
+		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(BIZ_NUMBER)),
 				ErrorCode.CAMP_OWNER_APPLICATION_ALREADY_PENDING);
 	}
 
@@ -142,7 +147,7 @@ class CampOwnerApplicationServiceTest {
 		given(userRepository.findById(USER_ID)).willReturn(Optional.of(withdrawn));
 
 		// when & then
-		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(VALID_BIZ_NUMBER)),
+		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(BIZ_NUMBER)),
 				ErrorCode.USER_NOT_FOUND);
 	}
 
@@ -155,7 +160,7 @@ class CampOwnerApplicationServiceTest {
 		given(userRepository.findById(USER_ID)).willReturn(Optional.of(blacklisted));
 
 		// when & then
-		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(VALID_BIZ_NUMBER)),
+		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(BIZ_NUMBER)),
 				ErrorCode.BLACKLISTED_USER);
 	}
 
@@ -166,7 +171,7 @@ class CampOwnerApplicationServiceTest {
 		given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
 
 		// when & then
-		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(VALID_BIZ_NUMBER)),
+		assertBusinessException(() -> campOwnerApplicationService.apply(USER_ID, request(BIZ_NUMBER)),
 				ErrorCode.USER_NOT_FOUND);
 	}
 
@@ -174,7 +179,7 @@ class CampOwnerApplicationServiceTest {
 	@DisplayName("findMyLatestApplication_최신신청_반환한다")
 	void findMyLatestApplication_최신신청_반환한다() {
 		// given: 반려 후 재신청하면 여러 건이 쌓이므로 가장 최근 것을 본다.
-		CampOwnerApplication application = CampOwnerApplication.submit(USER_ID, VALID_BIZ_NUMBER, "상호", "홍길동");
+		CampOwnerApplication application = CampOwnerApplication.submit(USER_ID, BIZ_NUMBER, "상호", "홍길동");
 		ReflectionTestUtils.setField(application, "id", 3L);
 		given(applicationRepository.findFirstByUserIdOrderByCreatedAtDescIdDesc(USER_ID))
 				.willReturn(Optional.of(application));

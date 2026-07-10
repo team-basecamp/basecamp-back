@@ -52,7 +52,6 @@ public enum ErrorCode {
 	CAMP_OWNER_APPLICATION_ALREADY_PENDING(HttpStatus.CONFLICT, "CO002", "이미 심사 중인 신청이 있습니다."),
 	ALREADY_CAMP_OWNER(HttpStatus.CONFLICT, "CO003", "이미 캠핑업체로 등록된 회원입니다."),
 	CAMP_OWNER_APPLICATION_ALREADY_PROCESSED(HttpStatus.CONFLICT, "CO004", "이미 처리된 신청입니다."),
-	INVALID_BUSINESS_NUMBER(HttpStatus.BAD_REQUEST, "CO005", "유효하지 않은 사업자등록번호입니다."),
 	;
 
 	private final HttpStatus status;

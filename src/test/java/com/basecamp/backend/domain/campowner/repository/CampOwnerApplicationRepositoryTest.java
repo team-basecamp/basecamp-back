@@ -47,7 +47,7 @@ class CampOwnerApplicationRepositoryTest {
 	private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 	private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-10T00:00:00Z"), ZONE);
 	private static final Long ADMIN_ID = 9L;
-	private static final String BIZ_NUMBER = "2208162517";
+	private static final String BIZ_NUMBER = "1234567890";
 
 	@Autowired
 	private CampOwnerApplicationRepository applicationRepository;
@@ -72,7 +72,7 @@ class CampOwnerApplicationRepositoryTest {
 		applicationRepository.saveAndFlush(pending(userId, BIZ_NUMBER));
 
 		// when & then: 서비스의 existsBy 조회는 조회와 INSERT 사이의 경합을 막지 못한다. 최종 방어선은 여기다.
-		assertThatThrownBy(() -> applicationRepository.saveAndFlush(pending(userId, "1208147521")))
+		assertThatThrownBy(() -> applicationRepository.saveAndFlush(pending(userId, "9876543210")))
 				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 
@@ -155,7 +155,7 @@ class CampOwnerApplicationRepositoryTest {
 		em.clear();
 
 		// then: 파생 컬럼도 여전히 채워져 있어 "회원당 심사 중 1건" 규칙이 유지된다.
-		assertThatThrownBy(() -> applicationRepository.saveAndFlush(pending(userId, "1208147521")))
+		assertThatThrownBy(() -> applicationRepository.saveAndFlush(pending(userId, "9876543210")))
 				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 

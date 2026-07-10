@@ -22,6 +22,9 @@ import lombok.RequiredArgsConstructor;
  *
  * <p>신청은 심사를 요청할 뿐 권한을 바꾸지 않는다. 실제 승격은 관리자가 승인할 때
  * {@code AdminCampOwnerService} 에서 일어난다.</p>
+ *
+ * <p><b>사업자등록번호는 자릿수(숫자 10자리)만 검증한다.</b> 체크섬을 맞춰봐야 오타를 걸러낼 뿐 사업자가
+ * 실재하는지는 알 수 없고, 그 판단은 어차피 관리자 심사가 한다. 진위 확인이 필요해지면 국세청 API 를 붙인다.</p>
  */
 @Service
 @Transactional
@@ -43,9 +46,6 @@ public class CampOwnerApplicationService {
 		User user = findActiveUser(userId);
 		if (user.getRole() == Role.CAMP_OWNER) {
 			throw new BusinessException(ErrorCode.ALREADY_CAMP_OWNER);
-		}
-		if (!BusinessNumberValidator.isValid(request.businessNumber())) {
-			throw new BusinessException(ErrorCode.INVALID_BUSINESS_NUMBER);
 		}
 		if (applicationRepository.existsByUserIdAndStatus(userId, ApplicationStatus.PENDING)) {
 			throw new BusinessException(ErrorCode.CAMP_OWNER_APPLICATION_ALREADY_PENDING);

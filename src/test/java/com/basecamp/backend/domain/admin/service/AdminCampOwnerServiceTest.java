@@ -72,7 +72,7 @@ class AdminCampOwnerServiceTest {
 
 	private CampOwnerApplication pendingApplication() {
 		CampOwnerApplication application =
-				CampOwnerApplication.submit(USER_ID, "2208162517", "베이스캠프 오토캠핑장", "홍길동");
+				CampOwnerApplication.submit(USER_ID, "1234567890", "베이스캠프 오토캠핑장", "홍길동");
 		ReflectionTestUtils.setField(application, "id", APPLICATION_ID);
 		return application;
 	}
