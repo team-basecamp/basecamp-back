@@ -28,6 +28,7 @@ public enum ErrorCode {
 	ALREADY_CANCELED_OR_REJECTED(HttpStatus.BAD_REQUEST, "R003", "이미 취소 되었거나 거절된 예약입니다."),
 	RESERVATION_NOT_PENDING(HttpStatus.BAD_REQUEST, "R004", "대기 중인 예약만 수락/거절할 수 있습니다."),
 	DUPLICATE_RESERVATION(HttpStatus.CONFLICT, "R005", "이미 같은 예약이 존재합니다."),
+	RESERVATION_PERIOD_CONFLICT(HttpStatus.CONFLICT, "R006", "해당 기간에 이미 확정된 예약이 존재합니다"),
 
 	// OAuth / Social Login
 	UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "O001", "지원하지 않는 소셜 로그인 제공자입니다."),
@@ -45,6 +46,12 @@ public enum ErrorCode {
 
 	// Camp
 	CAMP_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "캠핑장을 찾을 수 없습니다."),
+
+	// CampOwner (캠핑업체 권한 승격 신청)
+	CAMP_OWNER_APPLICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "CO001", "업체 전환 신청을 찾을 수 없습니다."),
+	CAMP_OWNER_APPLICATION_ALREADY_PENDING(HttpStatus.CONFLICT, "CO002", "이미 심사 중인 신청이 있습니다."),
+	ALREADY_CAMP_OWNER(HttpStatus.CONFLICT, "CO003", "이미 캠핑업체로 등록된 회원입니다."),
+	CAMP_OWNER_APPLICATION_ALREADY_PROCESSED(HttpStatus.CONFLICT, "CO004", "이미 처리된 신청입니다."),
 
 	// Payment
 	PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "P001", "결제 정보를 찾을 수 없습니다."),
