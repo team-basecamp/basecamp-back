@@ -43,7 +43,7 @@ public class ReservationService {
 
         Reservation reservation = Reservation.builder()
                 .userId(userId) // TODO: user 엔티티 미구현으로 인한 하드코딩(이건 controller에서 authentication 받기)
-                .campId(1L) // TODO: camp 엔티티 미구현으로 인한 하드코딩
+                .campId(request.campId())
                 .checkInDate(request.checkInDate())
                 .checkOutDate(request.checkOutDate())
                 .guestCount(request.guestCount())

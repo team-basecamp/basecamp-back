@@ -17,8 +17,7 @@ ALTER TABLE reservations
 
 -- -------------------------------------------------------------
 -- 2. reservations : cancel_date -> cancel_at으로 변경
---    업체의 예약 수락/거절이 동시에 요청될 때 상태가 뒤엉키는 것을 막기 위해
---    JPA @Version 기반 낙관적 락을 적용한다. 기존 행은 0으로 초기화.
+--    통일성을 위해 data를 at으로 변경
 -- -------------------------------------------------------------
 ALTER TABLE reservations
-    RENAME COLUMN cancel_date TO cancel_at COMMENT '예약 취소 일시';
+    CHANGE COLUMN cancel_date cancel_at DATETIME NULL COMMENT '예약 취소 일시';
