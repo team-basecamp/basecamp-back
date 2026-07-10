@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -23,9 +24,14 @@ import java.util.List;
  *
  * <p>소셜 로그인은 코드 릴레이 방식(REST)이라 {@code oauth2Login()}을 쓰지 않고, 무상태(STATELESS) JWT 인증만 구성한다.</p>
  * <p>refresh 토큰을 HttpOnly 쿠키로 주고받으므로 CORS는 credentials 허용 + 특정 오리진 화이트리스트로 설정한다.</p>
+ *
+ * <p>인가는 두 층위를 함께 쓴다. 굵은 규칙(경로 접두사)은 아래 {@code authorizeHttpRequests} 에, 메서드 하나에만
+ * 걸리는 세밀한 규칙은 {@code @PreAuthorize} 에 둔다. 후자를 위해 {@link EnableMethodSecurity} 를 켠다 —
+ * 켜두지 않으면 {@code @PreAuthorize} 가 <b>예외 없이 조용히 무시되어</b> 막힐 거라 믿는 API 가 열린 채 배포된다.</p>
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @EnableConfigurationProperties({JwtProperties.class, CorsProperties.class, CookieProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
@@ -61,8 +67,6 @@ public class SecurityConfig {
 						.requestMatchers(SWAGGER_ENDPOINTS).permitAll()
 						// 캠핑장 목록/검색/상세 조회는 비로그인 상태에서도 볼 수 있어야 하므로 공개.
 						.requestMatchers(HttpMethod.GET, "/api/v1/camps/**").permitAll()
-						// TODO: 로그인(AuthController) 구현 전까지 임시로 공개. 로그인 붙으면 ADMIN 권한으로 되돌릴 것.
-						.requestMatchers(HttpMethod.POST, "/api/v1/camps/fetch").permitAll()
 						.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
 						.anyRequest().authenticated())
 				.exceptionHandling(handler -> handler

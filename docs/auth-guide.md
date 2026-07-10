@@ -193,8 +193,9 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3Iiwicm9sZSI6...
 | `POST /api/v1/auth/login/**` | 로그인하려면 로그인이 필요할 수 없으니까 |
 | `POST /api/v1/auth/token/refresh` | access 토큰이 만료된 상태에서 부르는 API |
 | `GET /api/v1/camps/**` | 비로그인 방문자도 캠핑장을 둘러볼 수 있어야 함 |
-| `POST /api/v1/camps/fetch` | ⚠️ 임시 공개 (원래 ADMIN 전용) |
 | `/swagger-ui/**`, `/v3/api-docs/**` | API 문서 |
+
+> `GET`만 열려 있습니다. 같은 경로 아래여도 `GET`이 아니면 로그인이 필요합니다. 공공데이터를 DB에 밀어넣는 `POST /api/v1/camps/fetch`와 `POST /api/v1/camps/sync`는 추가로 `@PreAuthorize("hasRole('ADMIN')")`가 걸려 있습니다.
 
 ### 내 API를 공개(비로그인 허용)하고 싶다면
 
@@ -218,17 +219,18 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3Iiwicm9sZSI6...
 
 권한은 셋입니다: `CUSTOMER`(일반 회원), `CAMP_OWNER`(캠핑업체), `ADMIN`(관리자).
 
-### ⚠️ `@PreAuthorize`는 지금 동작하지 않습니다
+스프링 시큐리티는 인가(authorization)를 **두 층위**로 제공합니다. 둘 다 표준이고, 실무에서는 보통 섞어 씁니다.
 
-```java
-@PreAuthorize("hasRole('ADMIN')")   // ❌ 아무 효과 없음! 조용히 무시됩니다
-@GetMapping("/api/v1/admin/stats")
-public ... { }
-```
+| | 요청 단위 (`SecurityConfig`) | 메서드 단위 (`@PreAuthorize`) |
+|---|---|---|
+| 어디에 쓰나 | `/api/v1/admin/**` 처럼 **경로 접두사로 뭉뚱그려** 막을 때 | **특정 메서드 하나**에만 걸리는 규칙 |
+| 규칙 위치 | `SecurityConfig` 한 곳 (전체 감사 쉬움) | 보호할 메서드 바로 위 (누락 발견 쉬움) |
+| 경로를 바꾸면 | ⚠️ **조용히 매칭 실패** | 영향 없음 |
+| 메서드 인자 참조 | 불가 | 가능 (SpEL) |
 
-이 프로젝트에는 **`@EnableMethodSecurity`가 켜져 있지 않습니다.** 그래서 `@PreAuthorize`를 붙여도 스프링이 무시하고, 애너테이션이 있으니 막힐 거라 믿게 되는 **최악의 상황**이 됩니다. 붙이지 마세요.
+**우리 프로젝트는 둘 다 켜져 있습니다.** 어느 쪽을 쓸지는 규칙의 성격으로 정하세요.
 
-### 올바른 방법 — `SecurityConfig`에서 URL 단위로
+### 굵은 규칙 — `SecurityConfig`에서 URL 단위로
 
 ```java
 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
@@ -236,9 +238,28 @@ public ... { }
 
 관리자 API는 URL을 `/api/v1/admin/`으로 시작하게만 만들면 **이미 보호됩니다.** 추가 설정이 필요 없습니다.
 
-`CAMP_OWNER` 전용 API가 필요해지면 같은 방식으로 `SecurityConfig`에 추가합니다. 이때도 PR 리뷰를 받으세요.
-
 > `hasRole("ADMIN")`은 실제로는 `ROLE_ADMIN` 권한을 확인합니다. 필터가 `"ROLE_" + role`로 만들어 넣어주기 때문에 접두사를 직접 쓰지 않습니다.
+
+> ⚠️ **경로 기반의 함정**: 누군가 `/api/v1/admin/users`를 `/api/v1/administration/users`로 바꾸면, `requestMatchers("/api/v1/admin/**")`는 **아무 경고 없이 매칭을 멈춥니다.** 컴파일도 테스트도 통과하고, 관리자 API가 열립니다. 컨트롤러 경로를 바꿀 때는 `SecurityConfig`를 반드시 같이 확인하세요.
+
+### 세밀한 규칙 — 메서드에 `@PreAuthorize`
+
+경로 접두사로 묶이지 않는 규칙은 메서드에 직접 붙입니다. 실제 사용 예시가 `CampController`에 있습니다.
+
+```java
+// 공공데이터 동기화 — 관리자만. 경로가 /api/v1/admin 아래가 아니라 URL 규칙으로 묶이지 않는다.
+@PreAuthorize("hasRole('ADMIN')")
+@PostMapping("/fetch")
+public ResponseEntity<String> fetchCamps() { ... }
+```
+
+규칙이 보호 대상 옆에 있어서, 경로를 바꿔도 따라옵니다. 여러 권한을 허용하려면 `hasAnyRole('CAMP_OWNER', 'ADMIN')`.
+
+주의할 점이 셋 있습니다.
+
+1. **안 붙이면 그냥 통과합니다.** `SecurityConfig`의 `anyRequest().authenticated()`가 "로그인은 했는지"까지만 봅니다. 권한 제한이 필요한데 깜빡하면 아무도 안 막아줍니다.
+2. **SpEL은 문자열이라 컴파일 검사를 안 받습니다.** `hasRole('CAMPOWNER')`처럼 오타를 내도 빌드가 통과하고, 런타임에 **모두 403**이 됩니다. 반드시 테스트로 확인하세요.
+3. **같은 클래스 안에서 자기 메서드를 호출하면 무시됩니다.** 프록시 기반이라 그렇습니다(self-invocation).
 
 ### 컨트롤러에서 권한을 알아야 한다면
 
@@ -382,6 +403,12 @@ class PostControllerTest {
 
 실제 예시는 `src/test/java/.../domain/auth/controller/AuthControllerTest.java`를 보세요.
 
+### ⚠️ `@PreAuthorize` 규칙은 위 테스트로 검증되지 않습니다
+
+위 방식은 **보안을 꺼놓고**(`addFilters = false`) 컨트롤러의 입출력만 확인합니다. `@WebMvcTest` 슬라이스는 우리 `SecurityConfig`를 로드하지 않으므로, 거기 붙은 `@EnableMethodSecurity`도 동작하지 않습니다. 즉 **`@PreAuthorize`를 붙였든 안 붙였든 이 테스트는 똑같이 통과합니다.**
+
+권한 규칙 자체를 검증하려면 `@SpringBootTest`로 실제 설정을 띄우고, `@WithMockUser(roles = "CUSTOMER")` 같은 걸로 권한을 바꿔가며 403이 나는지 확인해야 합니다. SpEL 오타(`hasRole('CAMPOWNER')`)는 컴파일 검사를 받지 않으니, **권한 제한을 새로 걸었다면 이 테스트를 반드시 한 번은 작성하세요.**
+
 ---
 
 ## 9. 자주 하는 실수
@@ -421,7 +448,12 @@ public ... createPost(@RequestBody PostCreateRequest request) {
 
 ### `@PreAuthorize`를 붙였는데 안 막힙니다
 
-동작하지 않습니다. `@EnableMethodSecurity`가 꺼져 있습니다. [5절](#5-특정-권한만-허용하기)을 보세요.
+`@EnableMethodSecurity`는 켜져 있으니 애너테이션 자체는 동작합니다. 대개 이 둘 중 하나입니다.
+
+1. **같은 클래스 안에서 그 메서드를 직접 호출**했습니다. 프록시를 안 타서 무시됩니다(self-invocation).
+2. `private` 메서드에 붙였습니다. 프록시가 가로챌 수 없습니다.
+
+반대로 **전부 403이 난다면** SpEL 오타를 의심하세요. `hasRole('CAMPOWNER')`처럼 존재하지 않는 권한을 쓰면 아무도 통과하지 못합니다.
 
 ### 로그아웃했는데 토큰이 계속 먹힙니다
 
@@ -461,7 +493,8 @@ public ResponseEntity<Void> logout(@AuthenticationPrincipal AuthUser user, HttpS
 - [ ] 요청 DTO에 `userId`나 `role` 필드가 없는가?
 - [ ] 남의 리소스를 건드리지 못하게 **서비스에서 소유권을 확인**했는가?
 - [ ] 비로그인 공개가 필요하면 `SecurityConfig` 수정 + **PR 리뷰 요청**했는가?
-- [ ] `@PreAuthorize`를 쓰지 않았는가?
+- [ ] 특정 권한 전용 API라면 `@PreAuthorize`를 붙였고, **그 규칙을 테스트로 확인**했는가? (SpEL 오타는 컴파일 검사가 안 됨)
+- [ ] 컨트롤러 경로를 바꿨다면 `SecurityConfig`의 `requestMatchers`도 같이 확인했는가?
 - [ ] 컨트롤러 테스트에 `addFilters = false` + `SecurityContextHolder` 세팅 + `clearContext()` 했는가?
 
 ---

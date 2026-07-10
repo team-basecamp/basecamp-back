@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import com.basecamp.backend.common.model.AuthUser;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -27,6 +28,8 @@ public class CampController {
     private final CampService campService;
 
     //고캠핑 API에서 캠핑장 데이터를 동기화
+    // 외부 데이터를 DB 에 직접 밀어넣는 관리자용 트리거다. /fetch 와 같은 이유로 ADMIN 만 허용한다.
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/sync")
     public ResponseEntity<String> syncCamps(
             @RequestBody List<GocampingApiResponseDto> apiCamps) {
@@ -43,6 +46,9 @@ public class CampController {
     }
 
     // 고캠핑 API 전체를 직접 호출해서 DB에 저장 (관리자용 수동 트리거)
+    // 경로가 /api/v1/admin 아래가 아니라 SecurityConfig 의 URL 규칙으로는 묶이지 않는다.
+    // 메서드 하나에만 걸리는 규칙이므로 @PreAuthorize 로 보호한다.
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/fetch")
     public ResponseEntity<String> fetchCamps() {
         try {
