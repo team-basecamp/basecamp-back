@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -26,13 +27,22 @@ public class ReservationService {
     private final CampRepository campRepository;
 
     @Transactional
-    public ReservationResponse createReservation(ReservationCreateRequest request) {
+    public ReservationResponse createReservation(ReservationCreateRequest request, Long userId) {
+        boolean duplicated = reservationRepository.existsOverbookingReservation(
+                userId, request.campId(),
+                List.of(ReservationStatus.PENDING, ReservationStatus.RESERVED),
+                request.checkInDate(), request.checkOutDate());
+
+        if (duplicated) {
+            throw new BusinessException(ErrorCode.DUPLICATE_RESERVATION); // 409
+        }
+
         if (!request.checkOutDate().isAfter(request.checkInDate())) {
             throw new BusinessException(ErrorCode.INVALID_RESERVATION_PERIOD, "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다.");
         }
 
         Reservation reservation = Reservation.builder()
-                .userId(1L) // TODO: user 엔티티 미구현으로 인한 하드코딩(이건 controller에서 authentication 받기)
+                .userId(userId) // TODO: user 엔티티 미구현으로 인한 하드코딩(이건 controller에서 authentication 받기)
                 .campId(1L) // TODO: camp 엔티티 미구현으로 인한 하드코딩
                 .checkInDate(request.checkInDate())
                 .checkOutDate(request.checkOutDate())
@@ -65,6 +75,17 @@ public class ReservationService {
     public ReservationResponse approveReservation(Long reservationId){
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        boolean conflicted = reservationRepository.existsConflictingReservation(
+                reservation.getCampId(),
+                reservation.getId(),  // 자기 자신 제외
+                ReservationStatus.RESERVED,
+                reservation.getCheckInDate(),
+                reservation.getCheckOutDate());
+
+        if (conflicted) {
+            throw new BusinessException(ErrorCode.RESERVATION_PERIOD_CONFLICT); // 409
+        }
 
         reservation.approve(); // 예약상태변경(RESERVED)
 

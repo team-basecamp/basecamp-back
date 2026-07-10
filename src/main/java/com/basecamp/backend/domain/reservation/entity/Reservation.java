@@ -59,8 +59,8 @@ public class Reservation {
     @Column(name = "reject_reason", length = 200)
     private String rejectReason;
 
-    @Column(name = "cancel_date") //TODO: cancel_date -> canceled_at 변경 필요
-    private LocalDateTime cancelDate;
+    @Column(name = "cancel_at") //TODO: cancel_date -> canceled_at 변경 필요
+    private LocalDateTime cancelAt;
 
     @Column(name = "total_price", nullable = false)
     private Long totalPrice;
@@ -98,6 +98,7 @@ public class Reservation {
         }
 
         this.status = ReservationStatus.RESERVED;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void reject(String reason) {
@@ -106,6 +107,7 @@ public class Reservation {
         }
 
         this.status = ReservationStatus.REJECTED;
+        this.updatedAt = LocalDateTime.now();
         this.rejectReason = reason;
     }
 
@@ -115,7 +117,8 @@ public class Reservation {
         }
 
         this.status = ReservationStatus.CANCELLED;
-        this.cancelDate = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+        this.cancelAt = LocalDateTime.now();
     }
 
 }
