@@ -1,4 +1,4 @@
-package com.basecamp.backend.common.security;
+package com.basecamp.backend.security;
 
 import java.io.IOException;
 import java.util.List;
@@ -10,7 +10,9 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.common.model.AuthUser;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -24,7 +26,8 @@ import lombok.RequiredArgsConstructor;
 /**
  * 요청 헤더의 {@code Authorization: Bearer <token>} 을 검증해 SecurityContext에 인증을 세팅한다.
  *
- * <p>인증은 access 토큰 클레임(userId, role)만으로 구성한다. DB는 조회하지 않고, 무효화 여부만 Redis에서 확인한다.
+ * <p>인증은 access 토큰 클레임(userId, role)만으로 구성하며, principal 로 {@link AuthUser} 를 넣는다.
+ * DB는 조회하지 않고, 무효화 여부만 Redis에서 확인한다.
  * 폐기된 토큰({@link TokenBlacklistCache}, 로그아웃·탈퇴, #39)과 제재된 회원({@link UserRevocationCache}, #18)을
  * 만료 전에 거부하기 위함이다.</p>
  *
@@ -95,6 +98,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			}
 
 			Long userId = Long.valueOf(subject);
+			// 알 수 없는 role 문자열이면 IllegalArgumentException 이 나고 아래에서 INVALID_TOKEN 으로 잡힌다.
+			// (Role 로 좁혀두면 "ROLE_HACKER" 같은 임의 권한이 authorities 에 실리지 않는다)
+			Role roleValue = Role.valueOf(role);
 
 			// 관리자에게 제재된 회원. 토큰 자체는 멀쩡하므로 회원 식별자로 확인한다(#18). 403 으로 응답한다.
 			if (userRevocationCache.isRevoked(userId)) {
@@ -103,7 +109,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			}
 
 			UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-					userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+					new AuthUser(userId, roleValue),
+					null,
+					List.of(new SimpleGrantedAuthority("ROLE_" + roleValue.name())));
 			authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 			SecurityContextHolder.getContext().setAuthentication(authentication);
 		} catch (ExpiredJwtException e) {

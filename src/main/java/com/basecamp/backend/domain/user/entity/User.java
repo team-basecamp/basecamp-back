@@ -8,6 +8,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import org.springframework.util.StringUtils;
 
+import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 

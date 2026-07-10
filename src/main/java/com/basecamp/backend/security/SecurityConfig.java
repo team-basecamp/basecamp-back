@@ -1,6 +1,5 @@
-package com.basecamp.backend.common.config;
+package com.basecamp.backend.security;
 
-import com.basecamp.backend.common.security.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -60,6 +59,8 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
 						.requestMatchers(SWAGGER_ENDPOINTS).permitAll()
+						// "내 캠핑장" 조회는 로그인한 소유자 본인만 볼 수 있어야 하므로, 아래 공개 규칙보다 먼저 인증을 요구한다.
+						.requestMatchers(HttpMethod.GET, "/api/v1/camps/my").authenticated()
 						// 캠핑장 목록/검색/상세 조회는 비로그인 상태에서도 볼 수 있어야 하므로 공개.
 						.requestMatchers(HttpMethod.GET, "/api/v1/camps/**").permitAll()
 						// TODO: 로그인(AuthController) 구현 전까지 임시로 공개. 로그인 붙으면 ADMIN 권한으로 되돌릴 것.
