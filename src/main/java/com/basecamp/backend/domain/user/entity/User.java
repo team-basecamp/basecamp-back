@@ -151,6 +151,19 @@ public class User {
 	}
 
 	/**
+	 * 캠핑업체({@link Role#CAMP_OWNER})로 승격한다. 관리자가 사업자 정보를 심사해 승인했을 때만 호출된다(#53).
+	 *
+	 * <p>{@code role} 은 access 토큰 클레임에 담기므로, 승격 후에도 사용자가 들고 있는 토큰은 최대 30분간
+	 * {@code CUSTOMER} 다. 호출하는 쪽에서 {@code UserRevocationCache.revoke()} 로 구 토큰을 무효화해야 한다.</p>
+	 */
+	public void promoteToCampOwner() {
+		if (this.role == Role.CAMP_OWNER) {
+			throw new BusinessException(ErrorCode.ALREADY_CAMP_OWNER);
+		}
+		this.role = Role.CAMP_OWNER;
+	}
+
+	/**
 	 * 관리자 제재(강제 로그아웃) 처리. 사유와 시각을 함께 기록한다.
 	 *
 	 * <p>제재 중에는 소셜 로그인·토큰 재발급이 모두 차단되고, 이미 발급된 access 토큰은

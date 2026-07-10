@@ -288,31 +288,38 @@ public void approve(Long applicationId, Long adminId) {
 | `CO002` | 409 | 이미 심사 중인 신청이 있습니다. |
 | `CO003` | 409 | 이미 캠핑업체로 등록된 회원입니다. |
 | `CO004` | 409 | 이미 처리된 신청입니다. |
-| `CO005` | 400 | 유효하지 않은 사업자등록번호입니다. |
 
-`CO005`는 형식 검증(10자리 숫자 + 체크섬)까지만 본다. **국세청 진위 확인 API 연동은 이번 범위 밖이다.**
+사업자등록번호는 요청 DTO의 `@Pattern(\d{10})`으로 **자릿수만** 검증한다(실패 시 400 `C001`). 체크섬은 보지 않는다 — 오타를 걸러낼 뿐 사업자가 실재하는지는 알려주지 못하고, 그 판단은 어차피 관리자 심사가 한다. **국세청 진위 확인 API 연동은 이번 범위 밖이다.**
 
 ---
 
 ## 9. 작업 범위
 
-### 포함
+### 포함 — 구현 완료
 
-- [ ] `V12__add_camp_owner_applications.sql`
-- [ ] `CampOwnerApplication` 엔티티 + `ApplicationStatus` enum + 리포지토리
-- [ ] `User.promoteToCampOwner()` — 이미 `CAMP_OWNER`면 `CO003`
-- [ ] 회원용 신청 API 2개 (`domain/campowner`)
-- [ ] 관리자용 심사 API 3개 (`domain/admin`)
-- [ ] `ErrorCode` `CO001`~`CO005` 추가
-- [ ] 승인 시 `UserRevocationCache.revoke()` 호출 및 롤백 보장
+- [x] `V12__add_camp_owner_applications.sql`
+- [x] `CampOwnerApplication` 엔티티 + `ApplicationStatus` enum + 리포지토리
+- [x] `User.promoteToCampOwner()` — 이미 `CAMP_OWNER`면 `CO003`
+- [x] 회원용 신청 API 2개 (`domain/campowner`)
+- [x] 관리자용 심사 API 3개 (`domain/admin`)
+- [x] `ErrorCode` `CO001`~`CO004` 추가
+- [x] 승인 시 `UserRevocationCache.revoke()` 호출 및 롤백 보장
+
+### 구현하며 설계에서 벗어난 점
+
+- **사업자등록번호 체크섬 검증을 넣지 않는다.** 체크섬은 오타만 걸러낼 뿐 사업자 실재 여부를 알려주지 못하고, 실체 판단은 어차피 관리자 심사가 한다. 반면 개발·시연 중 더미 번호(`1234567890` 등)를 막아 마찰만 키운다. 자릿수(`\d{10}`)만 본다. 설계 문서의 `CO005`도 함께 삭제했다.
+- **탈퇴·제재 회원은 신청도 승인도 막는다.** 제재를 풀지 않은 채 권한만 올리면 해제되는 순간 업체 권한을 그대로 갖게 된다(`A007`).
+- **동시 신청은 `uq_coa_user_pending` 위반을 `CO002`로 변환**한다. `existsByUserIdAndStatus` 조회만으로는 조회와 INSERT 사이의 경합을 막지 못한다.
+- **회원 신청 API는 `@PreAuthorize("hasRole('CUSTOMER')")`로 보호한다.** `/api/v1/camp-owner/**`는 `/admin` 아래가 아니라 URL 규칙으로 묶이지 않는다.
 
 ### 제외 (별도 이슈)
 
 - 강등(승인 취소) — [5절](#5-승격-시-토큰-처리)의 fail-open 분석 참고. 제재와 동급 설계 필요
 - 국세청 사업자등록번호 진위 확인 API 연동
 - 증빙 서류 이미지 업로드 (`images` 연관)
-- `CAMP_OWNER` 전용 캠핑장 등록 API (`camps.owner_id` 채우기) — 이 이슈는 **권한 부여까지**만 다룬다
 - ADMIN 임명 API
+
+> `POST /api/v1/camps/register`는 원래 이 문서의 제외 항목이었으나, 승격 경로가 생겨 `CAMP_OWNER`를 실제로 부여할 수 있게 되었으므로 함께 `@PreAuthorize("hasRole('CAMP_OWNER')")`로 막았다. `camps.owner_id`를 채우는 등록 로직 자체는 기존 구현을 그대로 쓴다.
 
 ---
 

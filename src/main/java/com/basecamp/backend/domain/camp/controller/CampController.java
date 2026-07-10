@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import com.basecamp.backend.common.model.AuthUser;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -28,6 +29,8 @@ public class CampController {
     private final CampService campService;
 
     //고캠핑 API에서 캠핑장 데이터를 동기화
+    // 외부 데이터를 DB 에 직접 밀어넣는 관리자용 트리거다. /fetch 와 같은 이유로 ADMIN 만 허용한다.
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/sync")
     public ResponseEntity<String> syncCamps(
             @RequestBody List<GocampingApiResponseDto> apiCamps) {
@@ -44,6 +47,9 @@ public class CampController {
     }
 
     // 고캠핑 API 전체를 직접 호출해서 DB에 저장 (관리자용 수동 트리거)
+    // 경로가 /api/v1/admin 아래가 아니라 SecurityConfig 의 URL 규칙으로는 묶이지 않는다.
+    // 메서드 하나에만 걸리는 규칙이므로 @PreAuthorize 로 보호한다.
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/fetch")
     public ResponseEntity<String> fetchCamps() {
         try {
@@ -148,15 +154,21 @@ public class CampController {
         }
     }
 
-    // 로그인한 회원이 등록한 캠핑장 목록 조회 ("내 캠핑장")
+    // 업체가 등록한 캠핑장 목록 조회 ("내 캠핑장")
+    // 캠핑장을 등록할 수 있는 건 CAMP_OWNER 뿐이므로(아래 /register), 조회도 같은 권한으로 맞춘다.
+    // SecurityConfig 의 authenticated() 규칙은 그대로 둔다 — 비로그인은 403 이 아니라 401 이어야 한다.
     @Operation(summary = "내 캠핑장 목록 조회",
-            description = "인증된 사용자가 등록한 캠핑장을 최근 등록순으로 조회합니다.")
+            description = "캠핑업체(CAMP_OWNER)가 등록한 캠핑장을 최근 등록순으로 조회합니다.")
+    @PreAuthorize("hasRole('CAMP_OWNER')")
     @GetMapping("/my")
     public ResponseEntity<CampListResponseDto> getMyCamps(@AuthenticationPrincipal AuthUser owner) {
         return ResponseEntity.ok(campService.getMyCamps(owner.id()));
     }
 
     // 캠핑장 등록
+    // 업체가 직접 등록하는 캠핑장(camps.owner_id). 공공데이터에서 온 캠핑장(content_id)과 배타적이다.
+    // CAMP_OWNER 만 등록할 수 있다. 승격 경로는 #53 의 관리자 심사다.
+    @PreAuthorize("hasRole('CAMP_OWNER')")
     @PostMapping("/register")
     public ResponseEntity<CampDetailResponseDto> registerCamp(
             @Valid // DTO에 붙어있는 검증 애너테이션 체크 하는 기능
