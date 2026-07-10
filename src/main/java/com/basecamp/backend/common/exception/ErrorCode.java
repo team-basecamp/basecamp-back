@@ -19,6 +19,7 @@ public enum ErrorCode {
 	ACCESS_DENIED(HttpStatus.FORBIDDEN, "A004", "접근 권한이 없습니다."),
 	REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "A005", "refresh 토큰이 없습니다. 다시 로그인해 주세요."),
 	INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "A006", "유효하지 않은 refresh 토큰입니다. 다시 로그인해 주세요."),
+	BLACKLISTED_USER(HttpStatus.FORBIDDEN, "A007", "제재된 계정입니다. 관리자에게 문의해 주세요."),
 
 	// Reservation
 	INVALID_RESERVATION_PERIOD(HttpStatus.BAD_REQUEST, "R001", "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."),
@@ -37,6 +38,8 @@ public enum ErrorCode {
 	// User
 	INVALID_EMAIL(HttpStatus.BAD_REQUEST, "U001", "유효하지 않은 이메일입니다."),
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "U002", "회원 정보를 찾을 수 없습니다."),
+	USER_ALREADY_BLACKLISTED(HttpStatus.CONFLICT, "U003", "이미 제재된 회원입니다."),
+	USER_NOT_BLACKLISTED(HttpStatus.CONFLICT, "U004", "제재 상태가 아닌 회원입니다."),
 
 	// Camp
 	CAMP_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "캠핑장을 찾을 수 없습니다."),

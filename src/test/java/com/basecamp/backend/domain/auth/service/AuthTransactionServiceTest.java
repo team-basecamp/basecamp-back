@@ -2,16 +2,20 @@ package com.basecamp.backend.domain.auth.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -28,6 +33,7 @@ import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.security.JwtProperties;
 import com.basecamp.backend.common.security.JwtTokenProvider;
+import com.basecamp.backend.common.security.TokenBlacklistCache;
 import com.basecamp.backend.domain.auth.client.OAuthUserInfo;
 import com.basecamp.backend.domain.auth.entity.BlacklistReason;
 import com.basecamp.backend.domain.auth.entity.TokenBlacklist;
@@ -61,6 +67,9 @@ class AuthTransactionServiceTest {
 	@Mock
 	private TokenBlacklistRepository tokenBlacklistRepository;
 
+	@Mock
+	private TokenBlacklistCache tokenBlacklistCache;
+
 	private JwtTokenProvider jwtTokenProvider;
 	private AuthTransactionService authTransactionService;
 
@@ -68,7 +77,7 @@ class AuthTransactionServiceTest {
 	void setUp() {
 		jwtTokenProvider = new JwtTokenProvider(new JwtProperties(SECRET, 1_800_000L, 1_209_600_000L));
 		authTransactionService = new AuthTransactionService(
-				userRepository, imageRepository, tokenBlacklistRepository,
+				userRepository, imageRepository, tokenBlacklistRepository, tokenBlacklistCache,
 				jwtTokenProvider, Clock.fixed(NOW, ZONE));
 	}
 
@@ -81,6 +90,12 @@ class AuthTransactionServiceTest {
 	private User activeUserWithId(long id) {
 		User user = activeUser();
 		ReflectionTestUtils.setField(user, "id", id);
+		return user;
+	}
+
+	private User blacklistedUser() {
+		User user = activeUser();
+		user.blacklist("어뷰징", Clock.fixed(NOW, ZONE));
 		return user;
 	}
 
@@ -155,6 +170,10 @@ class AuthTransactionServiceTest {
 		assertThat(saved.getReason()).isEqualTo(BlacklistReason.REFRESH_ROTATED);
 		assertThat(saved.getExpiresAt()).isEqualTo(LocalDateTime.ofInstant(expiresAt, ZONE));
 
+		// 재발급 경로는 Redis 를 쓰지도 읽지도 않는다. 캐시 장애가 재발급을 막아선 안 되고,
+		// 폐기된 refresh 토큰이 캐시 미스로 되살아나서도 안 되기 때문이다(재사용 탐지는 MySQL 담당).
+		verify(tokenBlacklistCache, never()).blacklist(anyString(), any(), any());
+
 		// 새 refresh 토큰은 폐기된 것과 다른 jti 를 가져야 한다(아니면 발급 즉시 블랙리스트에 걸린다).
 		assertThat(result.response().accessToken()).isNotBlank();
 		assertThat(result.response().tokenType()).isEqualTo("Bearer");
@@ -206,17 +225,59 @@ class AuthTransactionServiceTest {
 	}
 
 	@Test
-	@DisplayName("rotateRefreshToken_제재된회원_A004를던진다")
-	void rotateRefreshToken_제재된회원_A004를던진다() {
+	@DisplayName("rotateRefreshToken_제재된회원_A007를던진다")
+	void rotateRefreshToken_제재된회원_A007를던진다() {
 		// given
-		User blacklisted = activeUser();
-		blacklisted.blacklist();
-		given(userRepository.findById(USER_ID)).willReturn(Optional.of(blacklisted));
+		given(userRepository.findById(USER_ID)).willReturn(Optional.of(blacklistedUser()));
 
 		// when & then
 		assertBusinessException(
 				() -> authTransactionService.rotateRefreshToken(USER_ID, JTI, NOW.plusSeconds(3600)),
-				ErrorCode.ACCESS_DENIED);
+				ErrorCode.BLACKLISTED_USER);
+	}
+
+	@Test
+	@DisplayName("upsert_제재된회원의_소셜재로그인_A007를던진다")
+	void upsert_제재된회원의_소셜재로그인_A007를던진다() {
+		// given: 재발급만 막고 재로그인을 열어두면 제재가 무력화된다(#18).
+		given(userRepository.findByEmailAndDeletedAtIsNull(EMAIL)).willReturn(Optional.of(blacklistedUser()));
+
+		// when & then
+		assertBusinessException(
+				() -> authTransactionService.upsertUserAndIssueToken(kakaoUserInfo()),
+				ErrorCode.BLACKLISTED_USER);
+	}
+
+	@Test
+	@DisplayName("blacklistToken_access토큰_Redis를먼저쓰고_MySQL에도기록한다")
+	void blacklistToken_access토큰_Redis를먼저쓰고_MySQL에도기록한다() {
+		// given
+		Instant expiresAt = NOW.plusSeconds(1800);
+		given(tokenBlacklistRepository.existsByJti(JTI)).willReturn(false);
+
+		// when
+		authTransactionService.blacklistToken(USER_ID, TokenInfo.access(JTI, expiresAt), BlacklistReason.LOGOUT);
+
+		// then: MySQL 은 영속 기록·감사, Redis 는 인증 필터가 매 요청 조회하는 캐시다(#39 §5).
+		// Redis 를 먼저 써야 커밋과 캐시 반영 사이에 폐기된 토큰이 통과하는 창이 열리지 않는다.
+		InOrder inOrder = inOrder(tokenBlacklistCache, tokenBlacklistRepository);
+		inOrder.verify(tokenBlacklistCache).blacklist(JTI, expiresAt, NOW);
+		inOrder.verify(tokenBlacklistRepository).saveAndFlush(any(TokenBlacklist.class));
+	}
+
+	@Test
+	@DisplayName("blacklistToken_refresh토큰_Redis에는쓰지않고_MySQL에만기록한다")
+	void blacklistToken_refresh토큰_Redis에는쓰지않고_MySQL에만기록한다() {
+		// given: 인증 필터는 access 토큰의 jti 만 조회한다(refresh 로는 인증되지 않는다).
+		given(tokenBlacklistRepository.existsByJti(JTI)).willReturn(false);
+
+		// when
+		authTransactionService.blacklistToken(
+				USER_ID, TokenInfo.refresh(JTI, NOW.plusSeconds(1_209_600)), BlacklistReason.LOGOUT);
+
+		// then: 캐시에 넣어봐야 한 번도 읽히지 않고, 최대 14일짜리 키만 쌓인다. 재사용 탐지는 MySQL 이 한다.
+		verify(tokenBlacklistCache, never()).blacklist(anyString(), any(), any());
+		verify(tokenBlacklistRepository).saveAndFlush(any(TokenBlacklist.class));
 	}
 
 	@Test
@@ -227,41 +288,49 @@ class AuthTransactionServiceTest {
 
 		// when
 		authTransactionService.blacklistToken(
-				USER_ID, new RefreshTokenInfo(JTI, NOW.plusSeconds(3600)), BlacklistReason.LOGOUT);
+				USER_ID, TokenInfo.access(JTI, NOW.plusSeconds(1800)), BlacklistReason.LOGOUT);
 
 		// then
 		verify(tokenBlacklistRepository, never()).saveAndFlush(any());
+		verify(tokenBlacklistCache, never()).blacklist(anyString(), any(), any());
 	}
 
 	@Test
-	@DisplayName("withdrawUser_정상_탈퇴처리하고_refresh토큰을_WITHDRAWAL사유로_폐기한다")
-	void withdrawUser_정상_탈퇴처리하고_refresh토큰을_WITHDRAWAL사유로_폐기한다() {
-		// given
+	@DisplayName("withdrawUser_정상_탈퇴처리하고_토큰들을_WITHDRAWAL사유로_폐기한다")
+	void withdrawUser_정상_탈퇴처리하고_토큰들을_WITHDRAWAL사유로_폐기한다() {
+		// given: 로그아웃/탈퇴는 access + refresh 를 함께 폐기한다.
 		User user = activeUser();
 		given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
-		given(tokenBlacklistRepository.existsByJti(JTI)).willReturn(false);
+		given(tokenBlacklistRepository.existsByJti(anyString())).willReturn(false);
+		List<TokenInfo> tokens = List.of(
+				TokenInfo.access("access-jti", NOW.plusSeconds(1800)),
+				TokenInfo.refresh(JTI, NOW.plusSeconds(3600)));
 
 		// when
-		authTransactionService.withdrawUser(USER_ID, "사유", new RefreshTokenInfo(JTI, NOW.plusSeconds(3600)));
+		authTransactionService.withdrawUser(USER_ID, "사유", tokens);
 
 		// then
 		assertThat(user.isWithdrawn()).isTrue();
 		assertThat(user.getWithdrawalReason()).isEqualTo("사유");
 
 		ArgumentCaptor<TokenBlacklist> captor = ArgumentCaptor.forClass(TokenBlacklist.class);
-		verify(tokenBlacklistRepository).saveAndFlush(captor.capture());
-		assertThat(captor.getValue().getReason()).isEqualTo(BlacklistReason.WITHDRAWAL);
+		verify(tokenBlacklistRepository, times(2)).saveAndFlush(captor.capture());
+		assertThat(captor.getAllValues())
+				.extracting(TokenBlacklist::getJti, TokenBlacklist::getReason)
+				.containsExactly(
+						tuple("access-jti", BlacklistReason.WITHDRAWAL),
+						tuple(JTI, BlacklistReason.WITHDRAWAL));
 	}
 
 	@Test
-	@DisplayName("withdrawUser_refresh토큰없음_탈퇴만처리한다")
-	void withdrawUser_refresh토큰없음_탈퇴만처리한다() {
+	@DisplayName("withdrawUser_폐기할토큰없음_탈퇴만처리한다")
+	void withdrawUser_폐기할토큰없음_탈퇴만처리한다() {
 		// given
 		User user = activeUser();
 		given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
 
 		// when
-		authTransactionService.withdrawUser(USER_ID, null, null);
+		authTransactionService.withdrawUser(USER_ID, null, List.of());
 
 		// then
 		assertThat(user.isWithdrawn()).isTrue();
@@ -271,14 +340,14 @@ class AuthTransactionServiceTest {
 	@Test
 	@DisplayName("withdrawUser_이미탈퇴한회원_U002를던진다")
 	void withdrawUser_이미탈퇴한회원_U002를던진다() {
-		// given: access 토큰은 탈퇴 후에도 만료 전까지 유효하므로 중복 탈퇴 요청이 가능하다.
+		// given: access 토큰은 탈퇴 직후에도 폐기 전까지 유효하므로 중복 탈퇴 요청이 가능하다.
 		User withdrawn = activeUser();
 		withdrawn.withdraw("사유", Clock.fixed(NOW, ZONE));
 		given(userRepository.findById(USER_ID)).willReturn(Optional.of(withdrawn));
 
 		// when & then
 		assertBusinessException(
-				() -> authTransactionService.withdrawUser(USER_ID, "사유", null),
+				() -> authTransactionService.withdrawUser(USER_ID, "사유", List.of()),
 				ErrorCode.USER_NOT_FOUND);
 	}
 
@@ -290,7 +359,7 @@ class AuthTransactionServiceTest {
 
 		// when & then
 		assertBusinessException(
-				() -> authTransactionService.withdrawUser(USER_ID, "사유", null),
+				() -> authTransactionService.withdrawUser(USER_ID, "사유", List.of()),
 				ErrorCode.USER_NOT_FOUND);
 	}
 

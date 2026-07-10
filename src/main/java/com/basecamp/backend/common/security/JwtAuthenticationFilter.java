@@ -24,7 +24,10 @@ import lombok.RequiredArgsConstructor;
 /**
  * 요청 헤더의 {@code Authorization: Bearer <token>} 을 검증해 SecurityContext에 인증을 세팅한다.
  *
- * <p>무상태 인증: DB를 조회하지 않고 access 토큰 클레임(userId, role)만으로 인증을 구성한다.</p>
+ * <p>인증은 access 토큰 클레임(userId, role)만으로 구성한다. DB는 조회하지 않고, 무효화 여부만 Redis에서 확인한다.
+ * 폐기된 토큰({@link TokenBlacklistCache}, 로그아웃·탈퇴, #39)과 제재된 회원({@link UserRevocationCache}, #18)을
+ * 만료 전에 거부하기 위함이다.</p>
+ *
  * <p>토큰이 없거나 유효하지 않으면 인증을 세팅하지 않고 다음 필터로 넘긴다. 최종 인가 실패는
  * {@link JwtAuthenticationEntryPoint}가 처리하며, 이때 참고할 에러 코드를 요청 속성에 담아둔다.</p>
  */
@@ -36,11 +39,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	public static final String ATTR_ERROR_CODE = "jwtErrorCode";
 
 	private final JwtTokenProvider jwtTokenProvider;
+	private final TokenBlacklistCache tokenBlacklistCache;
+	private final UserRevocationCache userRevocationCache;
+
+	/**
+	 * {@code Authorization: Bearer <token>} 헤더에서 토큰을 꺼낸다. 헤더가 없거나 형식이 다르면 {@code null}.
+	 *
+	 * <p>로그아웃/탈퇴 컨트롤러도 폐기할 access 토큰을 얻기 위해 같은 규칙이 필요해 공개한다.</p>
+	 */
+	public static String resolveBearerToken(HttpServletRequest request) {
+		String header = request.getHeader(AUTHORIZATION_HEADER);
+		if (header != null && header.startsWith(BEARER_PREFIX)) {
+			return header.substring(BEARER_PREFIX.length());
+		}
+		return null;
+	}
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
-		String token = resolveToken(request);
+		String token = resolveBearerToken(request);
 		if (token != null) {
 			authenticate(request, token);
 		}
@@ -64,7 +82,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 				request.setAttribute(ATTR_ERROR_CODE, ErrorCode.INVALID_TOKEN);
 				return;
 			}
+			// jti 없는 토큰(#39 이전 발급)은 폐기 대상을 특정할 수 없어 영원히 무효화할 수 없다. 재로그인을 유도한다.
+			String jti = jwtTokenProvider.getJti(claims);
+			if (!StringUtils.hasText(jti)) {
+				request.setAttribute(ATTR_ERROR_CODE, ErrorCode.INVALID_TOKEN);
+				return;
+			}
+			// 로그아웃·탈퇴로 폐기된 토큰. Redis 조회 실패 시에는 통과한다(fail-open).
+			if (tokenBlacklistCache.isBlacklisted(jti)) {
+				request.setAttribute(ATTR_ERROR_CODE, ErrorCode.INVALID_TOKEN);
+				return;
+			}
+
 			Long userId = Long.valueOf(subject);
+
+			// 관리자에게 제재된 회원. 토큰 자체는 멀쩡하므로 회원 식별자로 확인한다(#18). 403 으로 응답한다.
+			if (userRevocationCache.isRevoked(userId)) {
+				request.setAttribute(ATTR_ERROR_CODE, ErrorCode.BLACKLISTED_USER);
+				return;
+			}
 
 			UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
 					userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
@@ -75,14 +111,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		} catch (JwtException | IllegalArgumentException e) {
 			request.setAttribute(ATTR_ERROR_CODE, ErrorCode.INVALID_TOKEN);
 		}
-	}
-
-	private String resolveToken(HttpServletRequest request) {
-		String header = request.getHeader(AUTHORIZATION_HEADER);
-		if (header != null && header.startsWith(BEARER_PREFIX)) {
-			return header.substring(BEARER_PREFIX.length());
-		}
-		return null;
 	}
 
 }
