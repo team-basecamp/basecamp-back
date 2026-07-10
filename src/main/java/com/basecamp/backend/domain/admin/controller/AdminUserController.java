@@ -11,27 +11,44 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.domain.admin.dto.request.BlacklistUserRequest;
+import com.basecamp.backend.domain.admin.dto.response.AdminUserResponse;
 import com.basecamp.backend.domain.admin.dto.response.BlacklistedUserResponse;
 import com.basecamp.backend.domain.admin.service.AdminUserService;
+import com.basecamp.backend.domain.user.entity.UserStatus;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 관리자의 회원 제재 관리. {@code /api/v1/admin/**} 는 {@code SecurityConfig} 에서 {@code ROLE_ADMIN} 만 허용한다.
+ * 관리자의 회원 조회 및 제재 관리. {@code /api/v1/admin/**} 는 {@code SecurityConfig} 에서 {@code ROLE_ADMIN} 만 허용한다.
  */
-@Tag(name = "Admin - User", description = "관리자 - 회원 제재(강제 로그아웃)")
+@Tag(name = "Admin - User", description = "관리자 - 회원 목록 조회 및 제재(강제 로그아웃)")
 @RestController
 @RequestMapping("/api/v1/admin/users")
 @RequiredArgsConstructor
 public class AdminUserController {
 
 	private final AdminUserService adminUserService;
+
+	@Operation(summary = "회원 목록 조회",
+			description = "회원을 가입 최신순으로 조회한다. status · role · keyword 는 모두 선택이며, 지정한 것만 AND 로 묶인다. "
+					+ "필터가 없으면 탈퇴 회원까지 포함한 전체가 조회된다. keyword 는 닉네임 또는 이메일 부분 일치.")
+	@GetMapping
+	public ResponseEntity<Page<AdminUserResponse>> findUsers(
+			@Parameter(description = "회원 상태 필터") @RequestParam(required = false) UserStatus status,
+			@Parameter(description = "권한 필터") @RequestParam(required = false) Role role,
+			@Parameter(description = "닉네임 또는 이메일 검색어") @RequestParam(required = false) String keyword,
+			@PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+		return ResponseEntity.ok(adminUserService.findUsers(status, role, keyword, pageable));
+	}
 
 	@Operation(summary = "회원 제재(강제 로그아웃)",
 			description = "회원을 제재 상태로 바꾸고 이미 발급된 access token 을 즉시 무효화한다. "
