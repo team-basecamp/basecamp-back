@@ -297,6 +297,7 @@ public class CampService {
     }
 
     // 로그인한 회원(ownerId)이 등록한 캠핑장 목록 조회
+    @Transactional(readOnly = true)
     public CampListResponseDto getMyCamps(Long ownerId) {
         if (ownerId == null || ownerId <= 0) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "로그인이 필요합니다.");
