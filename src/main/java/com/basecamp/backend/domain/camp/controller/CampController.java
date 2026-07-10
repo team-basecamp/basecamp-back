@@ -2,14 +2,17 @@ package com.basecamp.backend.domain.camp.controller;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampDetailResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -149,5 +152,26 @@ public class CampController {
         } catch (Exception e) {
             return ResponseEntity.status(500).build();
         }
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<CampDetailResponseDto> registerCamp(
+            @Valid // DTO에 붙어있는 검증 애너테이션 체크 하는 기능
+            @RequestBody // 리액트가 준 JSON 형식을 Java가 이해할 수 있도록 연결 해주는 것.
+            CampRegistrationRequest request,
+            @AuthenticationPrincipal Long ownerId
+    ){
+
+        // Service 호출
+        Camp savedCamp = campService.registerCamp(request, ownerId);
+
+        // Entity -> Response DTO 변환하기
+        CampResponseDto responseDto = CampResponseDto.from(savedCamp);
+
+        // Envelope로 감싸기
+        CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
+
+        // 201 Created로 응답 반환
+        return ResponseEntity.status(201).body(response);
     }
 }
