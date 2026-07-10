@@ -9,6 +9,7 @@ import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -161,6 +162,18 @@ public class CampController {
         }
     }
 
+    // 업체가 등록한 캠핑장 목록 조회 ("내 캠핑장")
+    // 캠핑장을 등록할 수 있는 건 CAMP_OWNER 뿐이므로(아래 /register), 조회도 같은 권한으로 맞춘다.
+    // SecurityConfig 의 authenticated() 규칙은 그대로 둔다 — 비로그인은 403 이 아니라 401 이어야 한다.
+    @Operation(summary = "내 캠핑장 목록 조회",
+            description = "캠핑업체(CAMP_OWNER)가 등록한 캠핑장을 최근 등록순으로 조회합니다.")
+    @PreAuthorize("hasRole('CAMP_OWNER')")
+    @GetMapping("/my")
+    public ResponseEntity<CampListResponseDto> getMyCamps(@AuthenticationPrincipal AuthUser owner) {
+        return ResponseEntity.ok(campService.getMyCamps(owner.id()));
+    }
+
+    // 캠핑장 등록
     // 업체가 직접 등록하는 캠핑장(camps.owner_id). 공공데이터에서 온 캠핑장(content_id)과 배타적이다.
     // CAMP_OWNER 만 등록할 수 있다. 승격 경로는 #53 의 관리자 심사다.
     @PreAuthorize("hasRole('CAMP_OWNER')")
@@ -171,16 +184,12 @@ public class CampController {
             CampRegistrationRequest request,
             @AuthenticationPrincipal AuthUser owner
     ){
-
         // Service 호출
         Camp savedCamp = campService.registerCamp(request, owner.id());
-
         // Entity -> Response DTO 변환하기
         CampResponseDto responseDto = CampResponseDto.from(savedCamp);
-
         // Envelope로 감싸기
         CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
-
         // 201 Created로 응답 반환
         return ResponseEntity.status(201).body(response);
     }
