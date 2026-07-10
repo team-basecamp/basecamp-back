@@ -19,8 +19,14 @@ public interface CampOwnerApplicationRepository extends JpaRepository<CampOwnerA
 	 */
 	boolean existsByUserIdAndStatus(Long userId, ApplicationStatus status);
 
-	/** 본인의 최신 신청 1건. 반려 후 재신청하면 여러 건이 쌓이므로 가장 최근 것을 본다. */
-	Optional<CampOwnerApplication> findFirstByUserIdOrderByCreatedAtDesc(Long userId);
+	/**
+	 * 본인의 최신 신청 1건. 반려 후 재신청하면 여러 건이 쌓이므로 가장 최근 것을 본다.
+	 *
+	 * <p>{@code created_at} 은 {@code DATETIME}(소수점 초 없음)이라 같은 초에 만들어진 두 신청은 순서가
+	 * 결정되지 않는다. 반려 직후 재신청하면 옛 반려 건이 최신으로 잡힐 수 있으므로, 단조 증가하는 PK 로
+	 * 타이브레이크한다.</p>
+	 */
+	Optional<CampOwnerApplication> findFirstByUserIdOrderByCreatedAtDescIdDesc(Long userId);
 
 	/** 상태별 신청 목록. 관리자 심사 화면에서 사용한다({@code idx_coa_status_created} 를 탄다). */
 	Page<CampOwnerApplication> findByStatus(ApplicationStatus status, Pageable pageable);

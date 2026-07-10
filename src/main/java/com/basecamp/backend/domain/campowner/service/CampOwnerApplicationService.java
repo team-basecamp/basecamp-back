@@ -63,7 +63,7 @@ public class CampOwnerApplicationService {
 	/** 본인의 최신 신청 상태. 반려 후 재신청했다면 가장 최근 건을 돌려준다. */
 	@Transactional(readOnly = true)
 	public CampOwnerApplicationResponse findMyLatestApplication(Long userId) {
-		return applicationRepository.findFirstByUserIdOrderByCreatedAtDesc(userId)
+		return applicationRepository.findFirstByUserIdOrderByCreatedAtDescIdDesc(userId)
 				.map(CampOwnerApplicationResponse::from)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CAMP_OWNER_APPLICATION_NOT_FOUND));
 	}
