@@ -11,6 +11,7 @@ public enum ErrorCode {
 	METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "C002", "허용되지 않은 HTTP 메서드입니다."),
 	ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "C003", "요청한 리소스를 찾을 수 없습니다."),
 	INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C004", "서버 내부 오류가 발생했습니다."),
+	CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "C005", "다른 요청에 의해 이미 처리되었습니다. 다시 시도해 주세요."),
 
 	// Auth / Security
 	UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "A001", "인증이 필요합니다."),
@@ -19,12 +20,15 @@ public enum ErrorCode {
 	ACCESS_DENIED(HttpStatus.FORBIDDEN, "A004", "접근 권한이 없습니다."),
 	REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "A005", "refresh 토큰이 없습니다. 다시 로그인해 주세요."),
 	INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "A006", "유효하지 않은 refresh 토큰입니다. 다시 로그인해 주세요."),
+	BLACKLISTED_USER(HttpStatus.FORBIDDEN, "A007", "제재된 계정입니다. 관리자에게 문의해 주세요."),
 
 	// Reservation
 	INVALID_RESERVATION_PERIOD(HttpStatus.BAD_REQUEST, "R001", "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."),
 	RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "R002", "예약 정보가 존재하지 않습니다."),
 	ALREADY_CANCELED_OR_REJECTED(HttpStatus.BAD_REQUEST, "R003", "이미 취소 되었거나 거절된 예약입니다."),
 	RESERVATION_NOT_PENDING(HttpStatus.BAD_REQUEST, "R004", "대기 중인 예약만 수락/거절할 수 있습니다."),
+	DUPLICATE_RESERVATION(HttpStatus.CONFLICT, "R005", "이미 같은 예약이 존재합니다."),
+	RESERVATION_PERIOD_CONFLICT(HttpStatus.CONFLICT, "R006", "해당 기간에 이미 확정된 예약이 존재합니다"),
 
 	// OAuth / Social Login
 	UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "O001", "지원하지 않는 소셜 로그인 제공자입니다."),
@@ -37,6 +41,8 @@ public enum ErrorCode {
 	// User
 	INVALID_EMAIL(HttpStatus.BAD_REQUEST, "U001", "유효하지 않은 이메일입니다."),
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "U002", "회원 정보를 찾을 수 없습니다."),
+	USER_ALREADY_BLACKLISTED(HttpStatus.CONFLICT, "U003", "이미 제재된 회원입니다."),
+	USER_NOT_BLACKLISTED(HttpStatus.CONFLICT, "U004", "제재 상태가 아닌 회원입니다."),
 
 	// Camp
 	CAMP_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "캠핑장을 찾을 수 없습니다."),

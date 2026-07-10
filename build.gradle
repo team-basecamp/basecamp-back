@@ -45,6 +45,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 
+	// 토큰 블랙리스트 조회 캐시 (TTL 자동 만료). 영속 기록은 MySQL token_blacklist 가 담당.
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
 	// DB Migration
 	implementation 'org.flywaydb:flyway-core'
 	runtimeOnly 'org.flywaydb:flyway-mysql'

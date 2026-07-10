@@ -2,9 +2,12 @@ package com.basecamp.backend.domain.user.repository;
 
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.basecamp.backend.domain.user.entity.User;
+import com.basecamp.backend.domain.user.entity.UserStatus;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
@@ -18,5 +21,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	 * 활성 회원에게만 걸려 있어({@code uq_users_email_active}, V9) 재가입 INSERT 가 막히지 않는다.</p>
 	 */
 	Optional<User> findByEmailAndDeletedAtIsNull(String email);
+
+	/** 상태별 회원 목록. 관리자 제재 회원 조회에 사용한다({@code idx_users_status} 를 탄다). */
+	Page<User> findByStatus(UserStatus status, Pageable pageable);
 
 }

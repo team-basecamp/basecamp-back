@@ -1,4 +1,4 @@
-package com.basecamp.backend.common.security;
+package com.basecamp.backend.security;
 
 import java.time.Duration;
 import java.util.Arrays;

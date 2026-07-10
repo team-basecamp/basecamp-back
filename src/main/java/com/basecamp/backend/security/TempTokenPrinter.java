@@ -1,4 +1,4 @@
-package com.basecamp.backend.common.security;
+package com.basecamp.backend.security;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;

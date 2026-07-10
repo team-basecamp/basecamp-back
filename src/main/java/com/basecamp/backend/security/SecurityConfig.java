@@ -1,6 +1,5 @@
-package com.basecamp.backend.common.config;
+package com.basecamp.backend.security;
 
-import com.basecamp.backend.common.security.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -43,6 +42,8 @@ public class SecurityConfig {
 	};
 
 	private final JwtTokenProvider jwtTokenProvider;
+	private final TokenBlacklistCache tokenBlacklistCache;
+	private final UserRevocationCache userRevocationCache;
 	private final CorsProperties corsProperties;
 	private final ObjectMapper objectMapper;
 
@@ -69,7 +70,8 @@ public class SecurityConfig {
 				.exceptionHandling(handler -> handler
 						.authenticationEntryPoint(new JwtAuthenticationEntryPoint(objectMapper))
 						.accessDeniedHandler(new JwtAccessDeniedHandler(objectMapper)))
-				.addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),
+				.addFilterBefore(
+						new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistCache, userRevocationCache),
 						UsernamePasswordAuthenticationFilter.class);
 
 		return http.build();

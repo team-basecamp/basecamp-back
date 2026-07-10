@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.common.security.CookieUtil;
+import com.basecamp.backend.common.model.AuthUser;
+import com.basecamp.backend.security.CookieUtil;
+import com.basecamp.backend.security.JwtAuthenticationFilter;
 import com.basecamp.backend.domain.auth.dto.request.LoginRequest;
 import com.basecamp.backend.domain.auth.dto.request.WithdrawRequest;
 import com.basecamp.backend.domain.auth.dto.response.LoginResponse;
@@ -95,12 +97,14 @@ public class AuthController {
 	 * 로그아웃. refresh 토큰을 폐기하고 쿠키를 삭제한다. access 토큰은 만료 전까지 유효하므로 프론트도 저장소에서 지워야 한다.
 	 */
 	@Operation(summary = "로그아웃",
-			description = "refresh token 을 블랙리스트에 등록해 폐기하고, HttpOnly 쿠키를 삭제한다. "
-					+ "access token 은 무상태라 만료 전까지 유효하므로 클라이언트도 함께 폐기해야 한다. "
+			description = "access token 과 refresh token 을 모두 블랙리스트에 등록해 폐기하고, HttpOnly 쿠키를 삭제한다. "
+					+ "폐기된 access token 은 인증 필터가 즉시 거부한다. "
 					+ "쿠키가 없거나 이미 만료된 토큰이어도 성공한다(멱등).")
 	@PostMapping("/logout")
-	public ResponseEntity<Void> logout(@AuthenticationPrincipal Long userId, HttpServletRequest request) {
-		authService.logout(userId, cookieUtil.resolveRefreshToken(request).orElse(null));
+	public ResponseEntity<Void> logout(@AuthenticationPrincipal AuthUser user, HttpServletRequest request) {
+		authService.logout(user.id(),
+				JwtAuthenticationFilter.resolveBearerToken(request),
+				cookieUtil.resolveRefreshToken(request).orElse(null));
 		return noContentWithDeletedCookie();
 	}
 
@@ -108,14 +112,16 @@ public class AuthController {
 	 * 회원 탈퇴(soft delete). 탈퇴와 refresh 토큰 폐기는 한 트랜잭션으로 처리된다.
 	 */
 	@Operation(summary = "회원 탈퇴",
-			description = "회원을 탈퇴 처리(soft delete)하고 refresh token 을 폐기한 뒤 쿠키를 삭제한다. "
+			description = "회원을 탈퇴 처리(soft delete)하고 access/refresh token 을 폐기한 뒤 쿠키를 삭제한다. "
 					+ "이미 탈퇴한 회원이면 404 를 반환한다.")
 	@PostMapping("/withdraw")
 	public ResponseEntity<Void> withdraw(
-			@AuthenticationPrincipal Long userId,
+			@AuthenticationPrincipal AuthUser user,
 			@Valid @RequestBody WithdrawRequest request,
 			HttpServletRequest httpRequest) {
-		authService.withdraw(userId, request.reason(), cookieUtil.resolveRefreshToken(httpRequest).orElse(null));
+		authService.withdraw(user.id(), request.reason(),
+				JwtAuthenticationFilter.resolveBearerToken(httpRequest),
+				cookieUtil.resolveRefreshToken(httpRequest).orElse(null));
 		return noContentWithDeletedCookie();
 	}
 

@@ -1,4 +1,4 @@
-package com.basecamp.backend.common.security;
+package com.basecamp.backend.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
