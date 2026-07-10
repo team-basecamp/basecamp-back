@@ -64,7 +64,7 @@ public class CampRegistrationRequest {
     private String firstImageUrl;
 
     // 캠핑장 웹사이트
-    @URL(message = "유효한 URL 형식이어야 합니다.")
+    @URL(regexp = "^https?://.*", message = "웹사이트 URL은 http 또는 https로 시작해야 합니다")
     @Size(max = 255, message = "웹사이트 URL은 최대 255글자")
     private String homepage;
 }
