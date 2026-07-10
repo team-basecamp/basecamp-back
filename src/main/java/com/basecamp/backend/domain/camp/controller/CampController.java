@@ -56,7 +56,7 @@ public class CampController {
         }
     }
 
-// 특정 캠핑장 ID(PK) 조회 (상세페이지용 - 자체 등록 캠핑장은 contentId가 없어 이 엔드포인트로 통일 조회)
+// 특정 캠핑장 ID(PK) 로 조회 (상세페이지용 - 자체 등록 캠핑장은 contentId가 없어 이 엔드포인트로 통일 조회)
     @GetMapping("/{campId}")
     public ResponseEntity<CampDetailResponseDto> getCampById(@PathVariable Long campId) {
         Camp camp = campService.getCampId(campId);
