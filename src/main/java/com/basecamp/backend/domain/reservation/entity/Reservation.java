@@ -118,8 +118,10 @@ public class Reservation {
             throw new BusinessException(ErrorCode.RESERVATION_NOT_PENDING_PAYMENT);
         }
 
+        LocalDateTime now = LocalDateTime.now();
         this.status = ReservationStatus.PENDING;
-        this.updatedAt = LocalDateTime.now();
+        this.expiredAt = now.plusHours(24);
+        this.updatedAt = now;
     }
 
     public void approve() {

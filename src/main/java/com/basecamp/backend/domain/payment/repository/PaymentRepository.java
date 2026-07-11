@@ -2,6 +2,7 @@ package com.basecamp.backend.domain.payment.repository;
 
 import com.basecamp.backend.domain.payment.entity.Payment;
 import com.basecamp.backend.domain.payment.entity.PaymentStatus;
+import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -20,12 +21,20 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     @Modifying(clearAutomatically = true)
     @Query("""
-        update Payment p
-        set p.status = :next, p.refundedAt = :now
-        where p.reservation.id in :ids and p.status = :current
+
+            update Payment p
+                set p.status = :next, p.refundedAt = :now
+                where p.status = :current
+                  and p.reservation.id in :ids
+                  and p.reservation.id in (
+                      select r.id from Reservation r
+                      where r.id in :ids
+                        and r.status = :reservationStatus
+                  )
         """)
     int bulkRefund(@Param("ids") List<Long> ids,
                    @Param("current") PaymentStatus current,
                    @Param("next") PaymentStatus next,
+                   @Param("reservationStatus") ReservationStatus reservationStatus,
                    @Param("now") LocalDateTime now);
 }

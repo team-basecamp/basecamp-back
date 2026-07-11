@@ -40,7 +40,7 @@ public class ReservationExpiryScheduler {
                 AUTO_REJECT_REASON);
 
         int refunded = paymentRepository.bulkRefund(
-                expiredIds, PaymentStatus.PAID, PaymentStatus.REFUNDED, now);
+                expiredIds, PaymentStatus.PAID, PaymentStatus.REFUNDED, ReservationStatus.REJECTED, now);
 
         log.info("예약 자동 반려 처리: 대상={}건, 반려={}건, 환불={}건", expiredIds.size(), rejected, refunded);
     }

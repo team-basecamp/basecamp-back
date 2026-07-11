@@ -30,7 +30,7 @@ public class Payment {
     private Long amount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "payment_method", nullable = false)
+    @Column(name = "payment_method", nullable = false, length = 20)
     private PaymentMethod paymentMethod;
 
     @Enumerated(EnumType.STRING)
@@ -48,7 +48,7 @@ public class Payment {
 
     @Builder
     private Payment(Reservation reservation, Long amount, PaymentMethod paymentMethod,
-                     PaymentStatus status, LocalDateTime paidAt, LocalDateTime createdAt) {
+                     PaymentStatus status, LocalDateTime paidAt, LocalDateTime refundedAt, LocalDateTime createdAt) {
         this.reservation = reservation;
         this.amount = amount;
         this.paymentMethod = paymentMethod;

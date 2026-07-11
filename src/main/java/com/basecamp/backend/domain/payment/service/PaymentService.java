@@ -10,7 +10,6 @@ import com.basecamp.backend.domain.payment.repository.PaymentRepository;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,7 +26,7 @@ public class PaymentService {
     // PG 연동 전 Mock 결제: 결제 대기(PENDING_PAYMENT) 예약을 즉시 결제 완료 처리한다.
     @Transactional
     public PaymentResponse createPayment(PaymentCreateRequest request) {
-        Reservation reservation = reservationRepository.findById(request.reservationId())
+        Reservation reservation = reservationRepository.findByIdForUpdate(request.reservationId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
         if (paymentRepository.existsByReservationId(reservation.getId())) {
@@ -45,12 +44,8 @@ public class PaymentService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        Payment saved;
-        try {
-            saved = paymentRepository.saveAndFlush(payment);
-        } catch (DataIntegrityViolationException e) {
-            throw new BusinessException(ErrorCode.ALREADY_PAID);
-        }
+        Payment saved = paymentRepository.saveAndFlush(payment);
+
         return PaymentResponse.from(saved);
     }
 
