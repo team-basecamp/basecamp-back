@@ -53,4 +53,13 @@ public class PaymentService {
         }
         return PaymentResponse.from(saved);
     }
+
+    // 환불처리 메서드
+    @Transactional
+    public void refund(Long reservationId) {
+        // TODO: PG 연동 시 환불 API 호출 + REFUND_REQUESTED/REFUND_FAILED 상태 분리
+        Payment payment = paymentRepository.findByReservationId(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
+        payment.refund();
+    }
 }

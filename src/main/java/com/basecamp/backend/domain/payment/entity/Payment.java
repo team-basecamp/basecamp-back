@@ -1,8 +1,13 @@
 package com.basecamp.backend.domain.payment.entity;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
@@ -35,6 +40,9 @@ public class Payment {
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
+    @Column(name = "refunded_at")
+    private LocalDateTime refundedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -46,6 +54,15 @@ public class Payment {
         this.paymentMethod = paymentMethod;
         this.status = status;
         this.paidAt = paidAt;
+        this.refundedAt = refundedAt;
         this.createdAt = createdAt;
+    }
+
+    public void refund() {
+        if (this.status != PaymentStatus.PAID) {
+            throw new BusinessException(ErrorCode.PAYMENT_NOT_REFUNDABLE);
+        }
+        this.status = PaymentStatus.REFUNDED;
+        this.refundedAt = LocalDateTime.now();
     }
 }

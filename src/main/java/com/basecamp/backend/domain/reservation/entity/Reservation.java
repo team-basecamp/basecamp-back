@@ -57,7 +57,7 @@ public class Reservation {
     @Column(name = "reject_reason", length = 200)
     private String rejectReason;
 
-    @Column(name = "cancel_at") //TODO: cancel_date -> canceled_at 변경 필요
+    @Column(name = "cancel_at")
     private LocalDateTime cancelAt;
 
     @Column(name = "total_price", nullable = false)
@@ -78,6 +78,10 @@ public class Reservation {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // pending 상태에서 24시간 안에 업체가 수락하지 않는다면 -> REJECTED(예약거절), REFUNDED(환불) -> rejected_reason:"업체 미응답 자동 반려" response
+    @Column(name = "expired_at")
+    private LocalDateTime expiredAt;
 
     // 동시에 들어온 수락/거절 요청으로 상태가 뒤엉키는 것을 막기 위한 낙관적 락
     @Version
@@ -121,6 +125,10 @@ public class Reservation {
     public void approve() {
         if (this.status != ReservationStatus.PENDING) {
             throw new BusinessException(ErrorCode.RESERVATION_NOT_PENDING);
+        }
+
+        if (this.expiredAt != null && this.expiredAt.isBefore(LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.RESERVATION_EXPIRED);
         }
 
         this.status = ReservationStatus.RESERVED;

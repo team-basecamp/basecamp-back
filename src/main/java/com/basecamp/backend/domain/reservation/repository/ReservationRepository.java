@@ -73,4 +73,22 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
             @Param("status") ReservationStatus status,
             @Param("checkInDate") LocalDate checkInDate,
             @Param("checkOutDate") LocalDate checkOutDate);
+
+
+    @Query("select r.id from Reservation r where r.status = :status and r.expiredAt < :now")
+    List<Long> findExpiredPendingIds(@Param("status") ReservationStatus status,
+                                     @Param("now") LocalDateTime now);
+
+
+
+    @Modifying
+    @Query("""
+        update Reservation r
+        set r.status = :next, r.rejectReason = :reason, r.version = r.version + 1
+        where r.id in :ids and r.status = :current
+        """)
+    int bulkReject(@Param("ids") List<Long> ids,
+                   @Param("current") ReservationStatus current,
+                   @Param("next") ReservationStatus next,
+                   @Param("reason") String reason);
 }
