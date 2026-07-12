@@ -1,6 +1,6 @@
 package com.basecamp.backend.domain.post.dto.response;
 
-import com.basecamp.backend.domain.post.dto.request.PostCursor;
+import com.basecamp.backend.domain.post.dto.request.PostCursorRequest;
 import com.basecamp.backend.domain.post.entity.Post;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -39,6 +39,6 @@ public record PostListCursorResponse(
     }
 
     private static String toCursor(Post last) {
-        return new PostCursor(last.getCreatedAt(), last.getPostId()).encode();
+        return new PostCursorRequest(last.getCreatedAt(), last.getPostId()).encode();
     }
 }

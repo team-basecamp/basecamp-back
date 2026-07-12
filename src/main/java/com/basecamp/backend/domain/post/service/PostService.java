@@ -2,7 +2,7 @@ package com.basecamp.backend.domain.post.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.domain.post.dto.request.PostCursor;
+import com.basecamp.backend.domain.post.dto.request.PostCursorRequest;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
 import com.basecamp.backend.domain.post.dto.response.PostListCursorResponse;
@@ -53,7 +53,7 @@ public class PostService {
     public PostListCursorResponse getList(String category, String cursor, int size) {
         String filter = resolveCategory(category);
         int limit = resolveSize(size);
-        PostCursor decoded = PostCursor.decode(cursor);
+        PostCursorRequest decoded = PostCursorRequest.decode(cursor);
 
         // 다음 페이지 존재 여부를 알아내려고 한 건 더 조회한다. 초과분은 응답 DTO가 잘라낸다.
         List<Post> lookahead = findPage(filter, decoded, Limit.of(limit + 1));
@@ -62,7 +62,7 @@ public class PostService {
     }
 
     // 카테고리 유무 · 커서 유무 4가지 조합을 각 전용 쿼리로 보낸다. (사유는 PostRepository 주석 참고)
-    private List<Post> findPage(String category, PostCursor cursor, Limit limit) {
+    private List<Post> findPage(String category, PostCursorRequest cursor, Limit limit) {
         if (category == null) {
             return (cursor == null)
                     ? postRepository.findFirstPage(STATUS_ACTIVE, limit)

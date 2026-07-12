@@ -14,7 +14,7 @@ import java.util.Base64;
 // 클라이언트에는 base64url 문자열로만 노출한다(불투명 커서).
 // createdAt/postId를 날것으로 내려주면 프런트가 커서를 직접 조립하기 시작하고,
 // 그 순간 정렬 키는 바꿀 수 없는 공개 API 스펙이 된다. 인코딩해 두면 서버가 정렬 키를 자유롭게 바꿀 수 있다.
-public record PostCursor(
+public record PostCursorRequest(
         LocalDateTime createdAt,
         Long postId
 ) {
@@ -38,7 +38,7 @@ public record PostCursor(
     //
     // 커서는 사용자가 그대로 조작할 수 있는 입력이다. 깨진 값을 그냥 넘기면 500이 나거나,
     // 더 나쁘게는 조건이 빠진 채 첫 페이지가 조용히 반환돼 무한 스크롤이 처음으로 되감긴다. 400으로 끊는다.
-    public static PostCursor decode(String encoded) {
+    public static PostCursorRequest decode(String encoded) {
         if (encoded == null || encoded.isBlank()) {
             return null;
         }
@@ -56,7 +56,7 @@ public record PostCursor(
             LocalDateTime createdAt = LocalDateTime.parse(plain.substring(0, delimiter), FORMATTER);
             Long postId = Long.parseLong(plain.substring(delimiter + 1));
 
-            return new PostCursor(createdAt, postId);
+            return new PostCursorRequest(createdAt, postId);
 
         } catch (BusinessException e) {
             throw e;
