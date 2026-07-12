@@ -53,4 +53,21 @@ public class PostService {
         return PostDetailResponse.from(post);
     }
 
+    // 게시글 삭제: 작성자 본인만 상태를 DELETED로 바꾼다(소프트 삭제). (쓰기 트랜잭션)
+    // userId는 컨트롤러에서 토큰(AuthUser)으로부터 넘어온 값이라 신뢰할 수 있다.
+    @Transactional
+    public void delete(Long userId, Long postId) {
+        // 삭제할 게시글 조회, 없으면 예외
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+
+        // 소유권 확인: 내 글이 아니면 삭제 거부(403). 권한(ROLE)과 별개로 서비스에서 막는다.
+        if (!post.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // 변경 감지로 status = DELETED 로 UPDATE 반영
+        post.delete();
+    }
+
 }

@@ -80,5 +80,11 @@ public class Post {
         this.content = content;
         this.updatedAt = LocalDateTime.now();
     }
+
+    // 게시글 삭제(소프트 삭제). 실제 행을 지우지 않고 상태만 DELETED로 바꾼다.
+    public void delete() {
+        this.status = "DELETED";
+        this.updatedAt = LocalDateTime.now();
+    }
 }
 
