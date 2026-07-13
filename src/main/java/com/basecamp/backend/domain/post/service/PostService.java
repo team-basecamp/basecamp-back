@@ -2,6 +2,7 @@ package com.basecamp.backend.domain.post.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.post.dto.request.PostCursorRequest;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
 import com.basecamp.backend.domain.post.dto.response.PostListCursorResponse;
@@ -10,8 +11,11 @@ import com.basecamp.backend.domain.post.repository.PostRepository;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 // 게시글 비즈니스 로직. 기본은 읽기 전용 트랜잭션, 쓰기 메서드에만 @Transactional을 따로 건다.
 @Service
@@ -71,6 +75,19 @@ public class PostService {
         post.delete();
     }
 
+    // 게시글 목록 조회: 카테고리로 걸러 최신순 한 페이지를 반환한다. (클래스 기본 readOnly 트랜잭션)
+    // category가 없거나 ALL이면 3개 카테고리 전부, 즉 카테고리 조건을 걸지 않은 결과를 준다.
+    // 목록에는 ACTIVE만 노출한다. 삭제된 글은 물론이고, 블라인드된 글도 제목이 남으면 가린 의미가 없다.
+    //
+    // 커서 페이징이다. cursor가 없으면 첫 페이지, 있으면 그 커서 "다음"부터 size건을 준다.
     public PostListCursorResponse getList(String category, String cursor, int size) {
+        String filter = resolveCategory(category);
+        int limit = resolveSize(size);
+        PostCursorRequest decoded = PostCursorRequest.decode(cursor);
+
+        // 다음 페이지 존재 여부를 알아내려고 한 건 더 조회한다. 초과분은 응답 DTO가 잘라낸다.
+        List<Post> lookahead = findPage(filter, decoded, Limit.of(limit + 1));
+
+        return PostListCursorResponse.of(lookahead, limit);
     }
 }
