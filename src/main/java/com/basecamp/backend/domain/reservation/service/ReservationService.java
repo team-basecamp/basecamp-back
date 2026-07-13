@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.reservation.service;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
+import com.basecamp.backend.domain.payment.service.PaymentService;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
@@ -27,6 +28,7 @@ public class ReservationService {
 
     private final ReservationRepository reservationRepository;
     private final CampRepository campRepository;
+    private final PaymentService paymentService;
 
     @Value("${payment.waiting-expiry-minutes}")
     private long paymentWaitingExpiryMinutes;
@@ -89,7 +91,21 @@ public class ReservationService {
         Reservation cancelled = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
+        // TODO: 인증 연동 후 본인 검증 활성화
+        // if (!reservation.getUserId().equals(userId)) throw new BusinessException(ErrorCode.ACCESS_DENIED);
+
+        if (cancelled.getStatus() == ReservationStatus.CANCELLED
+                || cancelled.getStatus() == ReservationStatus.REJECTED) {
+            throw new BusinessException(ErrorCode.ALREADY_CANCELED_OR_REJECTED);
+        }
+
+        boolean wasPaid = cancelled.getStatus() == ReservationStatus.PENDING
+                || cancelled.getStatus() == ReservationStatus.RESERVED;
+
         cancelled.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
+        if (wasPaid) {
+            paymentService.refund(reservationId); // PENDING/RESERVED = 결제 완료 상태였으므로 환불
+        }
 
         return ReservationResponse.from(cancelled);
     }
@@ -112,6 +128,7 @@ public class ReservationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
         reservation.reject(request.reason()); // 예약상태변경(REJECTED, reject_reason값 할당)
+        paymentService.refund(reservationId); // PENDING = 결제 완료 상태이므로 항상 환불
 
         return ReservationResponse.from(reservation);
     }

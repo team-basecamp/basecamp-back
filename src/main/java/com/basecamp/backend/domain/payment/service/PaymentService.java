@@ -27,7 +27,7 @@ public class PaymentService {
     // PG 연동 전 Mock 결제: 결제 대기(PENDING_PAYMENT) 예약을 즉시 결제 완료 처리한다.
     @Transactional
     public PaymentResponse createPayment(PaymentCreateRequest request) {
-        Reservation reservation = reservationRepository.findById(request.reservationId())
+        Reservation reservation = reservationRepository.findByIdForUpdate(request.reservationId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
         if (paymentRepository.existsByReservationId(reservation.getId())) {
@@ -45,12 +45,17 @@ public class PaymentService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        Payment saved;
-        try {
-            saved = paymentRepository.saveAndFlush(payment);
-        } catch (DataIntegrityViolationException e) {
-            throw new BusinessException(ErrorCode.ALREADY_PAID);
-        }
+        Payment saved = paymentRepository.saveAndFlush(payment);
+
         return PaymentResponse.from(saved);
+    }
+
+    // 환불처리 메서드
+    @Transactional
+    public void refund(Long reservationId) {
+        // TODO: PG 연동 시 환불 API 호출 + REFUND_REQUESTED/REFUND_FAILED 상태 분리
+        Payment payment = paymentRepository.findByReservationId(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
+        payment.refund();
     }
 }
