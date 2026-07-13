@@ -364,7 +364,7 @@ public class CampService {
         }
 
         // 권한 검증 : camp와 로그인 한 사람이 맞는지?
-        if(!camp.getOwnerId().equals(ownerId)){
+        if (!java.util.Objects.equals(camp.getOwnerId(), ownerId)) {
             throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장 수정만 가능");
         }
 

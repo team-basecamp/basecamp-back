@@ -13,7 +13,7 @@ import org.hibernate.validator.constraints.URL;
 @Builder
 public class CampUpdateRequest {
     /*
-     * 필수 입력 필드
+     * 선택 가능한 필드 (모두 optional — 값이 있으면 검증, 없으면 기존값 유지)
      */
     @Size(min = 2,max = 100,message = "시설명은 최소 2자 최대 100자 입니다" )
     private String facltNm;
