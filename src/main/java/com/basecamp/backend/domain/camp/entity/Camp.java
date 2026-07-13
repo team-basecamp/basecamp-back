@@ -1,5 +1,6 @@
 package com.basecamp.backend.domain.camp.entity;
 
+import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -116,6 +117,71 @@ public class Camp {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // 캠핑장 정보 수정
+    public void updateInfo(CampUpdateRequest request) {
+
+        // 이름
+        if (request.getFacltNm() != null) {
+            this.facltNm = request.getFacltNm();
+        }
+
+        // 주소
+        if (request.getAddr1() != null) {
+            this.addr1 = request.getAddr1();
+        }
+
+        if (request.getAddr2() != null) {
+            this.addr2 = request.getAddr2();
+        }
+
+        // 전화번호
+        if (request.getTel() != null) {
+            this.tel = request.getTel();
+        }
+
+        // 캠핑장 유형
+        if (request.getInduty() != null) {
+            this.induty = request.getInduty();
+        }
+
+        // 가격
+        if (request.getPrice() != null) {
+            this.price = request.getPrice();
+        }
+
+        // 사이트 개수들
+        if (request.getGnrlSiteCo() != null) {
+            this.gnrlSiteCo = request.getGnrlSiteCo();
+        }
+
+        if (request.getAutoSiteCo() != null) {
+            this.autoSiteCo = request.getAutoSiteCo();
+        }
+
+        if (request.getGlampSiteCo() != null) {
+            this.glampSiteCo = request.getGlampSiteCo();
+        }
+
+        // 한줄 소개
+        if (request.getLineIntro() != null) {
+            this.lineIntro = request.getLineIntro();
+        }
+
+        // 대표 이미지 URL
+        if (request.getFirstImageUrl() != null) {
+            this.firstImageUrl = request.getFirstImageUrl();
+        }
+
+        // 웹사이트
+        if (request.getHomepage() != null) {
+            this.homepage = request.getHomepage();
+        }
+
+        // 수정 시각 갱신
+        this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+
+    }
 
     // price: 고캠핑 API가 가격 정보를 제공하지 않아, 서비스 계층에서 정책에 따라 결정한 값을 받아 조립만 한다.
     public static Camp fromGocampingApi(com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto dto, int price) {
