@@ -35,16 +35,9 @@ public class CampController {
     @PostMapping("/sync")
     public ResponseEntity<String> syncCamps(
             @RequestBody List<GocampingApiResponseDto> apiCamps) {
-
-        try {
-            // Service의 saveCampsFromApi() 메서드 호출
-            campService.saveCampsFromApi(apiCamps);
-            return ResponseEntity.ok("캠핑장 데이터가 성공적으로 동기화되었습니다");
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("동기화 실패: " + e.getMessage());
-        }
+        // 오류는 GlobalExceptionHandler 가 통일된 ApiResponse 봉투로 변환하므로 직접 잡지 않는다.
+        campService.saveCampsFromApi(apiCamps);
+        return ResponseEntity.ok("캠핑장 데이터가 성공적으로 동기화되었습니다");
     }
 
     // 고캠핑 API 전체를 직접 호출해서 DB에 저장 (관리자용 수동 트리거)
@@ -53,14 +46,8 @@ public class CampController {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/fetch")
     public ResponseEntity<String> fetchCamps() {
-        try {
-            campService.fetchAndSaveCampsFromGocampingApi();
-            return ResponseEntity.ok("고캠핑 API 전체 데이터가 성공적으로 동기화되었습니다");
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("동기화 실패: " + e.getMessage());
-        }
+        campService.fetchAndSaveCampsFromGocampingApi();
+        return ResponseEntity.ok("고캠핑 API 전체 데이터가 성공적으로 동기화되었습니다");
     }
 
     // 가격 정책 적용 전에 저장돼 price=0으로 남아있는 기존 캠핑장(고캠핑 API 수집분)을 일괄 백필 (관리자용 수동 트리거)
@@ -123,44 +110,21 @@ public class CampController {
 //모든 캠핑장 조회
     @GetMapping
     public ResponseEntity<List<Camp>> getAllCamps() {
-        try {
-            // Service의 getAllCamps() 메서드 호출
-            List<Camp> camps = campService.getAllCamps();
-            return ResponseEntity.ok(camps);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500).build();
-        }
+        return ResponseEntity.ok(campService.getAllCamps());
     }
 
 // 캠핑장 이름으로 검색
     @GetMapping("/search/name")
     public ResponseEntity<List<Camp>> searchByName(
             @RequestParam String name) {
-
-        try {
-            // Service의 searchByName() 메서드 호출
-            List<Camp> camps = campService.searchByName(name);
-            return ResponseEntity.ok(camps);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500).build();
-        }
+        return ResponseEntity.ok(campService.searchByName(name));
     }
 
      // 특정 지역의 캠핑장을 검색
     @GetMapping("/search/address")
     public ResponseEntity<List<Camp>> searchByAddress(
             @RequestParam String address) {
-
-        try {
-            // Service의 searchByAddress() 메서드 호출
-            List<Camp> camps = campService.searchByAddress(address);
-            return ResponseEntity.ok(camps);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500).build();
-        }
+        return ResponseEntity.ok(campService.searchByAddress(address));
     }
 
     // 업체가 등록한 캠핑장 목록 조회 ("내 캠핑장")

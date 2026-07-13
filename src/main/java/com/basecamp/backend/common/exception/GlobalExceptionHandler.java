@@ -1,8 +1,10 @@
 package com.basecamp.backend.common.exception;
 
+import com.basecamp.backend.common.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -13,27 +15,32 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+/**
+ * 전역 예외 처리. 모든 오류를 {@link ApiResponse} 봉투(success=false)로 변환해,
+ * 정상 응답과 동일한 구조로 프론트에 내려준다.
+ */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
+	/** Bean Validation(@Valid) 실패 — 잘못된 필드를 전부 담아 400 으로 응답한다. */
 	@Override
 	protected ResponseEntity<Object> handleMethodArgumentNotValid(
 			MethodArgumentNotValidException ex,
 			HttpHeaders headers,
 			HttpStatusCode status,
 			WebRequest request) {
-		log.warn("MethodArgumentNotValidException: {}", ex.getMessage());
-		ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE, ex.getBindingResult());
-		return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus()).body(response);
+		log.warn("Validation failed: {}", ex.getMessage());
+		ApiResponse<Void> body = ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE, ex.getBindingResult());
+		return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus()).body(body);
 	}
 
 	@ExceptionHandler(BusinessException.class)
-	protected ResponseEntity<ErrorResponse> handleBusinessException(BusinessException ex) {
+	protected ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException ex) {
 		log.warn("BusinessException: {}", ex.getMessage());
 		ErrorCode errorCode = ex.getErrorCode();
-		ErrorResponse response = ErrorResponse.of(errorCode, ex.getMessage());
-		return ResponseEntity.status(errorCode.getStatus()).body(response);
+		return ResponseEntity.status(errorCode.getStatus())
+				.body(ApiResponse.error(errorCode, ex.getMessage()));
 	}
 
 	/**
@@ -41,31 +48,67 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	 * 클라이언트가 고칠 수 있는 잘못된 요청이므로 500 이 아니라 400 으로 돌려준다.
 	 */
 	@ExceptionHandler(PropertyReferenceException.class)
-	protected ResponseEntity<ErrorResponse> handlePropertyReferenceException(PropertyReferenceException ex) {
+	protected ResponseEntity<ApiResponse<Void>> handlePropertyReferenceException(PropertyReferenceException ex) {
 		log.warn("PropertyReferenceException: {}", ex.getMessage());
-		ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE);
-		return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus()).body(response);
+		return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
+				.body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE));
 	}
 
 	@ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-	protected ResponseEntity<ErrorResponse> handleObjectOptimisticLockingFailureException(ObjectOptimisticLockingFailureException ex) {
+	protected ResponseEntity<ApiResponse<Void>> handleObjectOptimisticLockingFailureException(
+			ObjectOptimisticLockingFailureException ex) {
 		log.warn("ObjectOptimisticLockingFailureException: {}", ex.getMessage());
-		ErrorResponse response = ErrorResponse.of(ErrorCode.CONCURRENT_MODIFICATION);
-		return ResponseEntity.status(ErrorCode.CONCURRENT_MODIFICATION.getStatus()).body(response);
+		return ResponseEntity.status(ErrorCode.CONCURRENT_MODIFICATION.getStatus())
+				.body(ApiResponse.error(ErrorCode.CONCURRENT_MODIFICATION));
 	}
 
 	@ExceptionHandler(AccessDeniedException.class)
-	protected ResponseEntity<ErrorResponse> handleAccessDeniedException(AccessDeniedException ex) {
+	protected ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException ex) {
 		log.warn("AccessDeniedException: {}", ex.getMessage());
-		ErrorResponse response = ErrorResponse.of(ErrorCode.ACCESS_DENIED);
-		return ResponseEntity.status(ErrorCode.ACCESS_DENIED.getStatus()).body(response);
+		return ResponseEntity.status(ErrorCode.ACCESS_DENIED.getStatus())
+				.body(ApiResponse.error(ErrorCode.ACCESS_DENIED));
 	}
 
 	@ExceptionHandler(Exception.class)
-	protected ResponseEntity<ErrorResponse> handleException(Exception ex) {
+	protected ResponseEntity<ApiResponse<Void>> handleException(Exception ex) {
+		// 서버 내부 오류는 원인 추적을 위해 스택 트레이스까지 남긴다.
 		log.error("Unhandled exception", ex);
-		ErrorResponse response = ErrorResponse.of(ErrorCode.INTERNAL_SERVER_ERROR);
-		return ResponseEntity.status(ErrorCode.INTERNAL_SERVER_ERROR.getStatus()).body(response);
+		return ResponseEntity.status(ErrorCode.INTERNAL_SERVER_ERROR.getStatus())
+				.body(ApiResponse.error(ErrorCode.INTERNAL_SERVER_ERROR));
+	}
+
+	/**
+	 * {@link ResponseEntityExceptionHandler} 가 기본 처리하는 스프링 MVC 예외
+	 * (지원하지 않는 메서드, 읽을 수 없는 본문, 필수 파라미터 누락 등)도 기본 ProblemDetail 대신
+	 * {@link ApiResponse} 봉투로 통일한다.
+	 */
+	@Override
+	protected ResponseEntity<Object> handleExceptionInternal(
+			Exception ex,
+			Object body,
+			HttpHeaders headers,
+			HttpStatusCode statusCode,
+			WebRequest request) {
+		// 위 handleMethodArgumentNotValid 처럼 이미 우리가 봉투로 만든 경우는 그대로 둔다.
+		if (body instanceof ApiResponse) {
+			return super.handleExceptionInternal(ex, body, headers, statusCode, request);
+		}
+		log.warn("{}: {}", ex.getClass().getSimpleName(), ex.getMessage());
+		ApiResponse<Void> wrapped = ApiResponse.error(resolveErrorCode(statusCode));
+		return super.handleExceptionInternal(ex, wrapped, headers, statusCode, request);
+	}
+
+	private ErrorCode resolveErrorCode(HttpStatusCode statusCode) {
+		if (statusCode.isSameCodeAs(HttpStatus.METHOD_NOT_ALLOWED)) {
+			return ErrorCode.METHOD_NOT_ALLOWED;
+		}
+		if (statusCode.isSameCodeAs(HttpStatus.NOT_FOUND)) {
+			return ErrorCode.ENTITY_NOT_FOUND;
+		}
+		if (statusCode.is4xxClientError()) {
+			return ErrorCode.INVALID_INPUT_VALUE;
+		}
+		return ErrorCode.INTERNAL_SERVER_ERROR;
 	}
 
 }
