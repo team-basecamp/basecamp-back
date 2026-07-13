@@ -66,14 +66,8 @@ public class CampController {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/backfill-price")
     public ResponseEntity<String> backfillMissingPrices() {
-        try {
-            int updatedCount = campService.backfillMissingPrices();
-            return ResponseEntity.ok(updatedCount + "개 캠핑장의 가격이 채워졌습니다");
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("가격 백필 실패: " + e.getMessage());
-        }
+        int updatedCount = campService.backfillMissingPrices();
+        return ResponseEntity.ok(updatedCount + "개 캠핑장의 가격이 채워졌습니다");
     }
 
 // 특정 캠핑장 ID(PK) 로 조회 (상세페이지용 - 자체 등록 캠핑장은 contentId가 없어 이 엔드포인트로 통일 조회)
