@@ -1,8 +1,9 @@
 -- =============================================================
---  Version : V16
+--  Version : V17
 --  DB      : MySQL 8.0+
---  변경    : posts 목록 조회를 offset 페이징 → 커서 페이징으로 전환하면서
---            정렬 키에 post_id가 추가됨. 이에 맞춰 인덱스를 재정의한다.
+--  변경    : 1) posts 목록 조회를 offset 페이징 → 커서 페이징으로 전환하면서
+--               정렬 키에 post_id가 추가됨. 이에 맞춰 인덱스를 재정의한다.
+--            2) posts 에 낙관적 락용 version 컬럼 추가
 --
 --  배경    : 목록 정렬 키는 (created_at DESC, post_id DESC).
 --            커서 조건은 아래 형태로 나가며, ORDER BY와 정렬 키가 같아야
@@ -25,10 +26,9 @@
 --      새 인덱스의 선두 컬럼이 그대로 status라 기존에 이 인덱스를 쓰던
 --      status 단독 조회도 leftmost prefix로 계속 커버된다.
 -- -------------------------------------------------------------
-ALTER TABLE posts DROP INDEX idx_posts_status;
-
-CREATE INDEX idx_posts_status
-    ON posts (status, created_at DESC, post_id DESC);
+ALTER TABLE posts
+    DROP INDEX idx_posts_status,
+    ADD INDEX idx_posts_status (status, created_at DESC, post_id DESC);
 
 
 -- -------------------------------------------------------------
@@ -38,7 +38,16 @@ CREATE INDEX idx_posts_status
 --    · 커서의 2차 키인 post_id를 정렬 컬럼 끝에 붙여, 동일 created_at 구간에서도
 --      인덱스 순서 == ORDER BY 순서가 유지되게 한다.
 -- -------------------------------------------------------------
-ALTER TABLE posts DROP INDEX idx_posts_category;
+ALTER TABLE posts
+    DROP INDEX idx_posts_category,
+    ADD INDEX idx_posts_category (category, status, created_at DESC, post_id DESC);
 
-CREATE INDEX idx_posts_category
-    ON posts (category, status, created_at DESC, post_id DESC);
+
+-- -------------------------------------------------------------
+-- 3. posts : version 컬럼 추가
+--    게시글 수정/삭제(소프트 삭제)가 동시에 요청될 때 삭제된 글을 덮어쓰는 등
+--    상태가 뒤엉키는 것을 막기 위해 JPA @Version 기반 낙관적 락을 적용한다.
+--    기존 행은 0으로 초기화.
+-- -------------------------------------------------------------
+ALTER TABLE posts
+    ADD COLUMN version BIGINT NOT NULL DEFAULT 0 COMMENT '낙관적 락 버전';
