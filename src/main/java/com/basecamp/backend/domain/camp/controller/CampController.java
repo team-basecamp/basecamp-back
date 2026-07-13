@@ -62,6 +62,20 @@ public class CampController {
         }
     }
 
+    // 가격 정책 적용 전에 저장돼 price=0으로 남아있는 기존 캠핑장(고캠핑 API 수집분)을 일괄 백필 (관리자용 수동 트리거)
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/backfill-price")
+    public ResponseEntity<String> backfillMissingPrices() {
+        try {
+            int updatedCount = campService.backfillMissingPrices();
+            return ResponseEntity.ok(updatedCount + "개 캠핑장의 가격이 채워졌습니다");
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body("가격 백필 실패: " + e.getMessage());
+        }
+    }
+
 // 특정 캠핑장 ID(PK) 로 조회 (상세페이지용 - 자체 등록 캠핑장은 contentId가 없어 이 엔드포인트로 통일 조회)
     @GetMapping("/{campId}")
     public ResponseEntity<CampDetailResponseDto> getCampById(@PathVariable Long campId) {

@@ -112,7 +112,8 @@ public class Camp {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    public static Camp fromGocampingApi(com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto dto) {
+    // price: 고캠핑 API가 가격 정보를 제공하지 않아, 서비스 계층에서 정책에 따라 결정한 값을 받아 조립만 한다.
+    public static Camp fromGocampingApi(com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto dto, int price) {
         return Camp.builder()
                 .contentId(dto.getContentId())
                 .facltNm(dto.getFacltNm())
@@ -129,11 +130,18 @@ public class Camp {
                 .lineIntro(truncate(dto.getIntro(), 500))
                 .homepage(truncate(dto.getHomepage(), 255))
                 .sbrsCl(truncate(dto.getSbrsCl(), 500))
-                .price(0)
+                .price(price)
                 .averageRating(new BigDecimal("0.0"))
                 .reservationCount(0)
                 .createdAt(LocalDateTime.now())
                 .build();
+    }
+
+    // 가격이 아직 채워지지 않은(0) 캠핑장에 한해서만 값을 채운다. 실제 가격이 있는 캠핑장은 보호한다.
+    public void assignDefaultPriceIfMissing(int price) {
+        if (this.price == 0) {
+            this.price = price;
+        }
     }
 
     // 고캠핑 API 원본 데이터가 컬럼 길이 제한을 넘는 경우가 있어 저장 전 자른다 (예: intro가 500자 초과).
