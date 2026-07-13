@@ -4,6 +4,7 @@ import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
+import com.basecamp.backend.domain.post.dto.response.PostListCursorResponse;
 import com.basecamp.backend.domain.post.entity.Post;
 import com.basecamp.backend.domain.post.repository.PostRepository;
 import com.basecamp.backend.domain.user.entity.User;
@@ -70,4 +71,6 @@ public class PostService {
         post.delete();
     }
 
+    public PostListCursorResponse getList(String category, String cursor, int size) {
+    }
 }

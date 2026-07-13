@@ -5,6 +5,7 @@ import com.basecamp.backend.domain.post.dto.request.PostCreateRequest;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
 import com.basecamp.backend.domain.post.dto.response.PostDeleteResponse;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
+import com.basecamp.backend.domain.post.dto.response.PostListCursorResponse;
 import com.basecamp.backend.domain.post.service.PostService;
 
 import io.swagger.v3.oas.annotations.Operation;
