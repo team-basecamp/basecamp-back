@@ -10,6 +10,7 @@ import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.camp.repository.CampSpecs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,6 +56,18 @@ public class CampService {
 
     @Value("${camp.default-price.unit}")
     private int defaultPriceUnit;
+
+    // camp.default-price.* 설정이 잘못되면(min > max, unit <= 0) generateRandomPrice()가 나중에
+    // ArithmeticException/IllegalArgumentException으로 조용히 실패하므로, 앱 시작 시점에 미리 검증한다.
+    @PostConstruct
+    private void validatePricePolicy() {
+        if (defaultPriceMin < 0 || defaultPriceMax < defaultPriceMin || defaultPriceUnit <= 0) {
+            throw new IllegalStateException(String.format(
+                    "camp.default-price 설정이 올바르지 않습니다. (min=%d, max=%d, unit=%d) "
+                            + "min >= 0, max >= min, unit > 0 이어야 합니다.",
+                    defaultPriceMin, defaultPriceMax, defaultPriceUnit));
+        }
+    }
 
     // 고캠핑 API 에서 받은 캠핑장 데이터 DB 저장
     @Transactional
