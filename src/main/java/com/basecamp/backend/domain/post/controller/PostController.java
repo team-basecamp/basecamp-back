@@ -3,10 +3,13 @@ package com.basecamp.backend.domain.post.controller;
 import com.basecamp.backend.common.model.AuthUser;
 import com.basecamp.backend.domain.post.dto.request.PostCreateRequest;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
+import com.basecamp.backend.domain.post.dto.response.PostDeleteResponse;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
+import com.basecamp.backend.domain.post.dto.response.PostListCursorResponse;
 import com.basecamp.backend.domain.post.service.PostService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -33,6 +36,40 @@ public class PostController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    // 게시글 목록 조회: 카테고리로 걸러 최신순 한 페이지를 반환한다. (무한 스크롤용, 커서 페이징)
+    @Operation(
+            summary = "게시글 목록 조회",
+            description = "카테고리별 게시글 목록을 최신순으로 조회한다. "
+                    + "category를 생략하거나 ALL로 보내면 GENERAL/CAMP_MATE/RESERVATION_TRANSFER 전체를 조회한다. "
+                    + "첫 페이지는 cursor 없이 요청하고, 이후에는 응답의 nextCursor를 그대로 cursor에 실어 보낸다. "
+                    + "hasNext가 false면 nextCursor는 null이고 더 조회할 목록이 없다."
+    )
+    @GetMapping("/api/v1/posts")
+    public ResponseEntity<PostListCursorResponse> getPostList(
+            // 전체 탭은 이 값을 생략하거나 ALL로 보낸다. DB에 ALL 카테고리는 없다.
+            @Parameter(description = "게시판 카테고리. 생략 또는 ALL이면 전체", example = "GENERAL")
+            @RequestParam(value = "category", required = false) String category,
+
+            // 직전 응답의 nextCursor를 그대로 돌려보내는 자리. 첫 페이지에서는 생략한다.
+            // 값을 직접 만들어 넣지 말 것 — 형식은 서버 구현 세부사항이라 언제든 바뀐다.
+            @Parameter(description = "직전 응답의 nextCursor. 첫 페이지는 생략한다.")
+            @RequestParam(value = "cursor", required = false) String cursor,
+
+            // 페이지당 건수. 상한 검증은 서비스에서 하고 위반 시 400.
+            @Parameter(description = "페이지당 건수 (1~50)", example = "10")
+            @RequestParam(value = "size", defaultValue = "10") int size) {
+
+        return ResponseEntity.ok(postService.getList(category, cursor, size));
+    }
+
+    // 게시글 상세 조회: 경로의 게시글 id로 단건을 조회한다.
+    @Operation(summary = "게시글 상세 조회", description = "게시글 id로 단건 상세를 조회한다. 삭제된 글은 404, 블라인드된 글은 403으로 응답한다.")
+    @GetMapping("/api/v1/posts/{postId}")
+    public ResponseEntity<PostDetailResponse> getPostDetail(
+            @PathVariable("postId") Long postId) {   // 조회할 게시글 id
+        return ResponseEntity.ok(postService.getDetail(postId));
+    }
+
     // 게시글 수정: 경로의 게시글 id를 대상으로 내용을 수정한다.
     @Operation(summary = "게시글 수정", description = "게시글의 카테고리·제목·내용을 수정한다.")
     @PostMapping("/api/v1/posts/{postId}/update")
@@ -40,5 +77,18 @@ public class PostController {
             @PathVariable("postId") Long id,               // 수정할 게시글 id
             @RequestBody @Valid PostUpdateRequest request) {  // 수정 요청 본문(검증 대상)
         return ResponseEntity.ok(postService.update(id, request));
+    }
+
+    // 게시글 삭제: 경로의 postId를 받아 작성자 본인 글의 상태를 DELETED로 바꾼다(소프트 삭제).
+    // 서버가 HTTP 리다이렉트를 하지 않고, 이동할 목록 경로를 응답 본문으로 내려주면 React가 라우팅한다.
+    @Operation(summary = "게시글 삭제", description = "작성자 본인이 게시글 상태를 DELETED로 변경(소프트 삭제)하고, React가 이동할 목록 경로를 반환한다.")
+    @PostMapping("/api/v1/posts/{postId}/delete")
+    public ResponseEntity<PostDeleteResponse> deletePost(
+            @AuthenticationPrincipal AuthUser user,           // JWT에서 꺼낸 로그인 회원 (id, role)
+            @PathVariable("postId") Long postId) {            // 삭제할 게시글 id (경로 변수)
+        // 회원 id는 토큰에서 꺼낸 user.id()만 신뢰한다. (요청 본문의 userId를 믿지 않는다)
+        postService.delete(user.id(), postId);
+        // 삭제 후 React가 게시글 목록(GET /api/v1/posts)으로 이동하도록 경로를 내려준다.
+        return ResponseEntity.ok(PostDeleteResponse.toPostList());
     }
 }
