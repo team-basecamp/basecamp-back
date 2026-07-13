@@ -61,11 +61,11 @@ public class PostService {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
 
-        // 소유권 확인: 내 글이 아니면 삭제 거부(403). 권한(ROLE)과 별개로 서비스에서 막는다.
+        // 소유권 확인: 내 글이 아니면 삭제 거부(403). 권한(ROLE)과 별개로 서비스에서 막습니다.
         if (!post.getUser().getId().equals(userId)) {
             throw new BusinessException(ErrorCode.ACCESS_DENIED);
         }
-
+        //
         // 변경 감지로 status = DELETED 로 UPDATE 반영
         post.delete();
     }
