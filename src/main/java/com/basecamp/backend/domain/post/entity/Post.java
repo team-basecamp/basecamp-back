@@ -60,6 +60,13 @@ public class Post {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    // 동시에 들어온 수정/삭제 요청이 서로의 변경(특히 소프트 삭제)을 덮어쓰는 것을 막기 위한 낙관적 락.
+    // 버전이 어긋난 두 번째 UPDATE 는 0건이 되어 ObjectOptimisticLockingFailureException 으로 실패하고,
+    // GlobalExceptionHandler 가 CONCURRENT_MODIFICATION(C005)로 변환한다.
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     // 게시글 생성자. 작성자·카테고리·제목·본문을 받고 나머지 초기값(조회수/상태/작성시각)은 여기서 채운다.
     public Post(User user, String category, String title, String content) {
         // 작성자: 인증된 사용자(JWT principal)로 조회한 회원 엔티티
