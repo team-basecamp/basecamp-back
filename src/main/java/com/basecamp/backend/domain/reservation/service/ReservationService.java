@@ -33,6 +33,9 @@ public class ReservationService {
     @Value("${payment.waiting-expiry-minutes}")
     private long paymentWaitingExpiryMinutes;
 
+    @Value("${payment.waiting-expiry-minutes}")
+    private long paymentWaitingExpiryMinutes;
+
     @Transactional
     public ReservationResponse createReservation(ReservationCreateRequest request, Long userId) {
         LocalDateTime paymentValidAfter = LocalDateTime.now().minusMinutes(paymentWaitingExpiryMinutes);

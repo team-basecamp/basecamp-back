@@ -10,6 +10,7 @@ import com.basecamp.backend.domain.payment.repository.PaymentRepository;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
