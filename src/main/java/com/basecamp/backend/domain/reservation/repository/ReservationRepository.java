@@ -2,9 +2,11 @@ package com.basecamp.backend.domain.reservation.repository;
 
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ReservationRepository extends JpaRepository <Reservation, Long> {
@@ -43,7 +46,7 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
             @Param("checkInDate") LocalDate checkInDate,
             @Param("checkOutDate") LocalDate checkOutDate);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("""
         update Reservation r
         set r.status = :expiredStatus, r.version = r.version + 1
@@ -73,4 +76,27 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
             @Param("status") ReservationStatus status,
             @Param("checkInDate") LocalDate checkInDate,
             @Param("checkOutDate") LocalDate checkOutDate);
+
+
+    @Query("select r.id from Reservation r where r.status = :status and r.expiredAt < :now")
+    List<Long> findExpiredPendingIds(@Param("status") ReservationStatus status,
+                                     @Param("now") LocalDateTime now);
+
+
+
+    @Modifying
+    @Query("""
+        update Reservation r
+        set r.status = :next, r.rejectReason = :reason, r.version = r.version + 1
+        where r.id in :ids and r.status = :current
+        """)
+    int bulkReject(@Param("ids") List<Long> ids,
+                   @Param("current") ReservationStatus current,
+                   @Param("next") ReservationStatus next,
+                   @Param("reason") String reason);
+
+    // 비관적 락을 통한 동일예약에 대한 동시 결제 요청을 직렬화
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Reservation r where r.id = :id")
+    Optional<Reservation> findByIdForUpdate(@Param("id") Long id);
 }
