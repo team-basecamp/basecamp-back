@@ -15,6 +15,7 @@ import com.basecamp.backend.domain.post.repository.PostRepository;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -195,14 +196,21 @@ public class PostService {
         User reporter = userRepository.findById(reporterId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
 
-        // 같은 회원이 아직 처리되지 않은(PENDING) 신고를 이미 넣었다면 중복 접수를 막는다.
+        // 같은 회원이 아직 처리되지 않은(PENDING) 신고를 이미 넣었다면 중복 접수를 막는다. (빠른 선검사)
         if (postReportRepository.existsByPost_PostIdAndReporter_IdAndStatus(postId, reporterId, REPORT_STATUS_PENDING)) {
             throw new BusinessException(ErrorCode.ALREADY_REPORTED_POST);
         }
 
-        PostReport saved = postReportRepository.save(
-                new PostReport(post, reporter, request.reason(), request.description()));
-        return PostReportResponse.from(saved);
+        // 선검사와 저장 사이의 동시 이중 신고 경쟁은 DB 유니크 제약이 최종적으로 막는다.
+        // 제약 위반이 커밋 시점이 아니라 여기서 바로 드러나도록 saveAndFlush 로 즉시 flush 해
+        // DataIntegrityViolationException 을 잡아 ALREADY_REPORTED_POST 로 변환한다.
+        try {
+            PostReport saved = postReportRepository.saveAndFlush(
+                    new PostReport(post, reporter, request.reason(), request.description()));
+            return PostReportResponse.from(saved);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.ALREADY_REPORTED_POST);
+        }
     }
 
 }
