@@ -62,6 +62,7 @@ public enum ErrorCode {
 	// Post (게시글) — Payment가 P001~P004를 이미 쓰고 있어 접두어를 PO로 분리한다.
 	POST_NOT_FOUND(HttpStatus.NOT_FOUND, "PO001", "게시글을 찾을 수 없습니다."),
 	POST_BLINDED(HttpStatus.FORBIDDEN, "PO002", "관리자에 의해 블라인드 처리된 게시글입니다."),
+	ALREADY_REPORTED_POST(HttpStatus.CONFLICT, "PO003", "이미 신고한 게시글입니다."),
 	;
 
 	private final HttpStatus status;
