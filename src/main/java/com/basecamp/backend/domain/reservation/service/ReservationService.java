@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.reservation.service;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
+import com.basecamp.backend.domain.payment.service.PaymentService;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
@@ -10,6 +11,8 @@ import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,13 +28,30 @@ public class ReservationService {
 
     private final ReservationRepository reservationRepository;
     private final CampRepository campRepository;
+    private final PaymentService paymentService;
+
+    @Value("${payment.waiting-expiry-minutes}")
+    private long paymentWaitingExpiryMinutes;
 
     @Transactional
     public ReservationResponse createReservation(ReservationCreateRequest request, Long userId) {
-        boolean duplicated = reservationRepository.existsOverbookingReservation(
+        LocalDateTime paymentValidAfter = LocalDateTime.now().minusMinutes(paymentWaitingExpiryMinutes);
+
+        // 0. 만료된 미결제 이탈 건 정리 → 유니크 키 해제
+        reservationRepository.expireStalePaymentWaiting(
                 userId, request.campId(),
-                List.of(ReservationStatus.PENDING, ReservationStatus.RESERVED),
-                request.checkInDate(), request.checkOutDate());
+                ReservationStatus.PENDING_PAYMENT, ReservationStatus.CANCELLED,
+                paymentValidAfter);
+
+        // 1. 활성 예약 기간 겹침 검증 (순차 요청, 기간이 다른 겹침 차단)
+        boolean duplicated = reservationRepository.existsOverbookingReservation(
+                userId,
+                request.campId(),
+                List.of(ReservationStatus.PENDING, ReservationStatus.RESERVED),  // PENDING_PAYMENT 제거
+                ReservationStatus.PENDING_PAYMENT,                                // 별도 파라미터로
+                paymentValidAfter,
+                request.checkInDate(),
+                request.checkOutDate());
 
         if (duplicated) {
             throw new BusinessException(ErrorCode.DUPLICATE_RESERVATION); // 409
@@ -51,11 +71,17 @@ public class ReservationService {
                 .customerName(request.customerName())
                 .customerPhone(request.customerPhone())
                 .specialRequest(request.specialRequest())
-                .status(ReservationStatus.PENDING)
+                .status(ReservationStatus.PENDING_PAYMENT)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        Reservation saved = reservationRepository.save(reservation);
+        Reservation saved;
+        try {
+            saved = reservationRepository.saveAndFlush(reservation);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.DUPLICATE_RESERVATION);
+        }
+
         return ReservationResponse.from(saved);
     }
 
@@ -65,7 +91,21 @@ public class ReservationService {
         Reservation cancelled = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
+        // TODO: 인증 연동 후 본인 검증 활성화
+        // if (!reservation.getUserId().equals(userId)) throw new BusinessException(ErrorCode.ACCESS_DENIED);
+
+        if (cancelled.getStatus() == ReservationStatus.CANCELLED
+                || cancelled.getStatus() == ReservationStatus.REJECTED) {
+            throw new BusinessException(ErrorCode.ALREADY_CANCELED_OR_REJECTED);
+        }
+
+        boolean wasPaid = cancelled.getStatus() == ReservationStatus.PENDING
+                || cancelled.getStatus() == ReservationStatus.RESERVED;
+
         cancelled.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
+        if (wasPaid) {
+            paymentService.refund(reservationId); // PENDING/RESERVED = 결제 완료 상태였으므로 환불
+        }
 
         return ReservationResponse.from(cancelled);
     }
@@ -75,17 +115,6 @@ public class ReservationService {
     public ReservationResponse approveReservation(Long reservationId){
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
-
-        boolean conflicted = reservationRepository.existsConflictingReservation(
-                reservation.getCampId(),
-                reservation.getId(),  // 자기 자신 제외
-                ReservationStatus.RESERVED,
-                reservation.getCheckInDate(),
-                reservation.getCheckOutDate());
-
-        if (conflicted) {
-            throw new BusinessException(ErrorCode.RESERVATION_PERIOD_CONFLICT); // 409
-        }
 
         reservation.approve(); // 예약상태변경(RESERVED)
 
@@ -99,6 +128,7 @@ public class ReservationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
         reservation.reject(request.reason()); // 예약상태변경(REJECTED, reject_reason값 할당)
+        paymentService.refund(reservationId); // PENDING = 결제 완료 상태이므로 항상 환불
 
         return ReservationResponse.from(reservation);
     }

@@ -28,7 +28,7 @@ public enum ErrorCode {
 	ALREADY_CANCELED_OR_REJECTED(HttpStatus.BAD_REQUEST, "R003", "이미 취소 되었거나 거절된 예약입니다."),
 	RESERVATION_NOT_PENDING(HttpStatus.BAD_REQUEST, "R004", "대기 중인 예약만 수락/거절할 수 있습니다."),
 	DUPLICATE_RESERVATION(HttpStatus.CONFLICT, "R005", "이미 같은 예약이 존재합니다."),
-	RESERVATION_PERIOD_CONFLICT(HttpStatus.CONFLICT, "R006", "해당 기간에 이미 확정된 예약이 존재합니다"),
+	RESERVATION_EXPIRED(HttpStatus.BAD_REQUEST, "R006", "응답 기한이 지난 예약입니다."),
 
 	// OAuth / Social Login
 	UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "O001", "지원하지 않는 소셜 로그인 제공자입니다."),
@@ -52,6 +52,12 @@ public enum ErrorCode {
 	CAMP_OWNER_APPLICATION_ALREADY_PENDING(HttpStatus.CONFLICT, "CO002", "이미 심사 중인 신청이 있습니다."),
 	ALREADY_CAMP_OWNER(HttpStatus.CONFLICT, "CO003", "이미 캠핑업체로 등록된 회원입니다."),
 	CAMP_OWNER_APPLICATION_ALREADY_PROCESSED(HttpStatus.CONFLICT, "CO004", "이미 처리된 신청입니다."),
+
+	// Payment
+	PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "P001", "결제 정보를 찾을 수 없습니다."),
+	RESERVATION_NOT_PENDING_PAYMENT(HttpStatus.BAD_REQUEST, "P002", "결제 대기 상태의 예약만 결제할 수 있습니다."),
+	ALREADY_PAID(HttpStatus.CONFLICT, "P003", "이미 결제가 완료된 예약입니다."),
+	PAYMENT_NOT_REFUNDABLE(HttpStatus.NOT_FOUND, "P004", "결제 내역이 존재하지 않아 환불할 수 없습니다."),
 	;
 
 	private final HttpStatus status;

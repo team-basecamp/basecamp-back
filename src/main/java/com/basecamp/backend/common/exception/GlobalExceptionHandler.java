@@ -1,5 +1,7 @@
 package com.basecamp.backend.common.exception;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -10,8 +12,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestControllerAdvice
@@ -34,6 +34,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 		ErrorCode errorCode = ex.getErrorCode();
 		ErrorResponse response = ErrorResponse.of(errorCode, ex.getMessage());
 		return ResponseEntity.status(errorCode.getStatus()).body(response);
+	}
+
+	/**
+	 * {@code ?sort=존재하지않는필드} 처럼 Pageable 의 정렬 대상이 엔티티에 없을 때 Spring Data 가 던진다.
+	 * 클라이언트가 고칠 수 있는 잘못된 요청이므로 500 이 아니라 400 으로 돌려준다.
+	 */
+	@ExceptionHandler(PropertyReferenceException.class)
+	protected ResponseEntity<ErrorResponse> handlePropertyReferenceException(PropertyReferenceException ex) {
+		log.warn("PropertyReferenceException: {}", ex.getMessage());
+		ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE);
+		return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus()).body(response);
 	}
 
 	@ExceptionHandler(ObjectOptimisticLockingFailureException.class)
