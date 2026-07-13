@@ -1,6 +1,7 @@
 package com.basecamp.backend.domain.camp.entity;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -9,11 +10,15 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+// 생성 경로를 builder()/정적 팩토리(fromGocampingApi 등)로만 제한한다.
+// no-args 생성자는 JPA가 리플렉션으로 엔티티를 로딩할 때만 필요해 protected로 좁혔다.
+// all-args 생성자는 @Builder가 내부적으로 써야 해서 없앨 수는 없지만, private으로 좁혀서
+// 외부에서 필드를 순서대로 나열해 직접 생성하는 경로(순서 실수 위험)는 막았다.
 @Entity
 @Table(name = "camps")
 @Getter
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 public class Camp {
 
