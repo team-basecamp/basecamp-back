@@ -15,6 +15,7 @@ import com.basecamp.backend.domain.post.repository.PostRepository;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
