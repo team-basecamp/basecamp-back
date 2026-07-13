@@ -4,21 +4,25 @@ import java.time.Clock;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.security.UserRevocationCache;
+import com.basecamp.backend.domain.admin.dto.response.AdminUserResponse;
 import com.basecamp.backend.domain.admin.dto.response.BlacklistedUserResponse;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.entity.UserStatus;
 import com.basecamp.backend.domain.user.repository.UserRepository;
+import com.basecamp.backend.domain.user.repository.UserSpecs;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * 관리자의 회원 제재(강제 로그아웃) / 해제.
+ * 관리자의 회원 조회 및 제재(강제 로그아웃) / 해제.
  *
  * <p>제재는 토큰 단위가 아니라 회원 단위다. 무상태 JWT 라 서버가 발급된 토큰을 보관하지 않아 대상 회원의
  * {@code jti} 를 알 수 없기 때문이다(#18). 영속 기록은 {@code users.status = BLACKLISTED},
@@ -65,6 +69,21 @@ public class AdminUserService {
 
 		user.activate();
 		userRevocationCache.clear(userId);
+	}
+
+	/**
+	 * 관리자 회원 목록 조회(#19). 세 조건은 모두 선택이며 지정된 것만 AND 로 묶인다.
+	 *
+	 * <p>필터가 하나도 없으면 탈퇴 회원까지 포함한 전체가 조회된다. 탈퇴 회원을 감추면 관리자가 전체 현황을 볼
+	 * 수단이 없어지므로, 걸러내고 싶을 때 {@code status} 를 지정하는 쪽으로 뒀다.</p>
+	 */
+	@Transactional(readOnly = true)
+	public Page<AdminUserResponse> findUsers(UserStatus status, Role role, String keyword, Pageable pageable) {
+		Specification<User> spec = Specification.where(UserSpecs.statusEquals(status))
+				.and(UserSpecs.roleEquals(role))
+				.and(UserSpecs.keywordContains(keyword));
+
+		return userRepository.findAll(spec, pageable).map(AdminUserResponse::from);
 	}
 
 	@Transactional(readOnly = true)
