@@ -29,12 +29,6 @@ public record MyProfileResponse(
 		@Schema(description = "가입한 소셜 제공자", example = "KAKAO")
 		String provider,
 
-		@Schema(description = "권한", example = "CUSTOMER")
-		String role,
-
-		@Schema(description = "상태", example = "ACTIVE")
-		String status,
-
 		@Schema(description = "가입 일시")
 		LocalDateTime createdAt) {
 
@@ -46,8 +40,6 @@ public record MyProfileResponse(
 				user.getNickname(),
 				profileImage == null ? null : profileImage.getImageUrl(),
 				user.getProvider().name(),
-				user.getRole().name(),
-				user.getStatus().name(),
 				user.getCreatedAt());
 	}
 
