@@ -62,6 +62,14 @@ public class PostController {
         return ResponseEntity.ok(postService.getList(category, cursor, size));
     }
 
+    // 게시글 상세 조회: 경로의 게시글 id로 단건을 조회한다.
+    @Operation(summary = "게시글 상세 조회", description = "게시글 id로 단건 상세를 조회한다. 삭제된 글은 404, 블라인드된 글은 403으로 응답한다.")
+    @GetMapping("/api/v1/posts/{postId}")
+    public ResponseEntity<PostDetailResponse> getPostDetail(
+            @PathVariable("postId") Long postId) {   // 조회할 게시글 id
+        return ResponseEntity.ok(postService.getDetail(postId));
+    }
+
     // 게시글 수정: 경로의 게시글 id를 대상으로 내용을 수정한다.
     @Operation(summary = "게시글 수정", description = "게시글의 카테고리·제목·내용을 수정한다.")
     @PostMapping("/api/v1/posts/{postId}/update")

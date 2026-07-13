@@ -58,6 +58,10 @@ public enum ErrorCode {
 	RESERVATION_NOT_PENDING_PAYMENT(HttpStatus.BAD_REQUEST, "P002", "결제 대기 상태의 예약만 결제할 수 있습니다."),
 	ALREADY_PAID(HttpStatus.CONFLICT, "P003", "이미 결제가 완료된 예약입니다."),
 	PAYMENT_NOT_REFUNDABLE(HttpStatus.NOT_FOUND, "P004", "결제 내역이 존재하지 않아 환불할 수 없습니다."),
+
+	// Post (게시글) — Payment가 P001~P004를 이미 쓰고 있어 접두어를 PO로 분리한다.
+	POST_NOT_FOUND(HttpStatus.NOT_FOUND, "PO001", "게시글을 찾을 수 없습니다."),
+	POST_BLINDED(HttpStatus.FORBIDDEN, "PO002", "관리자에 의해 블라인드 처리된 게시글입니다."),
 	;
 
 	private final HttpStatus status;
