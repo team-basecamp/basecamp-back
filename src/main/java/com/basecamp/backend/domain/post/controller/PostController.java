@@ -8,6 +8,8 @@ import com.basecamp.backend.domain.post.dto.response.PostDeleteResponse;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
 import com.basecamp.backend.domain.post.dto.response.PostListCursorResponse;
 import com.basecamp.backend.domain.post.dto.response.PostReportResponse;
+import org.springframework.dao.DataIntegrityViolationException;
+import com.basecamp.backend.domain.post.dto.response.PostReportResponse;
 import com.basecamp.backend.domain.post.service.PostService;
 
 import io.swagger.v3.oas.annotations.Operation;
