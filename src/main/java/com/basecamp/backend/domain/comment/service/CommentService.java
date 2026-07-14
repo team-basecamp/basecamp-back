@@ -56,7 +56,7 @@ public class CommentService {
 
         Comment comment = new Comment(post, user, content);
         // 저장한 뒤 방금 쓴 댓글을 그대로 볼 수 있게 응답 DTO로 변환해 반환.
-        // post·user가 이미 로딩된 상태라 from()에서 nickname 접근 시 추가 쿼리가 발생하지 않는다. 
+        // post·user가 이미 로딩된 상태라 from()에서 nickname 접근 시 추가 쿼리가 발생하지 않는다.
         Comment saved = commentRepository.save(comment);
         return CommentResponse.from(saved);
     }
