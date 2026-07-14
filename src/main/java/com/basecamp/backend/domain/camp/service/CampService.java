@@ -100,15 +100,6 @@ public class CampService {
         return defaultPriceMin + ThreadLocalRandom.current().nextInt(steps) * defaultPriceUnit;
     }
 
-    // 가격 정책 적용 전에 저장돼 price=0으로 남아있는 기존 캠핑장을 일괄 백필한다.
-    // 조회된 엔티티는 트랜잭션 내에서 관리되므로, 값 변경만으로 커밋 시점에 dirty checking이 자동 반영한다.
-    @Transactional
-    public int backfillMissingPrices() {
-        List<Camp> targets = campRepository.findByContentIdIsNotNullAndPrice(0);
-        targets.forEach(camp -> camp.assignDefaultPriceIfMissing(generateRandomPrice()));
-        return targets.size();
-    }
-
     /**
      * 고캠핑 공공데이터 API에서 캠핑장 데이터를 받아와서 DB에 저장
      *
@@ -300,6 +291,10 @@ public class CampService {
         }
     }
 
+    /*
+    * 고객이 직접 캠핑장을 등록/수정/삭제
+    */
+
     // 캠핑장 등록 비지니스 로직
     @Transactional
     public Camp registerCamp(CampRegistrationRequest request,Long ownerId){
@@ -373,6 +368,24 @@ public class CampService {
 
         // 더티 체킹을 고려하여 save 가 아니라 Return 하기
         return camp;
+
+    }
+
+    // 캠핑장 삭제 기능 구현
+    @Transactional
+    public void deleteCamp(Long campId, Long ownerId){
+        // campId 로 캠핑장을 조회하기
+        Camp camp = getCampId(campId);
+        // 없으면 CAMP_NOT_FOUND (예외)
+        if(camp == null){
+            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND,"삭제할 캠핑장이 없습니다");
+        }
+        // 소유자 권한 검증 (ACCESS_DENIED)
+        if(!java.util.Objects.equals(camp.getOwnerId(),ownerId)){
+            throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장이 아닙니다");
+        }
+        // softDelete() 호출하기
+        camp.softDelete();
 
     }
 
