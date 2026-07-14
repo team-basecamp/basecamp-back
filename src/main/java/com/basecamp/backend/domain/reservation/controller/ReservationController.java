@@ -1,5 +1,6 @@
 package com.basecamp.backend.domain.reservation.controller;
 
+import com.basecamp.backend.common.model.AuthUser;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -26,10 +28,10 @@ public class ReservationController {
     // TODO: 인증 미구현으로인한 하드코딩, Authentication authentication 나중에 넣을 파라미터
     @Operation(summary = "예약하기", description = "고객이 해당 캠핑장에 예약을 합니다. 이 때 예약상태는 결제 대기(PENDING_PAYMENT)입니다.")
     @PostMapping
-    public ResponseEntity<ReservationResponse> createReservation(@Valid @RequestBody ReservationCreateRequest request) {
-        //Long userId = Long.parseLong(authentication.getName()); // service에 전달할 파라미터
-        Long tempUserId = 1L; // temp value
-        ReservationResponse response = reservationService.createReservation(request, tempUserId);
+    public ResponseEntity<ReservationResponse> createReservation(
+            @AuthenticationPrincipal AuthUser user,
+            @Valid @RequestBody ReservationCreateRequest request) {
+        ReservationResponse response = reservationService.createReservation(request, user.id());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -68,10 +70,10 @@ public class ReservationController {
     @GetMapping("/me")
     public ResponseEntity<Page<ReservationResponse>> findMyReservation(
             @ParameterObject
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal AuthUser user
     ){
-        //Long userId = Long.parseLong(authentication.getName()); // service에 전달할 파라미터
-        return ResponseEntity.ok(reservationService.findAllReservations(1l, pageable));
+        return ResponseEntity.ok(reservationService.findAllReservations(user.id(), pageable));
     }
 
     @Operation(summary = "캠핑장 업체별 예약 목록 조회", description = "특정 캠핑장의 예약 목록을 페이지네이션으로 조회합니다.(CANCELLED 상태 제외)")

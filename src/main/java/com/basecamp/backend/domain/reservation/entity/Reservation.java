@@ -2,8 +2,13 @@ package com.basecamp.backend.domain.reservation.entity;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.camp.entity.Camp;
+import com.basecamp.backend.domain.user.entity.User;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -22,7 +27,6 @@ public class Reservation {
     // --- 연관 관계 매핑 ---
 
     // 외래키 fk_rsv_user (user_id 참조)
-    /*
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -31,13 +35,6 @@ public class Reservation {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "camp_id", nullable = false)
     private Camp camp;
-     */
-    // TODO: 임시 엔티티 (삭제해야 할 것)
-    @Column(name = "user_id")
-    private Long userId;
-
-    @Column(name = "camp_id")
-    private Long campId;
 
     // --- 기본 예약 필드 ---
 
@@ -89,12 +86,12 @@ public class Reservation {
     private Long version;
 
     @Builder
-    private Reservation(Long userId, Long campId, LocalDate checkInDate, LocalDate checkOutDate,
+    private Reservation(User user, Camp camp, LocalDate checkInDate, LocalDate checkOutDate,
                          int guestCount, ReservationStatus status, Long totalPrice,
                          String customerName, String customerPhone, String specialRequest,
                          LocalDateTime createdAt) {
-        this.userId = userId;
-        this.campId = campId;
+        this.user = user;
+        this.camp = camp;
         this.checkInDate = checkInDate;
         this.checkOutDate = checkOutDate;
         this.guestCount = guestCount;
