@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.camp.service;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
+import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
@@ -10,6 +11,7 @@ import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.camp.repository.CampSpecs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +30,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Slf4j // 실제 로깅 도구를 감싸는 창구/인터페이스, 이 클래스에서 로그 찍을 수 있는 로그는 변수를 자동으로 만들어 주는 애너테이션
@@ -45,6 +48,28 @@ public class CampService {
     @Value("${gocamping.api.url}")
     private String gocampingApiUrl;
 
+    // 고캠핑 API가 가격 정보를 제공하지 않아, 신규 캠핑장 저장 시 이 범위 내에서 임의로 가격을 부여한다.
+    @Value("${camp.default-price.min}")
+    private int defaultPriceMin;
+
+    @Value("${camp.default-price.max}")
+    private int defaultPriceMax;
+
+    @Value("${camp.default-price.unit}")
+    private int defaultPriceUnit;
+
+    // camp.default-price.* 설정이 잘못되면(min > max, unit <= 0) generateRandomPrice()가 나중에
+    // ArithmeticException/IllegalArgumentException으로 조용히 실패하므로, 앱 시작 시점에 미리 검증한다.
+    @PostConstruct
+    private void validatePricePolicy() {
+        if (defaultPriceMin < 0 || defaultPriceMax < defaultPriceMin || defaultPriceUnit <= 0) {
+            throw new IllegalStateException(String.format(
+                    "camp.default-price 설정이 올바르지 않습니다. (min=%d, max=%d, unit=%d) "
+                            + "min >= 0, max >= min, unit > 0 이어야 합니다.",
+                    defaultPriceMin, defaultPriceMax, defaultPriceUnit));
+        }
+    }
+
     // 고캠핑 API 에서 받은 캠핑장 데이터 DB 저장
     @Transactional
     public void saveCampsFromApi(List<GocampingApiResponseDto> apiCamps){
@@ -60,12 +85,28 @@ public class CampService {
         // 새로운 데이터만 필터링 하고 Entity로 변환 하기
         List<Camp> newCamps = apiCamps.stream()
                 .filter(dto -> !existingContentIds.contains(dto.getContentId()))
-                .map(Camp::fromGocampingApi)
+                .map(dto -> Camp.fromGocampingApi(dto, generateRandomPrice()))
                 .collect(Collectors.toList());
         // 새로운 데이터 DB 저장 로직
         if(!newCamps.isEmpty()){
             campRepository.saveAll(newCamps);
         }
+    }
+
+    // 고캠핑 API 가격 설정
+    // 없는 가격 정보를 대체하기 위해 설정된 범위 내에서 unit 단위로 임의 가격을 생성한다.
+    private int generateRandomPrice() {
+        int steps = (defaultPriceMax - defaultPriceMin) / defaultPriceUnit + 1;
+        return defaultPriceMin + ThreadLocalRandom.current().nextInt(steps) * defaultPriceUnit;
+    }
+
+    // 가격 정책 적용 전에 저장돼 price=0으로 남아있는 기존 캠핑장을 일괄 백필한다.
+    // 조회된 엔티티는 트랜잭션 내에서 관리되므로, 값 변경만으로 커밋 시점에 dirty checking이 자동 반영한다.
+    @Transactional
+    public int backfillMissingPrices() {
+        List<Camp> targets = campRepository.findByContentIdIsNotNullAndPrice(0);
+        targets.forEach(camp -> camp.assignDefaultPriceIfMissing(generateRandomPrice()));
+        return targets.size();
     }
 
     /**
@@ -309,6 +350,30 @@ public class CampService {
                 .toList();
 
         return CampListResponseDto.ok(dtos, dtos.size());
+    }
+
+    // 캠핑장 정보 수정 ( 본인이 등록한 캠핑장만 가능하도록 )
+    @Transactional
+    public Camp updateCamp(Long campId, CampUpdateRequest request, Long ownerId){
+
+        // campId 로 DB에서 조회를 시도하기 ( 기존의 getCampId)메서드를 재사용하여
+        Camp camp = getCampId(campId);
+        // campId로 캠핑장 조회 : 없으면 예외 ( 에러코드 )
+        if(camp == null) {
+            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND,"캠핑장을 찾을 수 없습니다.");
+        }
+
+        // 권한 검증 : camp와 로그인 한 사람이 맞는지?
+        if (!java.util.Objects.equals(camp.getOwnerId(), ownerId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장 수정만 가능");
+        }
+
+        // 엔티티 메서드 호출해서 반영하기
+        camp.updateInfo(request);
+
+        // 더티 체킹을 고려하여 save 가 아니라 Return 하기
+        return camp;
+
     }
 
 }

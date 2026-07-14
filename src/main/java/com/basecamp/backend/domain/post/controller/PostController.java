@@ -2,6 +2,7 @@ package com.basecamp.backend.domain.post.controller;
 
 import com.basecamp.backend.common.model.AuthUser;
 import com.basecamp.backend.domain.post.dto.request.PostCreateRequest;
+import com.basecamp.backend.domain.post.dto.request.PostReportRequest;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
 import com.basecamp.backend.domain.post.dto.response.PostDeleteResponse;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
