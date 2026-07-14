@@ -231,4 +231,36 @@ public class PostService {
         post.delete();
     }
 
+     // 게시글 신고: 로그인 회원이 대상 게시글을 신고하고 접수된 신고 정보를 반환한다. (쓰기 트랜잭션)
+    // reporterId는 컨트롤러에서 토큰(AuthUser)으로부터 넘어온 값이라 신뢰할 수 있다.
+    @Transactional
+    public PostReportResponse report(Long reporterId, Long postId, PostReportRequest request) {
+        // 신고 대상 게시글 조회. 없거나 이미 삭제된 글이면 신고할 수 없다(404).
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+        if (STATUS_DELETED.equals(post.getStatus())) {
+            throw new BusinessException(ErrorCode.POST_NOT_FOUND);
+        }
+
+        // 신고자 회원을 최종 검증한다. (JWT는 통과했지만 탈퇴/삭제로 회원이 사라졌을 수 있다.)
+        User reporter = userRepository.findById(reporterId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+
+        // 같은 회원이 아직 처리되지 않은(PENDING) 신고를 이미 넣었다면 중복 접수를 막는다. (빠른 선검사)
+        if (postReportRepository.existsByPost_PostIdAndReporter_IdAndStatus(postId, reporterId, REPORT_STATUS_PENDING)) {
+            throw new BusinessException(ErrorCode.ALREADY_REPORTED_POST);
+        }
+
+        // 선검사와 저장 사이의 동시 이중 신고 경쟁은 DB 유니크 제약이 최종적으로 막는다.
+        // 제약 위반이 커밋 시점이 아니라 여기서 바로 드러나도록 saveAndFlush 로 즉시 flush 해
+        // DataIntegrityViolationException 을 잡아 ALREADY_REPORTED_POST 로 변환한다.
+        try {
+            PostReport saved = postReportRepository.saveAndFlush(
+                    new PostReport(post, reporter, request.reason(), request.description()));
+            return PostReportResponse.from(saved);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.ALREADY_REPORTED_POST);
+        }
+    }
+
 }
