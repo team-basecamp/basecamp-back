@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.camp.controller;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
+import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampDetailResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
@@ -194,5 +195,27 @@ public class CampController {
         CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
         // 201 Created로 응답 반환
         return ResponseEntity.status(201).body(response);
+    }
+
+    // 캠핑장 정보 수정 기능
+    @PreAuthorize("hasRole('CAMP_OWNER')")
+    @PatchMapping("/{campId}")
+    public ResponseEntity<CampDetailResponseDto> updateCamp(
+            @PathVariable
+            Long campId,
+            @Valid
+            @RequestBody
+            CampUpdateRequest request,
+            @AuthenticationPrincipal
+            AuthUser owner
+    ){
+        // Service 호출 하기
+        Camp modifyCamp = campService.updateCamp(campId,request,owner.id());
+        // 엔티티 -> ResponseDTO 변환
+        CampResponseDto responseDto = CampResponseDto.from(modifyCamp);
+        // Envelope로 감싸기
+        CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
+        // 응답반환
+        return ResponseEntity.ok(response);
     }
 }

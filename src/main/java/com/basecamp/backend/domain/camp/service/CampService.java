@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.camp.service;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
+import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
@@ -92,7 +93,8 @@ public class CampService {
         }
     }
 
-    // 고캠핑 API에 없는 가격 정보를 대체하기 위해 설정된 범위 내에서 unit 단위로 임의 가격을 생성한다.
+    // 고캠핑 API 가격 설정
+    // 없는 가격 정보를 대체하기 위해 설정된 범위 내에서 unit 단위로 임의 가격을 생성한다.
     private int generateRandomPrice() {
         int steps = (defaultPriceMax - defaultPriceMin) / defaultPriceUnit + 1;
         return defaultPriceMin + ThreadLocalRandom.current().nextInt(steps) * defaultPriceUnit;
@@ -348,6 +350,30 @@ public class CampService {
                 .toList();
 
         return CampListResponseDto.ok(dtos, dtos.size());
+    }
+
+    // 캠핑장 정보 수정 ( 본인이 등록한 캠핑장만 가능하도록 )
+    @Transactional
+    public Camp updateCamp(Long campId, CampUpdateRequest request, Long ownerId){
+
+        // campId 로 DB에서 조회를 시도하기 ( 기존의 getCampId)메서드를 재사용하여
+        Camp camp = getCampId(campId);
+        // campId로 캠핑장 조회 : 없으면 예외 ( 에러코드 )
+        if(camp == null) {
+            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND,"캠핑장을 찾을 수 없습니다.");
+        }
+
+        // 권한 검증 : camp와 로그인 한 사람이 맞는지?
+        if (!java.util.Objects.equals(camp.getOwnerId(), ownerId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장 수정만 가능");
+        }
+
+        // 엔티티 메서드 호출해서 반영하기
+        camp.updateInfo(request);
+
+        // 더티 체킹을 고려하여 save 가 아니라 Return 하기
+        return camp;
+
     }
 
 }
