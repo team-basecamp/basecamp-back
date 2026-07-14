@@ -36,7 +36,8 @@ public class PostService {
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_BLINDED = "BLINDED";
     private static final String STATUS_DELETED = "DELETED";
-
+    // 신고 처리 상태값 (post_reports.status). 접수 직후 상태.
+    private static final String REPORT_STATUS_PENDING = "PENDING";
     // 게시판 카테고리. DB에 저장되는 값은 이 3개뿐이다.
     private static final Set<String> CATEGORIES = Set.of("GENERAL", "CAMP_MATE", "RESERVATION_TRANSFER");
 
