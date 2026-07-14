@@ -32,6 +32,21 @@ public class CampController {
     private final CampService campService;
     private final GenericResponseService responseBuilder;
 
+    //고캠핑 API에서 캠핑장 데이터를 동기화
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/sync")
+    public ResponseEntity<String> syncCamps(
+            @RequestBody List<GocampingApiResponseDto> apiCamps) {
+
+        try {
+            campService.saveCampsFromApi(apiCamps);
+            return ResponseEntity.ok("캠핑장 데이터가 성공적으로 동기화되었습니다");
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body("동기화 실패: " + e.getMessage());
+        }
+    }
 
     // 고캠핑 API 전체를 직접 호출해서 DB에 저장 (관리자용 수동 트리거)
     // 경로가 /api/v1/admin 아래가 아니라 SecurityConfig 의 URL 규칙으로는 묶이지 않는다.
