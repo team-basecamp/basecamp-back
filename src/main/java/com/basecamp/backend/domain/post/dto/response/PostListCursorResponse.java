@@ -5,6 +5,7 @@ import com.basecamp.backend.domain.post.entity.Post;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
+import java.util.Map;
 
 // 게시글 목록 응답 envelope (커서 페이징).
 // 무한 스크롤 프런트가 필요로 하는 건 "이번에 받은 목록", "더 있는지", "다음에 보낼 커서" 셋뿐이다.
@@ -21,14 +22,17 @@ public record PostListCursorResponse(
 
     // limit+1건을 조회해 넘겨받는다. 한 건이 더 딸려 왔다면 다음 페이지가 있다는 뜻이다.
     // COUNT 쿼리 없이 hasNext를 알아내는 표준 수법이고, OFFSET과 달리 건너뛴 행을 읽는 비용도 없다.
-    public static PostListCursorResponse of(List<Post> lookahead, int limit) {
+    //
+    // commentCounts: 이번 페이지 게시글들의 댓글 수를 post_id → count로 미리 집계한 값.
+    // 댓글이 없는 게시글은 맵에 키가 없으므로 0으로 채운다.
+    public static PostListCursorResponse of(List<Post> lookahead, int limit, Map<Long, Integer> commentCounts) {
         boolean hasNext = lookahead.size() > limit;
 
         // 초과분(마지막 1건)은 존재 여부 판단에만 쓰고 응답에서는 잘라낸다.
         List<Post> posts = hasNext ? lookahead.subList(0, limit) : lookahead;
 
         List<PostListResponse> content = posts.stream()
-                .map(PostListResponse::from)
+                .map(post -> PostListResponse.from(post, commentCounts.getOrDefault(post.getPostId(), 0)))
                 .toList();
 
         // 다음 커서는 "이번에 실제로 내려준 마지막 글"이어야 한다.
