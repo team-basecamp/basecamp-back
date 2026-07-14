@@ -96,7 +96,7 @@ public class PostService {
                         row -> Math.toIntExact(row.count())));
     }
 
-    // 카테고리 유무 · 커서 유무 4가지 조합을 각 전용 쿼리로 보낸다. (사유는 PostRepository 주석 참고)
+    // 카테고리 유무 · 커서 유무 4가지 조합을 각 전용 쿼리로 보낸다.
     private List<Post> findPage(String category, PostCursorRequest cursor, Limit limit) {
         if (category == null) {
             return (cursor == null)
