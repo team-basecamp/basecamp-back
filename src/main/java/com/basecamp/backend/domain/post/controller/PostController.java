@@ -107,4 +107,5 @@ public class PostController {
         PostReportResponse response = postService.report(user.id(), postId, request);
         // 신고 접수 성공은 201 Created 로 응답
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
 }
