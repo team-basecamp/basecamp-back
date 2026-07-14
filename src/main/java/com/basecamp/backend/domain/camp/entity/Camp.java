@@ -1,6 +1,8 @@
 package com.basecamp.backend.domain.camp.entity;
 
+import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -9,11 +11,15 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+// 생성 경로를 builder()/정적 팩토리(fromGocampingApi 등)로만 제한한다.
+// no-args 생성자는 JPA가 리플렉션으로 엔티티를 로딩할 때만 필요해 protected로 좁혔다.
+// all-args 생성자는 @Builder가 내부적으로 써야 해서 없앨 수는 없지만, private으로 좁혀서
+// 외부에서 필드를 순서대로 나열해 직접 생성하는 경로(순서 실수 위험)는 막았다.
 @Entity
 @Table(name = "camps")
 @Getter
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 public class Camp {
 
@@ -112,7 +118,73 @@ public class Camp {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    public static Camp fromGocampingApi(com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto dto) {
+    // 캠핑장 정보 수정
+    public void updateInfo(CampUpdateRequest request) {
+
+        // 이름
+        if (request.getFacltNm() != null) {
+            this.facltNm = request.getFacltNm();
+        }
+
+        // 주소
+        if (request.getAddr1() != null) {
+            this.addr1 = request.getAddr1();
+        }
+
+        if (request.getAddr2() != null) {
+            this.addr2 = request.getAddr2();
+        }
+
+        // 전화번호
+        if (request.getTel() != null) {
+            this.tel = request.getTel();
+        }
+
+        // 캠핑장 유형
+        if (request.getInduty() != null) {
+            this.induty = request.getInduty();
+        }
+
+        // 가격
+        if (request.getPrice() != null) {
+            this.price = request.getPrice();
+        }
+
+        // 사이트 개수들
+        if (request.getGnrlSiteCo() != null) {
+            this.gnrlSiteCo = request.getGnrlSiteCo();
+        }
+
+        if (request.getAutoSiteCo() != null) {
+            this.autoSiteCo = request.getAutoSiteCo();
+        }
+
+        if (request.getGlampSiteCo() != null) {
+            this.glampSiteCo = request.getGlampSiteCo();
+        }
+
+        // 한줄 소개
+        if (request.getLineIntro() != null) {
+            this.lineIntro = request.getLineIntro();
+        }
+
+        // 대표 이미지 URL
+        if (request.getFirstImageUrl() != null) {
+            this.firstImageUrl = request.getFirstImageUrl();
+        }
+
+        // 웹사이트
+        if (request.getHomepage() != null) {
+            this.homepage = request.getHomepage();
+        }
+
+        // 수정 시각 갱신
+        this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+
+    }
+
+    // price: 고캠핑 API가 가격 정보를 제공하지 않아, 서비스 계층에서 정책에 따라 결정한 값을 받아 조립만 한다.
+    public static Camp fromGocampingApi(com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto dto, int price) {
         return Camp.builder()
                 .contentId(dto.getContentId())
                 .facltNm(dto.getFacltNm())
@@ -129,11 +201,18 @@ public class Camp {
                 .lineIntro(truncate(dto.getIntro(), 500))
                 .homepage(truncate(dto.getHomepage(), 255))
                 .sbrsCl(truncate(dto.getSbrsCl(), 500))
-                .price(0)
+                .price(price)
                 .averageRating(new BigDecimal("0.0"))
                 .reservationCount(0)
                 .createdAt(LocalDateTime.now())
                 .build();
+    }
+
+    // 가격이 아직 채워지지 않은(0) 캠핑장에 한해서만 값을 채운다. 실제 가격이 있는 캠핑장은 보호한다.
+    public void assignDefaultPriceIfMissing(int price) {
+        if (this.price == 0) {
+            this.price = price;
+        }
     }
 
     // 고캠핑 API 원본 데이터가 컬럼 길이 제한을 넘는 경우가 있어 저장 전 자른다 (예: intro가 500자 초과).

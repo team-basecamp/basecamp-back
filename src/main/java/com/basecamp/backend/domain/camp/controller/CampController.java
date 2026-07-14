@@ -3,9 +3,11 @@ package com.basecamp.backend.domain.camp.controller;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
+import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampDetailResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
+import com.basecamp.backend.domain.camp.dto.response.CampPriceBackfillResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
@@ -60,6 +62,14 @@ public class CampController {
             return ResponseEntity.status(500)
                     .body("동기화 실패: " + e.getMessage());
         }
+    }
+
+    // 가격 정책 적용 전에 저장돼 price=0으로 남아있는 기존 캠핑장(고캠핑 API 수집분)을 일괄 백필 (관리자용 수동 트리거)
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/backfill-price")
+    public ResponseEntity<CampPriceBackfillResponseDto> backfillMissingPrices() {
+        int updatedCount = campService.backfillMissingPrices();
+        return ResponseEntity.ok(CampPriceBackfillResponseDto.of(updatedCount));
     }
 
 // 특정 캠핑장 ID(PK) 로 조회 (상세페이지용 - 자체 등록 캠핑장은 contentId가 없어 이 엔드포인트로 통일 조회)
@@ -179,10 +189,33 @@ public class CampController {
         // Service 호출
         Camp savedCamp = campService.registerCamp(request, owner.id());
         // Entity -> Response DTO 변환하기
+
         CampResponseDto responseDto = CampResponseDto.from(savedCamp);
         // Envelope로 감싸기
         CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
         // 201 Created로 응답 반환
         return ResponseEntity.status(201).body(response);
+    }
+
+    // 캠핑장 정보 수정 기능
+    @PreAuthorize("hasRole('CAMP_OWNER')")
+    @PatchMapping("/{campId}")
+    public ResponseEntity<CampDetailResponseDto> updateCamp(
+            @PathVariable
+            Long campId,
+            @Valid
+            @RequestBody
+            CampUpdateRequest request,
+            @AuthenticationPrincipal
+            AuthUser owner
+    ){
+        // Service 호출 하기
+        Camp modifyCamp = campService.updateCamp(campId,request,owner.id());
+        // 엔티티 -> ResponseDTO 변환
+        CampResponseDto responseDto = CampResponseDto.from(modifyCamp);
+        // Envelope로 감싸기
+        CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
+        // 응답반환
+        return ResponseEntity.ok(response);
     }
 }

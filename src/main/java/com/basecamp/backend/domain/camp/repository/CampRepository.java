@@ -25,6 +25,10 @@ public interface CampRepository extends JpaRepository<Camp,Long>, JpaSpecificati
     @Query("SELECT c.contentId FROM Camp c")
     List<Long> findAllContentIds();
 
+    // 고캠핑 API로 수집됐지만(price 정책 적용 전 저장 등으로) 가격이 비어있는 캠핑장만 조회.
+    // owner_id로 사장님이 직접 등록한 캠핑장(contentId 없음, 실제 가격 입력값)은 대상에서 제외된다.
+    List<Camp> findByContentIdIsNotNullAndPrice(Integer price);
+
     // 위치 기반 감석 : 경도 , 위도 범위로 캠핑장 찾기
     List<Camp> findByMapXBetweenAndMapYBetween(
             Double minMapX,
