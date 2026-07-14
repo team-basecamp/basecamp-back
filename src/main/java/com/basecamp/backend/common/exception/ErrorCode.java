@@ -46,6 +46,7 @@ public enum ErrorCode {
 
 	// Camp
 	CAMP_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "캠핑장을 찾을 수 없습니다."),
+	ALREADY_DELETED_CAMP(HttpStatus.CONFLICT, "CP002", "이미 삭제된 캠핑장입니다."),
 
 	// CampOwner (캠핑업체 권한 승격 신청)
 	CAMP_OWNER_APPLICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "CO001", "업체 전환 신청을 찾을 수 없습니다."),

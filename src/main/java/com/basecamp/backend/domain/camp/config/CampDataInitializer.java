@@ -45,12 +45,12 @@ public class CampDataInitializer {
                 return;
             }
 
-            logger.info("🚀 고캠핑 API에서 캠프 데이터 동기화 시작...");
+            logger.info("고캠핑 API에서 캠프 데이터 동기화 시작...");
             campService.fetchAndSaveCampsFromGocampingApi();
-            logger.info("✅ 고캠핑 API 데이터 동기화 완료!");
+            logger.info(" 고캠핑 API 데이터 동기화 완료!");
 
         } catch (Exception e) {
-            logger.error("⚠️ 고캠핑 데이터 동기화 실패 (앱은 정상 구동됩니다): {}", e.getMessage(), e);
+            logger.error(" 고캠핑 데이터 동기화 실패 (앱은 정상 구동됩니다): {}", e.getMessage(), e);
             // 예외를 로깅하지만 앱 구동을 막지 않음
         }
     }
