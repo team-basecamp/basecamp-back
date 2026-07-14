@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.reservation.controller;
 import com.basecamp.backend.common.model.AuthUser;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
+import com.basecamp.backend.domain.reservation.dto.response.ReservationListResponse;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
 import com.basecamp.backend.domain.reservation.service.ReservationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,7 +69,7 @@ public class ReservationController {
     // TODO: 인증 미구현으로인한 하드코딩, Authentication authentication 나중에 넣을 파라미터
     @Operation(summary = "내 예약 목록 조회", description = "로그인한 사용자의 예약 목록을 페이지네이션으로 조회합니다.")
     @GetMapping("/me")
-    public ResponseEntity<Page<ReservationResponse>> findMyReservation(
+    public ResponseEntity<Page<ReservationListResponse>> findMyReservation(
             @ParameterObject
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal AuthUser user

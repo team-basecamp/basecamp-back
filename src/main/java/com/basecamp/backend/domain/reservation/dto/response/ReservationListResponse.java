@@ -8,34 +8,42 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @JsonInclude(JsonInclude.Include.NON_NULL) // 필드에 null이 있으면 response에 포함 안 시키기
-public record ReservationResponse(
+public record ReservationListResponse(
         Long id,
-        Long campId, //TODO: campId가 아니라 camp엔티티로 바꿔야 하는 점 고려
+        // Camp 정보
+        Long campId,
+        String campName,
+        String campImage,
+        // Reservation 정보
         LocalDate checkInDate,
         LocalDate checkOutDate,
         int guestCount,
+        Long totalPrice,
         String customerName,
         String customerPhone,
         String specialRequest,
         ReservationStatus status,
+        String rejectReason,
         LocalDateTime cancelDate,
-        Long totalPrice,
         LocalDateTime createdAt
 ) {
-    public static ReservationResponse from(Reservation reservation) {
-        return new ReservationResponse(
+
+    public static ReservationListResponse from(Reservation reservation) {
+        return new ReservationListResponse(
                 reservation.getId(),
-                //reservation.getCampId(),
                 reservation.getCamp().getCampId(),
+                reservation.getCamp().getFacltNm(),
+                reservation.getCamp().getFirstImageUrl(),
                 reservation.getCheckInDate(),
                 reservation.getCheckOutDate(),
                 reservation.getGuestCount(),
+                reservation.getTotalPrice(),
                 reservation.getCustomerName(),
                 reservation.getCustomerPhone(),
                 reservation.getSpecialRequest(),
                 reservation.getStatus(),
+                reservation.getRejectReason(),
                 reservation.getCancelAt(),
-                reservation.getTotalPrice(),
                 reservation.getCreatedAt()
         );
     }

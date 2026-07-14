@@ -23,13 +23,13 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
     Page<Reservation> findAllByUserId(Long userId, Pageable pageable);
 
     // campId와 파라미터로 넣은 예약상태를 제외한 조건으로 해당 캠핑장의 모든 예약 조회
-    Page<Reservation> findAllByCampIdAndStatusNot(Long campId, ReservationStatus status, Pageable pageable);
+    Page<Reservation> findAllByCamp_CampIdAndStatusNot(Long campId, ReservationStatus status, Pageable pageable);
 
     // 중복예약 방지 쿼리(pending, reserved 상태에서 다시 예약 걸지 못하도록 막기)
     @Query("""
         select count(r) > 0 from Reservation r
-        where r.userId = :userId
-          and r.campId = :campId
+        where r.user.id = :userId
+          and r.camp.campId = :campId
           and (
                r.status in :activeStatuses
                or (r.status = :paymentWaiting and r.createdAt > :paymentValidAfter)
@@ -50,8 +50,8 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
     @Query("""
         update Reservation r
         set r.status = :expiredStatus, r.version = r.version + 1
-        where r.userId = :userId
-          and r.campId = :campId
+        where r.user.id = :userId
+          and r.camp.campId = :campId
           and r.status = :paymentWaiting
           and r.createdAt <= :paymentValidAfter
         """)
@@ -64,7 +64,7 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
     // 예약날짜 충돌체크 쿼리
     @Query("""
         select count(r) > 0 from Reservation r
-        where r.campId = :campId
+        where r.camp.campId = :campId
           and r.id <> :excludeId
           and r.status = :status
           and r.checkInDate < :checkOutDate

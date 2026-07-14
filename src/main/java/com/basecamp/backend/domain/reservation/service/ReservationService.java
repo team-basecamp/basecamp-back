@@ -7,6 +7,7 @@ import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.payment.service.PaymentService;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
+import com.basecamp.backend.domain.reservation.dto.response.ReservationListResponse;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
@@ -146,9 +147,10 @@ public class ReservationService {
     }
 
     // 해당 유저 아이디의 예약목록 보여주기
-    public Page<ReservationResponse> findAllReservations(Long userId, Pageable pageable){
+    public Page<ReservationListResponse> findAllReservations(Long userId, Pageable pageable){
         return reservationRepository.findAllByUserId(userId, pageable)
-                .map(ReservationResponse::from);
+                .map(ReservationListResponse::from);
+                //.map(ReservationResponse::from);
     }
 
     // 해당 캠핑장의 예약목록 보여주기
@@ -157,7 +159,7 @@ public class ReservationService {
             throw new BusinessException(ErrorCode.CAMP_NOT_FOUND);
         }
 
-        return reservationRepository.findAllByCampIdAndStatusNot(campId, ReservationStatus.CANCELLED, pageable)
+        return reservationRepository.findAllByCamp_CampIdAndStatusNot(campId, ReservationStatus.CANCELLED, pageable)
                 .map(ReservationResponse::from);
     }
 }
