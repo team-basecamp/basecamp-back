@@ -196,6 +196,8 @@ public class CampController {
     }
 
     // 캠핑장 삭제 (softDelete) controller
+    @Operation(summary = "캠핑장 삭제",
+            description = "캠핑업체(CAMP_OWNER)가 본인이 등록한 캠핑장을 삭제(소프트 삭제) 처리합니다.")
     @PreAuthorize("hasRole('CAMP_OWNER')")
     @DeleteMapping("/{campId}")
     public ResponseEntity<Void> deleteCamp(
