@@ -369,7 +369,7 @@ Redis가 안 떠 있거나 포트가 다릅니다. `docker compose ps`로 확인
 
 ## 참고
 
-- [README.md](../README.md) — 환경변수 목록(`REDIS_HOST`, `REDIS_PORT`)
+- [README.md](../../README.md) — 환경변수 목록(`REDIS_HOST`, `REDIS_PORT`)
 - [이슈 #39](https://github.com/team-basecamp/basecamp-back/issues/39) — Refresh Token 회전 및 토큰 블랙리스트 설계
 - [이슈 #18](https://github.com/team-basecamp/basecamp-back/issues/18) — 관리자 회원 제재
 - [이슈 #50](https://github.com/team-basecamp/basecamp-back/issues/50) — 만료 레코드 정리 및 Redis 캐시 재구성
