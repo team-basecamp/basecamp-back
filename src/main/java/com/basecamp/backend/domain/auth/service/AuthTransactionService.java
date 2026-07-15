@@ -175,8 +175,10 @@ public class AuthTransactionService {
 
 		// email 이 유일 식별키다. 같은 이메일이라도 최초 가입과 다른 provider 로 로그인하면
 		// 기존 계정을 덮어쓰지 않고 차단한다(다른 소셜로 가입 시도 → 409).
+		// 어떤 소셜로 가입된 계정인지 안내해, 사용자가 올바른 로그인 수단을 고르게 한다.
 		if (user.getProvider() != userInfo.provider()) {
-			throw new BusinessException(ErrorCode.EMAIL_ALREADY_REGISTERED);
+			throw new BusinessException(ErrorCode.EMAIL_ALREADY_REGISTERED,
+					"'%s'로 가입된 회원이므로, 해당 계정으로 로그인해주세요.".formatted(user.getProvider().getDisplayName()));
 		}
 
 		// 재로그인 시 소셜 프로필(닉네임 + 이미지)을 동기화한다.
