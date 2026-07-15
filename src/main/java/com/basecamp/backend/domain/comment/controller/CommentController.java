@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 public class CommentController {
@@ -31,5 +33,18 @@ public class CommentController {
         CommentResponse response = commentService.createComment(user.id(), postId, request.content());
         // 생성 성공은 201 Created 로 응답
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // 댓글 목록 조회: 경로의 게시글(postId)에 달린 댓글을 작성 순으로 반환한다.
+    // 작성자 식별·본인 여부 표시는 프론트에서 처리하므로 별도 인증 정보는 받지 않는다.
+    // (게시판은 SecurityConfig의 anyRequest().authenticated()로 로그인 사용자만 접근 가능하다.)
+    @Operation(summary = "댓글 목록 조회", description = "게시글에 달린 댓글을 작성 순으로 조회한다.")
+    @GetMapping("/api/v1/posts/{postId}/comments")
+    public ResponseEntity<List<CommentResponse>> getComments(
+            @PathVariable("postId") Long postId) {        // 댓글을 조회할 게시글 id (경로 변수)
+        // 게시글 존재·노출 정책 검증은 서비스가 담당한다. (없는 글 404, 블라인드 403)
+        List<CommentResponse> responses = commentService.getComments(postId);
+        // 조회 성공은 200 OK. 댓글이 없으면 빈 배열([])을 반환한다.
+        return ResponseEntity.ok(responses);
     }
 }
