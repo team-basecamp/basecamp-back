@@ -48,6 +48,7 @@ public class ReservationController {
     }
 
     @Operation(summary = "예약 수락", description = "대기(PENDING) 상태의 예약을 업체가 수락합니다.")
+    @PreAuthorize("hasRole('CAMP_OWNER')")
     @PostMapping("/{reservationId}/approve")
     public ResponseEntity<ReservationResponse> approveReservation(
             @PathVariable Long reservationId,
@@ -58,6 +59,7 @@ public class ReservationController {
     }
 
     @Operation(summary = "예약 거절", description = "대기(PENDING) 상태의 예약을 업체가 사유와 함께 거절합니다.")
+    @PreAuthorize("hasRole('CAMP_OWNER')")
     @PostMapping("/{reservationId}/reject")
     public ResponseEntity<ReservationResponse> rejectReservation(
             @PathVariable Long reservationId,
