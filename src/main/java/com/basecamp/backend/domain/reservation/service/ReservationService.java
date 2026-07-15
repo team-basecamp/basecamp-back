@@ -9,6 +9,7 @@ import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequ
 import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationListResponse;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
+import com.basecamp.backend.domain.reservation.dto.response.ReservationStatsResponse;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
@@ -22,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -160,5 +162,30 @@ public class ReservationService {
 
         return reservationRepository.findAllByCamp_CampIdAndStatusNot(campId, ReservationStatus.CANCELLED, pageable)
                 .map(ReservationResponse::from);
+    }
+
+    // 사업자 대시보드용 예약 통계 (RESERVED 확정 예약만 집계, createdAt 기준)
+    public ReservationStatsResponse getReservationStats(Long ownerId) {
+        List<ReservationStatus> confirmedOnly = List.of(ReservationStatus.RESERVED);
+
+        LocalDate today = LocalDate.now();
+        LocalDateTime monthStart = today.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime nextMonthStart = monthStart.plusMonths(1);
+        LocalDateTime yearStart = today.withDayOfYear(1).atStartOfDay();
+        LocalDateTime nextYearStart = yearStart.plusYears(1);
+
+        long monthlyRevenue = reservationRepository.sumRevenueByOwnerAndPeriod(
+                ownerId, confirmedOnly, monthStart, nextMonthStart);
+        long monthlyReservations = reservationRepository.countByOwnerAndPeriod(
+                ownerId, confirmedOnly, monthStart, nextMonthStart);
+        long yearlyReservations = reservationRepository.countByOwnerAndPeriod(
+                ownerId, confirmedOnly, yearStart, nextYearStart);
+
+        return new ReservationStatsResponse(
+                monthlyRevenue,
+                monthlyReservations,
+                yearlyReservations,
+                null // TODO: 리뷰/평점 도메인 구현 후 연동
+        );
     }
 }

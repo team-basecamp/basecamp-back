@@ -97,4 +97,28 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Reservation r where r.id = :id")
     Optional<Reservation> findByIdForUpdate(@Param("id") Long id);
+
+    // 사업자 대시보드 통계: 기간 내 상태별 매출 합계 (반개구간 [from, to))
+    @Query("""
+        select coalesce(sum(r.totalPrice), 0) from Reservation r
+        where r.camp.ownerId = :ownerId
+          and r.status in :statuses
+          and r.createdAt >= :from and r.createdAt < :to
+        """)
+    long sumRevenueByOwnerAndPeriod(@Param("ownerId") Long ownerId,
+                                    @Param("statuses") List<ReservationStatus> statuses,
+                                    @Param("from") LocalDateTime from,
+                                    @Param("to") LocalDateTime to);
+
+    // 사업자 대시보드 통계: 기간 내 상태별 예약 건수 (반개구간 [from, to))
+    @Query("""
+        select count(r) from Reservation r
+        where r.camp.ownerId = :ownerId
+          and r.status in :statuses
+          and r.createdAt >= :from and r.createdAt < :to
+        """)
+    long countByOwnerAndPeriod(@Param("ownerId") Long ownerId,
+                               @Param("statuses") List<ReservationStatus> statuses,
+                               @Param("from") LocalDateTime from,
+                               @Param("to") LocalDateTime to);
 }
