@@ -5,6 +5,7 @@ import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequ
 import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationListResponse;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
+import com.basecamp.backend.domain.reservation.dto.response.ReservationStatsResponse;
 import com.basecamp.backend.domain.reservation.service.ReservationService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -91,5 +92,13 @@ public class ReservationController {
             @AuthenticationPrincipal AuthUser user
     ){
         return ResponseEntity.ok(reservationService.findAllReservationsByCamp(campId, pageable, user.id()));
+    }
+
+    @Operation(summary = "예약 통계", description = "사업자 대시보드용 예약 현황 통계 (확정 예약 기준)")
+    //@PreAuthorize("hasRole('CAMP_OWNER')")
+    @GetMapping("/stats")
+    public ResponseEntity<ReservationStatsResponse> getReservationStats(
+            @AuthenticationPrincipal AuthUser user) {
+        return ResponseEntity.ok(reservationService.getReservationStats(user.id()));
     }
 }
