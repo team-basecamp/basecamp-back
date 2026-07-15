@@ -58,4 +58,11 @@ public class Comment {
         // DB DEFAULT가 있어도 JPA가 NULL로 밀어넣으면 적용되지 않아 자바단에서 초기값을 채운다.
         this.createdAt = LocalDateTime.now();
     }
+
+    // 댓글 본문 수정. 내용만 갈아끼우고 수정 시각을 현재로 채운다.
+    // 관리 상태(영속 컨텍스트) 엔티티에서 호출하면 트랜잭션 커밋 시 변경 감지로 UPDATE가 나간다.
+    public void updateContent(String content) {
+        this.content = content;
+        this.updatedAt = LocalDateTime.now();
+    }
 }

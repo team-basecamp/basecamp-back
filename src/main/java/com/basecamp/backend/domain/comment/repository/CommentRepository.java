@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface CommentRepository extends JpaRepository<Comment, Long> {
@@ -40,4 +41,17 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             order by c.createdAt asc, c.commentId asc
             """)
     List<Comment> findByPostIdWithUser(@Param("postId") Long postId);
+
+    // 단건 댓글을 작성자·프로필 사진·게시글과 함께 조회한다. (수정 시 노출 정책 검증과 응답 변환을 추가 쿼리 없이 처리)
+    //   - join fetch c.user      : 작성자를 함께 로딩 (user_id는 NOT NULL이라 inner join)
+    //   - left join fetch u.profileImage : 프로필 이미지는 없을 수 있어(NULL 허용) left join으로 담는다.
+    //   - join fetch c.post      : 게시글 노출 정책(status) 검증에 쓰므로 함께 로딩 (post_id는 NOT NULL이라 inner join)
+    @Query("""
+            select c from Comment c
+            join fetch c.user u
+            left join fetch u.profileImage
+            join fetch c.post
+            where c.commentId = :commentId
+            """)
+    Optional<Comment> findByIdWithUser(@Param("commentId") Long commentId);
 }
