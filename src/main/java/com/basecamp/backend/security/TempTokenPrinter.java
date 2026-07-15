@@ -20,7 +20,7 @@ public class TempTokenPrinter implements CommandLineRunner {
 	public void run(String... args) {
 		//String token = jwtTokenProvider.createAccessToken(1L, "CUSTOMER");
 		//String token = jwtTokenProvider.createAccessToken(1L, "ADMIN");
-		String token = jwtTokenProvider.createAccessToken(21L, "ADMIN");
+		String token = jwtTokenProvider.createAccessToken(11L, "CUSTOMER");
 		log.info("TEST_ACCESS_TOKEN=Bearer {}", token);
 	}
 
