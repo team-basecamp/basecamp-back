@@ -13,6 +13,7 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 // 생성 경로를 builder()/정적 팩토리(fromGocampingApi 등)로만 제한한다.
 // no-args 생성자는 JPA가 리플렉션으로 엔티티를 로딩할 때만 필요해 protected로 좁혔다.
@@ -217,5 +218,12 @@ public class Camp {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    // 캠핑장 소유권 검증 메서드
+    public void validateOwner(Long userId) {
+        if (!Objects.equals(this.ownerId, userId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED);
+        }
     }
 }
