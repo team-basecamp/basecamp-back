@@ -60,7 +60,7 @@ public class CampResponseDto {
                 .autoSiteCo(camp.getAutoSiteCo())
                 .glampSiteCo(camp.getGlampSiteCo())
                 .firstImageUrl(camp.getFirstImageUrl())
-                .manageSttus(camp.getManageSttus())
+                .manageSttus(camp.getManageSttus() != null ? camp.getManageSttus().getLabel() : null)
                 .price(camp.getPrice())
                 .averageRating(camp.getAverageRating())
                 .reservationCount(camp.getReservationCount())

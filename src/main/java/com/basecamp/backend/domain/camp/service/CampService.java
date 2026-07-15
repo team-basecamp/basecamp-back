@@ -10,6 +10,7 @@ import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
+import com.basecamp.backend.domain.camp.entity.CampManageStatus;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.camp.repository.CampSpecs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -332,7 +333,7 @@ public class CampService {
                 .homepage(request.getHomepage())
                 .ownerId(ownerId)
                 .contentId(null)
-                .manageSttus("운영")
+                .manageSttus(CampManageStatus.OPERATING)
                 .averageRating(new BigDecimal("0.00"))
                 .reservationCount(0)
                 .createdAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")))
