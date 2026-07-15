@@ -26,4 +26,18 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             group by c.post.postId
             """)
     List<PostCommentCount> countByPostIds(@Param("postIds") List<Long> postIds);
+
+    // 한 게시글의 댓글 목록을 작성 순(오래된 → 최신)으로 조회한다.
+    // 응답에 작성자 nickname·프로필 사진을 담아야 하는데, 댓글마다 user·image를 따로 로딩하면 N+1이 된다.
+    //   - join fetch c.user      : 작성자를 함께 로딩 (user_id는 NOT NULL이라 inner join)
+    //   - left join fetch u.profileImage : 프로필 이미지는 없을 수 있어(NULL 허용) left join으로 결측 회원도 누락 없이 담는다.
+    // 결과적으로 댓글 목록 + 작성자 + 프로필 이미지를 쿼리 한 번으로 가져온다.
+    @Query("""
+            select c from Comment c
+            join fetch c.user u
+            left join fetch u.profileImage
+            where c.post.postId = :postId
+            order by c.createdAt asc, c.commentId asc
+            """)
+    List<Comment> findByPostIdWithUser(@Param("postId") Long postId);
 }

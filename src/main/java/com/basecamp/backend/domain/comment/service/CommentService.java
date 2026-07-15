@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 // 댓글 비즈니스 로직. 기본은 읽기 전용 트랜잭션, 쓰기 메서드에만 @Transactional을 따로 건다.
 @Service
 @RequiredArgsConstructor
@@ -59,5 +61,29 @@ public class CommentService {
         // post·user가 이미 로딩된 상태라 from()에서 nickname 접근 시 추가 쿼리가 발생하지 않는다.
         Comment saved = commentRepository.save(comment);
         return CommentResponse.from(saved);
+    }
+
+    // 댓글 목록 조회: 대상 게시글을 검증한 뒤 그 게시글의 댓글을 작성 순으로 반환한다. (읽기 전용 트랜잭션)
+    // 노출 정책은 작성(createComment)과 동일하게 맞춰, 볼 수 없는 글의 댓글도 볼 수 없게 한다.
+    public List<CommentResponse> getComments(Long postId) {
+        // 댓글을 조회할 게시글을 먼저 확인한다. 없으면 404.
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+        // 상세/작성과 동일한 노출 정책.
+        //   DELETED : 소프트 삭제된 글. 존재 사실이 새지 않도록 없는 글과 동일하게 404.
+        //   BLINDED : 관리자가 가린 글. 가려진 동안에는 댓글도 볼 수 없으므로 403.
+        if (STATUS_DELETED.equals(post.getStatus())) {
+            throw new BusinessException(ErrorCode.POST_NOT_FOUND);
+        }
+        if (STATUS_BLINDED.equals(post.getStatus())) {
+            throw new BusinessException(ErrorCode.POST_BLINDED);
+        }
+
+        // 작성자·프로필 이미지를 fetch join으로 함께 로딩해 N+1 없이 응답 DTO로 변환한다.
+        // 댓글이 없으면 빈 리스트가 그대로 반환된다.
+        return commentRepository.findByPostIdWithUser(postId).stream()
+                .map(CommentResponse::from)
+                .toList();
     }
 }
