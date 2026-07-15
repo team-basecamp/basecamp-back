@@ -7,11 +7,13 @@ import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.payment.service.PaymentService;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
+import com.basecamp.backend.domain.reservation.dto.response.MonthlyRevenueResponse;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationListResponse;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationStatsResponse;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
+import com.basecamp.backend.domain.reservation.repository.MonthlyRevenueProjection;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
@@ -26,6 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -187,5 +192,28 @@ public class ReservationService {
                 yearlyReservations,
                 null // TODO: 리뷰/평점 도메인 구현 후 연동
         );
+    }
+
+    // 사업자 대시보드용 예약 통계 (월별 매출, 예약 건수)
+    public List<MonthlyRevenueResponse> getMonthlyRevenue(Long ownerId) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime yearStart = today.withDayOfYear(1).atStartOfDay();
+        LocalDateTime nextYearStart = yearStart.plusYears(1);
+
+        Map<Integer, MonthlyRevenueProjection> byMonth =
+                reservationRepository.findMonthlyRevenueByOwner(
+                                ownerId, ReservationStatus.RESERVED, yearStart, nextYearStart)
+                        .stream()
+                        .collect(Collectors.toMap(MonthlyRevenueProjection::getMonth, p -> p));
+
+        return IntStream.rangeClosed(1, 12)
+                .mapToObj(m -> {
+                    MonthlyRevenueProjection p = byMonth.get(m);
+                    return new MonthlyRevenueResponse(
+                            m,
+                            p != null ? p.getRevenue() : 0L,
+                            p != null ? p.getCount() : 0L);
+                })
+                .toList();
     }
 }

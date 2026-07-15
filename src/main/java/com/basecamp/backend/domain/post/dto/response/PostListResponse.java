@@ -22,7 +22,7 @@ public record PostListResponse(
     public static PostListResponse from(Post post, int commentCount) {
         return new PostListResponse(
                 post.getPostId(),
-                post.getCategory(),
+                post.getCategory().name(),
                 post.getTitle(),
                 post.getUser().getNickname(),
                 post.getCreatedAt(),

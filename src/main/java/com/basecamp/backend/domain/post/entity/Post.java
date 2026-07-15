@@ -1,5 +1,7 @@
 package com.basecamp.backend.domain.post.entity;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -28,9 +30,11 @@ public class Post {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // 게시판 카테고리 (GENERAL / CAMP_MATE / RESERVATION_TRANSFER)
+    // 게시판 카테고리 (GENERAL / CAMP_MATE / RESERVATION_TRANSFER).
+    // VARCHAR 컬럼에 enum 이름 문자열로 저장한다(@Enumerated(STRING)).
+    @Enumerated(EnumType.STRING)
     @Column(length = 30, nullable = false)
-    private String category;
+    private PostCategory category;
 
     // 게시글 제목
     @Column(length = 200, nullable = false)
@@ -44,9 +48,11 @@ public class Post {
     @Column(name = "view_count", nullable = false)
     private Integer viewCount;
 
-    // 게시글 상태 (ACTIVE / BLINDED / DELETED)
+    // 게시글 상태 (ACTIVE / BLINDED / DELETED).
+    // VARCHAR 컬럼에 enum 이름 문자열로 저장한다(@Enumerated(STRING)).
+    @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
-    private String status;
+    private PostStatus status;
 
     // 관리자 블라인드 처리 사유 (없으면 null)
     @Column(name = "blind_reason", length = 200)
@@ -68,7 +74,7 @@ public class Post {
     private Long version;
 
     // 게시글 생성자. 작성자·카테고리·제목·본문을 받고 나머지 초기값(조회수/상태/작성시각)은 여기서 채운다.
-    public Post(User user, String category, String title, String content) {
+    public Post(User user, PostCategory category, String title, String content) {
         // 작성자: 인증된 사용자(JWT principal)로 조회한 회원 엔티티
         this.user = user;
         this.category = category;
@@ -76,12 +82,12 @@ public class Post {
         this.content = content;
         // DB DEFAULT가 있어도 JPA가 NULL로 밀어넣으면 적용되지 않아 자바단에서 초기값을 채운다.
         this.viewCount = 0;
-        this.status = "ACTIVE";
+        this.status = PostStatus.ACTIVE;
         this.createdAt = LocalDateTime.now();
     }
 
     // 게시글 수정. 변경 감지(dirty checking)로 트랜잭션 커밋 시점에 UPDATE 되도록 필드 값만 바꾼다.
-    public void update(String category, String title, String content) {
+    public void update(PostCategory category, String title, String content) {
         this.category = category;
         this.title = title;
         this.content = content;
@@ -90,7 +96,23 @@ public class Post {
 
     // 게시글 삭제(소프트 삭제). 실제 행을 지우지 않고 상태만 DELETED로 바꾼다.
     public void delete() {
-        this.status = "DELETED";
+        this.status = PostStatus.DELETED;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    // 관리자 블라인드 처리. 상태를 BLINDED로 바꾸고 사유를 남긴다.
+    // 상태 전이 규칙은 여기서 강제한다(Reservation.approve/reject 와 같은 방식):
+    //   이미 BLINDED  : 중복 처리이므로 409(POST_ALREADY_BLINDED)
+    //   DELETED       : 삭제된 글은 블라인드 대상이 아니고, 존재를 드러내지 않도록 404(POST_NOT_FOUND)
+    public void blind(String reason) {
+        if (this.status == PostStatus.BLINDED) {
+            throw new BusinessException(ErrorCode.POST_ALREADY_BLINDED);
+        }
+        if (this.status == PostStatus.DELETED) {
+            throw new BusinessException(ErrorCode.POST_NOT_FOUND);
+        }
+        this.status = PostStatus.BLINDED;
+        this.blindReason = reason;
         this.updatedAt = LocalDateTime.now();
     }
 }

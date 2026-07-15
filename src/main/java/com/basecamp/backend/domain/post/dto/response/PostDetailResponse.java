@@ -28,11 +28,11 @@ public record PostDetailResponse(
                 post.getPostId(),
                 user.getId(),
                 user.getNickname(),
-                post.getCategory(),
+                post.getCategory().name(),
                 post.getTitle(),
                 post.getContent(),
                 post.getViewCount(),
-                post.getStatus(),
+                post.getStatus().name(),
                 post.getCreatedAt(),
                 post.getUpdatedAt()
         );

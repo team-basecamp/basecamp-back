@@ -103,26 +103,40 @@ public class CampController {
     @Operation(summary = "모든 캠핑장 조회",
             description = "찾아보기 탭에서 모든 캠핑장을 조회할 수 있습니다")
     @GetMapping
-    public ResponseEntity<List<Camp>> getAllCamps() {
-        return ResponseEntity.ok(campService.getAllCamps());
+    public ResponseEntity<List<CampResponseDto>> getAllCamps() {
+        // Service의 getAllCamps() 메서드 호출 후 엔티티 -> 응답 DTO 변환
+        List<CampResponseDto> camps = campService.getAllCamps().stream()
+                .map(CampResponseDto::from)
+                .toList();
+        return ResponseEntity.ok(camps);
     }
 
 // 캠핑장 이름으로 검색
     @Operation(summary = "캠핑장이름으로 검색",
             description = "검색 시 캠핑장 이름으로 검색을 하면 캠핑장 이름으로 검색이 됩니다.")
     @GetMapping("/search/name")
-    public ResponseEntity<List<Camp>> searchByName(
+    public ResponseEntity<List<CampResponseDto>> searchByName(
             @RequestParam String name) {
-        return ResponseEntity.ok(campService.searchByName(name));
+
+        // Service의 searchByName() 메서드 호출 후 엔티티 -> 응답 DTO 변환
+        List<CampResponseDto> camps = campService.searchByName(name).stream()
+                .map(CampResponseDto::from)
+                .toList();
+        return ResponseEntity.ok(camps);
     }
 
      // 특정 지역의 캠핑장을 검색
     @Operation(summary = "특정 지역 캠핑장 검색",
             description = "검색 기능으로 특정 지역캠핑장을 검색할 때 사용합니다." )
     @GetMapping("/search/address")
-    public ResponseEntity<List<Camp>> searchByAddress(
+    public ResponseEntity<List<CampResponseDto>> searchByAddress(
             @RequestParam String address) {
-        return ResponseEntity.ok(campService.searchByAddress(address));
+
+        // Service의 searchByAddress() 메서드 호출 후 엔티티 -> 응답 DTO 변환
+        List<CampResponseDto> camps = campService.searchByAddress(address).stream()
+                .map(CampResponseDto::from)
+                .toList();
+        return ResponseEntity.ok(camps);
     }
 
     // 업체가 등록한 캠핑장 목록 조회 ("내 캠핑장")

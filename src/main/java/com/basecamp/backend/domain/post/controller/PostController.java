@@ -67,7 +67,7 @@ public class PostController {
     }
 
     // 게시글 상세 조회: 경로의 게시글 id로 단건을 조회한다.
-    @Operation(summary = "게시글 상세 조회", description = "게시글 id로 단건 상세를 조회한다. 삭제된 글은 404, 블라인드된 글은 403으로 응답한다.")
+    @Operation(summary = "게시글 상세 조회", description = "게시글 id로 단건 상세를 조회한다. 회원용 상세 조회에서는 삭제된 글은 404, 블라인드된 글은 403 으로 가려진다.")
     @GetMapping("/api/v1/posts/{postId}")
     public ResponseEntity<PostDetailResponse> getPostDetail(
             @PathVariable("postId") Long postId) {   // 조회할 게시글 id
