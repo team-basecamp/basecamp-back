@@ -1,8 +1,11 @@
 package com.basecamp.backend.common.exception;
 
+import java.util.List;
+
 import com.basecamp.backend.common.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mapping.PropertyReferenceException;
+import org.springframework.validation.FieldError;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -30,7 +33,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 			HttpHeaders headers,
 			HttpStatusCode status,
 			WebRequest request) {
-		log.warn("Validation failed: {}", ex.getMessage());
+		// ex.getMessage() 에는 거부된 원본 값(비밀번호·토큰 등)이 섞일 수 있어, 실패한 필드명만 남긴다.
+		List<String> invalidFields = ex.getBindingResult().getFieldErrors().stream()
+				.map(FieldError::getField)
+				.distinct()
+				.toList();
+		log.warn("Validation failed for fields: {}", invalidFields);
 		ApiResponse<Void> body = ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE, ex.getBindingResult());
 		return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus()).body(body);
 	}
