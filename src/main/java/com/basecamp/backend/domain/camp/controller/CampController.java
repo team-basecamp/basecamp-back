@@ -115,45 +115,36 @@ public class CampController {
 
 //모든 캠핑장 조회
     @GetMapping
-    public ResponseEntity<List<Camp>> getAllCamps() {
-        try {
-            // Service의 getAllCamps() 메서드 호출
-            List<Camp> camps = campService.getAllCamps();
-            return ResponseEntity.ok(camps);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500).build();
-        }
+    public ResponseEntity<List<CampResponseDto>> getAllCamps() {
+        // Service의 getAllCamps() 메서드 호출 후 엔티티 -> 응답 DTO 변환
+        List<CampResponseDto> camps = campService.getAllCamps().stream()
+                .map(CampResponseDto::from)
+                .toList();
+        return ResponseEntity.ok(camps);
     }
 
 // 캠핑장 이름으로 검색
     @GetMapping("/search/name")
-    public ResponseEntity<List<Camp>> searchByName(
+    public ResponseEntity<List<CampResponseDto>> searchByName(
             @RequestParam String name) {
 
-        try {
-            // Service의 searchByName() 메서드 호출
-            List<Camp> camps = campService.searchByName(name);
-            return ResponseEntity.ok(camps);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500).build();
-        }
+        // Service의 searchByName() 메서드 호출 후 엔티티 -> 응답 DTO 변환
+        List<CampResponseDto> camps = campService.searchByName(name).stream()
+                .map(CampResponseDto::from)
+                .toList();
+        return ResponseEntity.ok(camps);
     }
 
      // 특정 지역의 캠핑장을 검색
     @GetMapping("/search/address")
-    public ResponseEntity<List<Camp>> searchByAddress(
+    public ResponseEntity<List<CampResponseDto>> searchByAddress(
             @RequestParam String address) {
 
-        try {
-            // Service의 searchByAddress() 메서드 호출
-            List<Camp> camps = campService.searchByAddress(address);
-            return ResponseEntity.ok(camps);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500).build();
-        }
+        // Service의 searchByAddress() 메서드 호출 후 엔티티 -> 응답 DTO 변환
+        List<CampResponseDto> camps = campService.searchByAddress(address).stream()
+                .map(CampResponseDto::from)
+                .toList();
+        return ResponseEntity.ok(camps);
     }
 
     // 업체가 등록한 캠핑장 목록 조회 ("내 캠핑장")
