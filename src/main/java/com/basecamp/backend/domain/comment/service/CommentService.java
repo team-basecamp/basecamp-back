@@ -63,6 +63,38 @@ public class CommentService {
         return CommentResponse.from(saved);
     }
 
+    // 댓글 수정: 댓글을 조회해 본인 댓글일 때만 본문을 갈아끼운 뒤 응답으로 반환한다. (쓰기 트랜잭션)
+    // commentId가 전역 유니크 PK라 게시글 경로 없이 이것만으로 대상이 특정된다.
+    // userId는 컨트롤러에서 토큰(AuthUser)으로부터 넘어온 값이라 신뢰할 수 있다.
+    @Transactional
+    public CommentResponse updateComment(Long userId, Long commentId, String content) {
+        // 수정할 댓글을 작성자·프로필·게시글과 함께 조회한다. 없으면 404.
+        Comment comment = commentRepository.findByIdWithUser(commentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+
+        // 노출 정책을 작성/조회와 동일하게 맞춘다. (숨김/삭제된 글의 댓글은 수정도 막는다.)
+        //   DELETED : 소프트 삭제된 글. 존재 사실이 새지 않도록 없는 글과 동일하게 404.
+        //   BLINDED : 관리자가 가린 글. 가려진 동안에는 댓글도 수정할 수 없으므로 403.
+        // post는 findByIdWithUser에서 함께 fetch 하므로 상태 접근 시 추가 쿼리가 없다.
+        Post post = comment.getPost();
+        if (STATUS_DELETED.equals(post.getStatus())) {
+            throw new BusinessException(ErrorCode.POST_NOT_FOUND);
+        }
+        if (STATUS_BLINDED.equals(post.getStatus())) {
+            throw new BusinessException(ErrorCode.POST_BLINDED);
+        }
+
+        // 본인이 쓴 댓글만 수정할 수 있다. 작성자가 아니면 403.
+        if (!comment.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // 관리 상태 엔티티라 updateContent 후 트랜잭션 커밋 시 변경 감지로 UPDATE가 나간다.
+        comment.updateContent(content);
+        // user·profileImage가 이미 로딩된 상태라 from()에서 nickname 접근 시 추가 쿼리가 발생하지 않는다.
+        return CommentResponse.from(comment);
+    }
+
     // 댓글 목록 조회: 대상 게시글을 검증한 뒤 그 게시글의 댓글을 작성 순으로 반환한다. (읽기 전용 트랜잭션)
     // 노출 정책은 작성(createComment)과 동일하게 맞춰, 볼 수 없는 글의 댓글도 볼 수 없게 한다.
     public List<CommentResponse> getComments(Long postId) {
