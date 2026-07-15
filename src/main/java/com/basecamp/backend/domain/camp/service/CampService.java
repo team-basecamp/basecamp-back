@@ -76,7 +76,7 @@ public class CampService {
         }
     }
 
-    // 고캠핑 API 에서 받은 캠핑장 데이터 DB 저장
+    // 고캠핑 API 에서 받은 캠핑장 데이터 DB 저장하기
     @Transactional
     public void saveCampsFromApi(List<GocampingApiResponseDto> apiCamps){
         // API 에서 받은 데이터가 없다면 ? 메서드 종료
