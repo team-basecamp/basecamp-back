@@ -17,6 +17,12 @@ globs:
 - 요청 DTO에는 Bean Validation(`@NotNull`, `@Size`, `@Email` 등)을 붙이고 컨트롤러에서 `@Valid`로 검증.
 - 응답 본문은 일관된 형태 유지. 생성은 `201 Created`, 조회 성공은 `200 OK`.
 
+## 공통 응답 봉투 (ApiResponse)
+- 모든 응답은 `common/response/ApiResponse` 봉투로 통일된다: 성공 `{ success:true, message, data }`, 실패 `{ success:false, code, message, errors }`.
+- 컨트롤러는 **순수 DTO만 반환**한다. `ApiResponseWrapAdvice`(ResponseBodyAdvice)가 `com.basecamp.backend.domain` 컨트롤러의 정상 응답을 자동으로 봉투에 감싸므로 직접 감싸지 말 것.
+- 오류 봉투는 `GlobalExceptionHandler`가 생성한다. 필터 단계(401/403) 오류는 `SecurityResponseWriter`가 같은 봉투로 직렬화한다.
+- 프론트(`instance.ts` 인터셉터)는 성공 시 `data`만 언래핑해 받으므로, 프론트 코드는 봉투를 몰라도 순수 DTO를 그대로 쓴다.
+
 ## 예외 처리
 - 비즈니스 오류는 `throw new BusinessException(ErrorCode.XXX)`로 던진다.
 - 새 오류 상황은 `ErrorCode` enum에 추가하고, 변환은 `GlobalExceptionHandler`에만 둔다.

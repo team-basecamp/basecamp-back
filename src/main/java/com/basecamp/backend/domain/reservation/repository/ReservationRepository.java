@@ -121,4 +121,22 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
                                @Param("statuses") List<ReservationStatus> statuses,
                                @Param("from") LocalDateTime from,
                                @Param("to") LocalDateTime to);
+
+    // 사업자 대시보드 통계: 월별 매출, 예약 건수
+    @Query("""
+        select month(r.createdAt) as month,
+               coalesce(sum(r.totalPrice), 0) as revenue,
+               count(r) as count
+        from Reservation r
+        where r.camp.ownerId = :ownerId
+          and r.status = :status
+          and r.createdAt >= :from and r.createdAt < :to
+        group by month(r.createdAt)
+        order by month(r.createdAt)
+        """)
+    List<MonthlyRevenueProjection> findMonthlyRevenueByOwner(
+            @Param("ownerId") Long ownerId,
+            @Param("status") ReservationStatus status,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
 }

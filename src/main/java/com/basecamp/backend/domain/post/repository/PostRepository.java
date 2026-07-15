@@ -1,6 +1,8 @@
 package com.basecamp.backend.domain.post.repository;
 
 import com.basecamp.backend.domain.post.entity.Post;
+import com.basecamp.backend.domain.post.entity.PostCategory;
+import com.basecamp.backend.domain.post.entity.PostStatus;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -57,7 +59,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             order by p.createdAt desc, p.postId desc
             """)
     List<Post> findFirstPage(
-            @Param("status") String status,
+            @Param("status") PostStatus status,
             Limit limit);
 
     // 전체 카테고리 · 다음 페이지 (커서 이후)
@@ -70,7 +72,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             order by p.createdAt desc, p.postId desc
             """)
     List<Post> findNextPage(
-            @Param("status") String status,
+            @Param("status") PostStatus status,
             @Param("createdAt") LocalDateTime createdAt,
             @Param("postId") Long postId,
             Limit limit);
@@ -84,8 +86,8 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             order by p.createdAt desc, p.postId desc
             """)
     List<Post> findFirstPageByCategory(
-            @Param("status") String status,
-            @Param("category") String category,
+            @Param("status") PostStatus status,
+            @Param("category") PostCategory category,
             Limit limit);
 
     // 특정 카테고리 · 다음 페이지 (커서 이후)
@@ -99,8 +101,8 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             order by p.createdAt desc, p.postId desc
             """)
     List<Post> findNextPageByCategory(
-            @Param("status") String status,
-            @Param("category") String category,
+            @Param("status") PostStatus status,
+            @Param("category") PostCategory category,
             @Param("createdAt") LocalDateTime createdAt,
             @Param("postId") Long postId,
             Limit limit);

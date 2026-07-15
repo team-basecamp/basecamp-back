@@ -97,9 +97,10 @@ class AuthControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"code\":\"auth-code\"}"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.accessToken").value("access-token"))
-				.andExpect(jsonPath("$.tokenType").value("Bearer"))
-				.andExpect(jsonPath("$.email").value("user@example.com"))
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.accessToken").value("access-token"))
+				.andExpect(jsonPath("$.data.tokenType").value("Bearer"))
+				.andExpect(jsonPath("$.data.email").value("user@example.com"))
 				.andExpect(header().exists(HttpHeaders.SET_COOKIE))
 				.andExpect(cookie().value("refreshToken", "refresh-token"))
 				.andExpect(cookie().httpOnly("refreshToken", true));
@@ -147,8 +148,9 @@ class AuthControllerTest {
 		// when & then
 		mockMvc.perform(post("/api/v1/auth/token/refresh"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.accessToken").value("new-access"))
-				.andExpect(jsonPath("$.tokenType").value("Bearer"))
+				.andExpect(jsonPath("$.success").value(true))
+				.andExpect(jsonPath("$.data.accessToken").value("new-access"))
+				.andExpect(jsonPath("$.data.tokenType").value("Bearer"))
 				.andExpect(header().exists(HttpHeaders.SET_COOKIE))
 				// 회전: 응답 쿠키는 요청에 실려온 이전 토큰이 아니라 새 토큰이어야 한다.
 				.andExpect(cookie().value("refreshToken", "new-refresh"))
