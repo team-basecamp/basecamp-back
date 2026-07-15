@@ -70,16 +70,18 @@ public class ApiResponse<T> {
 				FieldErrorDetail.from(bindingResult));
 	}
 
+	/**
+	 * 검증 실패 항목. 비밀번호·토큰 등 민감한 입력이 섞일 수 있는 거부된 원본 값(rejectedValue)은
+	 * 응답에 담지 않고, 필드명과 검증 메시지만 노출한다.
+	 */
 	@Getter
 	public static class FieldErrorDetail {
 
 		private final String field;
-		private final String value;
 		private final String reason;
 
-		private FieldErrorDetail(String field, String value, String reason) {
+		private FieldErrorDetail(String field, String reason) {
 			this.field = field;
-			this.value = value;
 			this.reason = reason;
 		}
 
@@ -87,7 +89,6 @@ public class ApiResponse<T> {
 			return bindingResult.getFieldErrors().stream()
 					.map(fieldError -> new FieldErrorDetail(
 							fieldError.getField(),
-							fieldError.getRejectedValue() == null ? "" : fieldError.getRejectedValue().toString(),
 							fieldError.getDefaultMessage()))
 					.toList();
 		}
