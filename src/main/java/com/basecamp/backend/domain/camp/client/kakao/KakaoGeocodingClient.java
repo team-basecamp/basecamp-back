@@ -75,7 +75,12 @@ public class KakaoGeocodingClient {
             }
 
             // 5) 가장 정확도 높은 첫 번째 결과를 사용. x=경도(mapX), y=위도(mapY)로 매핑한다.
+            //    좌표 필드가 비어있는 응답도 있을 수 있어 파싱 전에 확인한다.
             Document first = documents.get(0);
+            if (first.x() == null || first.x().isBlank() || first.y() == null || first.y().isBlank()) {
+                log.warn("카카오 지오코딩 좌표 필드 누락 - 주소: {}", address);
+                return null;
+            }
             return new GeoPoint(new BigDecimal(first.x()), new BigDecimal(first.y()));
 
         } catch (RestClientException | NumberFormatException e) {
