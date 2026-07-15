@@ -5,10 +5,7 @@ import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -20,16 +17,17 @@ import java.util.Optional;
 @Repository
 public interface ReservationRepository extends JpaRepository <Reservation, Long> {
     // userId를 조건으로 그 유저의 모든 예약 조회, 정렬 조건은 최신순으로
+    @EntityGraph(attributePaths = "camp")
     Page<Reservation> findAllByUserId(Long userId, Pageable pageable);
 
     // campId와 파라미터로 넣은 예약상태를 제외한 조건으로 해당 캠핑장의 모든 예약 조회
-    Page<Reservation> findAllByCampIdAndStatusNot(Long campId, ReservationStatus status, Pageable pageable);
+    Page<Reservation> findAllByCamp_CampIdAndStatusNot(Long campId, ReservationStatus status, Pageable pageable);
 
     // 중복예약 방지 쿼리(pending, reserved 상태에서 다시 예약 걸지 못하도록 막기)
     @Query("""
         select count(r) > 0 from Reservation r
-        where r.userId = :userId
-          and r.campId = :campId
+        where r.user.id = :userId
+          and r.camp.campId = :campId
           and (
                r.status in :activeStatuses
                or (r.status = :paymentWaiting and r.createdAt > :paymentValidAfter)
@@ -50,8 +48,8 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
     @Query("""
         update Reservation r
         set r.status = :expiredStatus, r.version = r.version + 1
-        where r.userId = :userId
-          and r.campId = :campId
+        where r.user.id = :userId
+          and r.camp.campId = :campId
           and r.status = :paymentWaiting
           and r.createdAt <= :paymentValidAfter
         """)
@@ -64,7 +62,7 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
     // 예약날짜 충돌체크 쿼리
     @Query("""
         select count(r) > 0 from Reservation r
-        where r.campId = :campId
+        where r.camp.campId = :campId
           and r.id <> :excludeId
           and r.status = :status
           and r.checkInDate < :checkOutDate
@@ -99,4 +97,28 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Reservation r where r.id = :id")
     Optional<Reservation> findByIdForUpdate(@Param("id") Long id);
+
+    // 사업자 대시보드 통계: 기간 내 상태별 매출 합계 (반개구간 [from, to))
+    @Query("""
+        select coalesce(sum(r.totalPrice), 0) from Reservation r
+        where r.camp.ownerId = :ownerId
+          and r.status in :statuses
+          and r.createdAt >= :from and r.createdAt < :to
+        """)
+    long sumRevenueByOwnerAndPeriod(@Param("ownerId") Long ownerId,
+                                    @Param("statuses") List<ReservationStatus> statuses,
+                                    @Param("from") LocalDateTime from,
+                                    @Param("to") LocalDateTime to);
+
+    // 사업자 대시보드 통계: 기간 내 상태별 예약 건수 (반개구간 [from, to))
+    @Query("""
+        select count(r) from Reservation r
+        where r.camp.ownerId = :ownerId
+          and r.status in :statuses
+          and r.createdAt >= :from and r.createdAt < :to
+        """)
+    long countByOwnerAndPeriod(@Param("ownerId") Long ownerId,
+                               @Param("statuses") List<ReservationStatus> statuses,
+                               @Param("from") LocalDateTime from,
+                               @Param("to") LocalDateTime to);
 }

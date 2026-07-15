@@ -2,6 +2,7 @@ package com.basecamp.backend.domain.camp.entity;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.camp.client.kakao.GeoPoint;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -13,6 +14,7 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 // 생성 경로를 builder()/정적 팩토리(fromGocampingApi 등)로만 제한한다.
 // no-args 생성자는 JPA가 리플렉션으로 엔티티를 로딩할 때만 필요해 protected로 좁혔다.
@@ -183,6 +185,13 @@ public class Camp {
         this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
     }
 
+    // 주소 변경에 따른 좌표 갱신. 지오코딩 실패(geoPoint == null) 시 좌표를 비워서
+    // 새 주소와 옛 좌표가 어긋난 채로 저장되지 않도록 한다.
+    public void updateLocation(GeoPoint geoPoint) {
+        this.mapX = geoPoint != null ? geoPoint.mapX() : null;
+        this.mapY = geoPoint != null ? geoPoint.mapY() : null;
+    }
+
 
 
     // price: 고캠핑 API가 가격 정보를 제공하지 않아, 서비스 계층에서 정책에 따라 결정한 값을 받아 조립만 한다.
@@ -217,5 +226,12 @@ public class Camp {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    // 캠핑장 소유권 검증 메서드
+    public void validateOwner(Long userId) {
+        if (!Objects.equals(this.ownerId, userId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED);
+        }
     }
 }

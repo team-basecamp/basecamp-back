@@ -4,7 +4,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -108,7 +107,7 @@ class AdminUserControllerTest {
 	@DisplayName("releaseUser_204를반환한다")
 	void releaseUser_204를반환한다() throws Exception {
 		// given & when & then
-		mockMvc.perform(delete("/api/v1/admin/users/{userId}/blacklist", USER_ID))
+		mockMvc.perform(post("/api/v1/admin/users/{userId}/blacklist/release", USER_ID))
 				.andExpect(status().isNoContent());
 
 		verify(adminUserService).releaseUser(USER_ID);
@@ -122,7 +121,7 @@ class AdminUserControllerTest {
 				.given(adminUserService).releaseUser(USER_ID);
 
 		// when & then
-		mockMvc.perform(delete("/api/v1/admin/users/{userId}/blacklist", USER_ID))
+		mockMvc.perform(post("/api/v1/admin/users/{userId}/blacklist/release", USER_ID))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.code").value(ErrorCode.USER_NOT_BLACKLISTED.getCode()));
 	}

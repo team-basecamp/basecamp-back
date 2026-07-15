@@ -86,6 +86,11 @@ gocamping:
     key: ${GOCAMPING_API_KEY:dummy-gocamping-api-key}
     url: https://apis.data.go.kr/B551011/GoCamping/basedList  # 고캠핑 API URL
 
+# 카카오 주소 검색(지오코딩) API — 로그인용 client-id와 동일한 REST API 키 사용
+kakao:
+  local:
+    api-key: ${KAKAO_REST_API_KEY:dummy-kakao-rest-api-key}
+
 # 고캠핑 API가 가격 정보를 제공하지 않아, 신규 캠핑장 저장 시 이 범위 내에서 임의로 가격을 부여한다.
 camp:
   default-price:
