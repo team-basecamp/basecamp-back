@@ -83,7 +83,7 @@ public class CampService {
         if (apiCamps == null || apiCamps.isEmpty()){
             return;
         }
-        // DB 에 이미 저장이 된 contentId를 모두 가져오기
+        // DB 에 이미 저장이 된 contentId를 모두 가져오기.
         Set<Long> existingContentIds = campRepository.findAllContentIds()
                 .stream()
                 .collect(Collectors.toSet());
