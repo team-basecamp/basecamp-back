@@ -67,4 +67,13 @@ public class AdminPostController {
 		adminPostService.blindPost(postId, request.reason());
 		return ResponseEntity.noContent().build();
 	}
+
+	@Operation(summary = "신고 반려",
+			description = "블라인드 등 조치 없이 신고 1건을 기각한다(PENDING → REJECTED). 블라인드가 게시글 단위인 것과 달리 "
+					+ "반려는 신고 1건(reportId) 단위다. 이미 처리된 신고면 409, 없는 신고면 404.")
+	@PostMapping("/reports/{reportId}/reject")
+	public ResponseEntity<Void> rejectReport(@PathVariable Long reportId) {
+		adminPostService.rejectReport(reportId);
+		return ResponseEntity.noContent().build();
+	}
 }

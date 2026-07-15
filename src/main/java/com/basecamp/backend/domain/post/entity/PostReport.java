@@ -1,5 +1,7 @@
 package com.basecamp.backend.domain.post.entity;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -60,5 +62,16 @@ public class PostReport {
         // DB DEFAULT가 있어도 JPA가 NULL로 밀어넣으면 적용되지 않아 자바단에서 초기값을 채운다.
         this.status = ReportStatus.PENDING;
         this.createdAt = LocalDateTime.now();
+    }
+
+    // 관리자 신고 반려. 블라인드 등 조치 없이 신고를 기각한다(PENDING → REJECTED).
+    // 상태 전이 규칙은 여기서 강제한다(Post.blind 와 같은 방식):
+    //   PENDING 이 아니면(이미 ACCEPTED/REJECTED) 중복 처리이므로 409(REPORT_ALREADY_PROCESSED).
+    // 변경 감지(dirty checking)로 트랜잭션 커밋 시점에 UPDATE 된다.
+    public void reject() {
+        if (this.status != ReportStatus.PENDING) {
+            throw new BusinessException(ErrorCode.REPORT_ALREADY_PROCESSED);
+        }
+        this.status = ReportStatus.REJECTED;
     }
 }

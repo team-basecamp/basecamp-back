@@ -10,6 +10,7 @@ import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.admin.dto.response.AdminPostDetailResponse;
 import com.basecamp.backend.domain.admin.dto.response.ReportedPostResponse;
 import com.basecamp.backend.domain.post.entity.Post;
+import com.basecamp.backend.domain.post.entity.PostReport;
 import com.basecamp.backend.domain.post.entity.ReportStatus;
 import com.basecamp.backend.domain.post.repository.PostReportRepository;
 import com.basecamp.backend.domain.post.repository.PostRepository;
@@ -74,5 +75,20 @@ public class AdminPostService {
 		// 블라인드가 확정된 뒤에만 신고를 정리한다. 위에서 예외가 나면 여기 도달하지 않는다.
 		// 이 벌크 UPDATE는 실행 전 flush로 위의 BLINDED 변경을 먼저 DB에 반영한다(acceptPendingReportsByPost 참고).
 		postReportRepository.acceptPendingReportsByPost(postId);
+	}
+
+	/**
+	 * 신고 반려. 블라인드 등 조치 없이 신고 1건을 기각한다(PENDING → REJECTED).
+	 *
+	 * <p>블라인드({@link #blindPost})가 게시글 단위로 그 글의 대기 신고를 한꺼번에 {@code ACCEPTED} 로 정리하는
+	 * 것과 달리, 반려는 신고 1건({@code reportId}) 단위다. 상태 전이 규칙({@link PostReport#reject}): 이미
+	 * 처리된 신고면 409, 없는 신고면 404.</p>
+	 */
+	public void rejectReport(Long reportId) {
+		PostReport report = postReportRepository.findById(reportId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.REPORT_NOT_FOUND));
+
+		// 상태 전이 검증은 엔티티가 던진다(PENDING 이 아니면 409). 변경 감지로 커밋 시점에 UPDATE 된다.
+		report.reject();
 	}
 }
