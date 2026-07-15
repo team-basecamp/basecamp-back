@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.reservation.controller;
 import com.basecamp.backend.common.model.AuthUser;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
+import com.basecamp.backend.domain.reservation.dto.response.MonthlyRevenueResponse;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationListResponse;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationResponse;
 import com.basecamp.backend.domain.reservation.dto.response.ReservationStatsResponse;
@@ -20,6 +21,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/reservations")
@@ -100,5 +103,13 @@ public class ReservationController {
     public ResponseEntity<ReservationStatsResponse> getReservationStats(
             @AuthenticationPrincipal AuthUser user) {
         return ResponseEntity.ok(reservationService.getReservationStats(user.id()));
+    }
+
+    @Operation(summary = "월별 매출 통계", description = "사업자 대시보드 차트용 올해 월별 매출/예약 건수 (확정 예약 기준, 12개월 전체)")
+    @PreAuthorize("hasRole('CAMP_OWNER')")
+    @GetMapping("/stats/monthly")
+    public ResponseEntity<List<MonthlyRevenueResponse>> getMonthlyRevenue(
+            @AuthenticationPrincipal AuthUser user) {
+        return ResponseEntity.ok(reservationService.getMonthlyRevenue(user.id()));
     }
 }
