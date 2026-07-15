@@ -2,6 +2,7 @@ package com.basecamp.backend.domain.comment.controller;
 
 import com.basecamp.backend.common.model.AuthUser;
 import com.basecamp.backend.domain.comment.dto.request.CommentCreateRequest;
+import com.basecamp.backend.domain.comment.dto.request.CommentUpdateRequest;
 import com.basecamp.backend.domain.comment.dto.response.CommentResponse;
 import com.basecamp.backend.domain.comment.service.CommentService;
 
@@ -33,6 +34,21 @@ public class CommentController {
         CommentResponse response = commentService.createComment(user.id(), postId, request.content());
         // 생성 성공은 201 Created 로 응답
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // 댓글 수정: 인증 회원(userId)이 자신이 쓴 댓글(commentId)의 본문을 수정하고 수정된 댓글을 반환한다.
+    // commentId가 전역 유니크 PK라 게시글 경로(postId) 없이 단건 리소스로 다룬다.
+    // (부분 수정이라 원칙은 PATCH지만, 요구사항에 맞춰 POST + /update 경로로 노출한다.)
+    @Operation(summary = "댓글 수정", description = "인증된 사용자가 본인이 작성한 댓글의 내용을 수정한다.")
+    @PostMapping("/api/v1/comments/{commentId}/update")
+    public ResponseEntity<CommentResponse> updateComment(
+            @AuthenticationPrincipal AuthUser user,             // JWT에서 꺼낸 로그인 회원 (id, role)
+            @PathVariable("commentId") Long commentId,          // 수정할 댓글 id (경로 변수)
+            @RequestBody @Valid CommentUpdateRequest request) { // 수정 요청 본문(검증 대상)
+        // 회원 id는 토큰에서 꺼낸 user.id()만 신뢰한다. 소유권(본인 댓글) 검증은 서비스가 담당한다.
+        CommentResponse response = commentService.updateComment(user.id(), commentId, request.content());
+        // 수정 성공은 200 OK 로 응답
+        return ResponseEntity.ok(response);
     }
 
     // 댓글 목록 조회: 경로의 게시글(postId)에 달린 댓글을 작성 순으로 반환한다.
