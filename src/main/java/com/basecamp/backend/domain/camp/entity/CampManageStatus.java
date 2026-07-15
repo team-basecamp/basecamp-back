@@ -21,6 +21,8 @@ public enum CampManageStatus {
 
     // DB/외부 API 어디서 오든 값을 100% 신뢰하지 않는다. 매칭 안 되면 예외 대신 기본값으로 처리해서
     // 로우 하나의 이상값 때문에 목록/검색 같은 읽기 API 전체가 죽는 걸 막는다.
+    // TODO: 알 수 없는 상태값을 OPERATING으로 기본 처리하는 게 맞는지 팀 논의 필요.
+    // (CodeRabbit 리뷰 지적: 미확인 값이 "운영중"으로 노출될 수 있음 — UNKNOWN 상태 분리 여부 등을 논의 후 결정)
     public static CampManageStatus fromLabel(String label) {
         return switch (label) {
             case "운영" -> OPERATING;

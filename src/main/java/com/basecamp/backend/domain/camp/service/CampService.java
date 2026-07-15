@@ -176,16 +176,16 @@ public class CampService {
         }
     }
 
-    // 특정 캠핑장 ID 조회 (Read)
+    // 특정 캠핑장 ID 조회 (Read). 없으면 CAMP_NOT_FOUND.
     public Camp getCampId(Long campId){
         return campRepository.findById(campId)
-                .orElse(null); // 없다면 null을 반환하라는 것
+                .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다"));
     }
 
-    // 고캠핑 API의 contentId로 캠핑장 조회 (Read)
+    // 고캠핑 API의 contentId로 캠핑장 조회 (Read). 없으면 CAMP_NOT_FOUND.
     public Camp getCampByContentId(Long contentId){
         return campRepository.findByContentId(contentId)
-                .orElse(null);
+                .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다"));
     }
 
     // 모든 캠핑장 조회
@@ -364,12 +364,8 @@ public class CampService {
     // 더티 체킹에 기대는 대신 명시적으로 save()를 호출한다.
     public Camp updateCamp(Long campId, CampUpdateRequest request, Long ownerId){
 
-        // campId 로 DB에서 조회를 시도하기 ( 기존의 getCampId)메서드를 재사용하여
+        // campId 로 DB에서 조회를 시도하기 ( 기존의 getCampId)메서드를 재사용하여, 없으면 CAMP_NOT_FOUND
         Camp camp = getCampId(campId);
-        // campId로 캠핑장 조회 : 없으면 예외 ( 에러코드 )
-        if(camp == null) {
-            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND,"캠핑장을 찾을 수 없습니다.");
-        }
 
         // 권한 검증 : camp와 로그인 한 사람이 맞는지?
         if (!java.util.Objects.equals(camp.getOwnerId(), ownerId)) {
@@ -398,12 +394,8 @@ public class CampService {
     // 캠핑장 삭제 기능 구현
     @Transactional
     public void deleteCamp(Long campId, Long ownerId){
-        // campId 로 캠핑장을 조회하기
+        // campId 로 캠핑장을 조회하기, 없으면 CAMP_NOT_FOUND (예외)
         Camp camp = getCampId(campId);
-        // 없으면 CAMP_NOT_FOUND (예외)
-        if(camp == null){
-            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND,"삭제할 캠핑장이 없습니다");
-        }
         // 소유자 권한 검증 (ACCESS_DENIED)
         if(!java.util.Objects.equals(camp.getOwnerId(),ownerId)){
             throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장이 아닙니다");
