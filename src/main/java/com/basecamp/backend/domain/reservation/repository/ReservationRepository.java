@@ -5,10 +5,7 @@ import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -20,6 +17,7 @@ import java.util.Optional;
 @Repository
 public interface ReservationRepository extends JpaRepository <Reservation, Long> {
     // userId를 조건으로 그 유저의 모든 예약 조회, 정렬 조건은 최신순으로
+    @EntityGraph(attributePaths = "camp")
     Page<Reservation> findAllByUserId(Long userId, Pageable pageable);
 
     // campId와 파라미터로 넣은 예약상태를 제외한 조건으로 해당 캠핑장의 모든 예약 조회
