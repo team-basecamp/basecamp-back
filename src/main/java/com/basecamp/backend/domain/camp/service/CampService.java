@@ -2,6 +2,8 @@ package com.basecamp.backend.domain.camp.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.camp.client.kakao.GeoPoint;
+import com.basecamp.backend.domain.camp.client.kakao.KakaoGeocodingClient;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
@@ -41,6 +43,9 @@ public class CampService {
     // campRepository 를 자동으로 주입 받기
     private final CampRepository campRepository;
     private final RestTemplate restTemplate;
+    // 사용자가 입력한 주소(addr1)를 좌표(mapX/mapY)로 바꿔주는 지오코딩 클라이언트.
+    // registerCamp()/updateCamp() 에서 사용한다.
+    private final KakaoGeocodingClient kakaoGeocodingClient;
 
     @Value("${gocamping.api.key}")
     private String gocampingApiKey;
@@ -296,7 +301,8 @@ public class CampService {
     */
 
     // 캠핑장 등록 비지니스 로직
-    @Transactional
+    // 지오코딩(외부 HTTP 호출)이 끝난 뒤 campRepository.save()가 자체 트랜잭션으로 저장하므로,
+    // 이 메서드 자체는 @Transactional을 걸지 않는다 — 카카오 API 지연이 DB 커넥션을 점유하지 않도록.
     public Camp registerCamp(CampRegistrationRequest request,Long ownerId){
         // 권한 검증 : ownerId가 없다면 등록이 불가하도록 설정
         // ownerId == null : 인증 정보 자체가 없는 것 ( 로그인을 안함, 토큰이 없음 )
@@ -305,11 +311,16 @@ public class CampService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED,"캠핑장 등록 권한이 없습니다.");
         }
 
+        // 주소로 좌표(mapX/mapY)를 조회한다. 못 찾아도 등록은 그대로 진행한다(좌표만 null).
+        GeoPoint geoPoint = kakaoGeocodingClient.geocode(request.getAddr1());
+
         // DTO -> Entity 변환 하는 코드
         Camp camp = Camp.builder()
                 .facltNm(request.getFacltNm())
                 .addr1(request.getAddr1())
                 .addr2(request.getAddr2())
+                .mapX(geoPoint != null ? geoPoint.mapX() : null)
+                .mapY(geoPoint != null ? geoPoint.mapY() : null)
                 .tel(request.getTel())
                 .induty(request.getInduty())
                 .price(request.getPrice())
@@ -348,7 +359,8 @@ public class CampService {
     }
 
     // 캠핑장 정보 수정 ( 본인이 등록한 캠핑장만 가능하도록 )
-    @Transactional
+    // 지오코딩(외부 HTTP 호출)을 DB 트랜잭션 밖에서 먼저 끝낸 뒤, 짧은 쓰기 트랜잭션에서 저장한다.
+    // 더티 체킹에 기대는 대신 명시적으로 save()를 호출한다.
     public Camp updateCamp(Long campId, CampUpdateRequest request, Long ownerId){
 
         // campId 로 DB에서 조회를 시도하기 ( 기존의 getCampId)메서드를 재사용하여
@@ -363,11 +375,22 @@ public class CampService {
             throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장 수정만 가능");
         }
 
+        // 주소가 바뀌면 좌표도 다시 조회한다. DB 트랜잭션을 시작하기 전에 호출해서
+        // 카카오 API 지연이 DB 커넥션을 점유하지 않도록 한다.
+        GeoPoint geoPoint = request.getAddr1() != null
+                ? kakaoGeocodingClient.geocode(request.getAddr1())
+                : null;
+
         // 엔티티 메서드 호출해서 반영하기
         camp.updateInfo(request);
 
-        // 더티 체킹을 고려하여 save 가 아니라 Return 하기
-        return camp;
+        // 지오코딩 실패 시 좌표는 비운다 (새 주소와 옛 좌표가 어긋난 채로 남지 않도록)
+        if (request.getAddr1() != null) {
+            camp.updateLocation(geoPoint);
+        }
+
+        // 트랜잭션 밖에서 조회한 뒤라 더티 체킹에 기댈 수 없으므로 명시적으로 저장한다
+        return campRepository.save(camp);
 
     }
 
