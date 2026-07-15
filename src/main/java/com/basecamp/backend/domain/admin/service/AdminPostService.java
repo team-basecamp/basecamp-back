@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.admin.dto.response.AdminPostDetailResponse;
 import com.basecamp.backend.domain.admin.dto.response.ReportedPostResponse;
 import com.basecamp.backend.domain.post.entity.Post;
 import com.basecamp.backend.domain.post.entity.ReportStatus;
@@ -39,6 +40,22 @@ public class AdminPostService {
 	public Page<ReportedPostResponse> findReports(ReportStatus status, Pageable pageable) {
 		ReportStatus filter = (status == null) ? ReportStatus.PENDING : status;
 		return postReportRepository.findByStatus(filter, pageable).map(ReportedPostResponse::from);
+	}
+
+	/**
+	 * 관리자용 게시글 단건 상세 조회.
+	 *
+	 * <p>회원용 조회({@code PostService#getDetail})와 달리 상태 게이팅을 하지 않는다. 관리자는 모더레이션·감사를
+	 * 위해 블라인드({@code BLINDED})·삭제({@code DELETED})된 글도 원문 그대로 열람할 수 있어야 한다.
+	 * 조회 자체가 안 되는 경우, 즉 애초에 존재하지 않는 글만 404({@code POST_NOT_FOUND})로 막는다.</p>
+	 */
+	@Transactional(readOnly = true)
+	public AdminPostDetailResponse getPostDetail(Long postId) {
+		// 응답에 작성자 nickname 이 필요하므로 fetch join 으로 작성자까지 함께 로딩한다. (상태 필터 없음)
+		Post post = postRepository.findWithUserByPostId(postId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+		return AdminPostDetailResponse.from(post);
 	}
 
 	/**

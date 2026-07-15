@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.basecamp.backend.domain.admin.dto.request.BlindPostRequest;
+import com.basecamp.backend.domain.admin.dto.response.AdminPostDetailResponse;
 import com.basecamp.backend.domain.admin.dto.response.ReportedPostResponse;
 import com.basecamp.backend.domain.admin.service.AdminPostService;
 import com.basecamp.backend.domain.post.entity.ReportStatus;
@@ -46,6 +47,14 @@ public class AdminPostController {
 			@ParameterObject
 			@PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 		return ResponseEntity.ok(adminPostService.findReports(status, pageable));
+	}
+
+	@Operation(summary = "게시글 상세 조회",
+			description = "게시글 원문을 상태와 무관하게 조회한다. 회원용 조회와 달리 블라인드(BLINDED)·삭제(DELETED)된 글도 "
+					+ "그대로 열람할 수 있으며, status 와 blindReason 을 함께 담는다. 존재하지 않는 글이면 404.")
+	@GetMapping("/{postId}")
+	public ResponseEntity<AdminPostDetailResponse> getPostDetail(@PathVariable Long postId) {
+		return ResponseEntity.ok(adminPostService.getPostDetail(postId));
 	}
 
 	@Operation(summary = "게시글 블라인드 처리",
