@@ -2,6 +2,8 @@ package com.basecamp.backend.domain.camp.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.camp.client.kakao.GeoPoint;
+import com.basecamp.backend.domain.camp.client.kakao.KakaoGeocodingClient;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
@@ -41,6 +43,9 @@ public class CampService {
     // campRepository 를 자동으로 주입 받기
     private final CampRepository campRepository;
     private final RestTemplate restTemplate;
+    // 사용자가 입력한 주소(addr1)를 좌표(mapX/mapY)로 바꿔주는 지오코딩 클라이언트.
+    // registerCamp()/updateCamp() 에서 사용한다.
+    private final KakaoGeocodingClient kakaoGeocodingClient;
 
     @Value("${gocamping.api.key}")
     private String gocampingApiKey;
@@ -305,11 +310,16 @@ public class CampService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED,"캠핑장 등록 권한이 없습니다.");
         }
 
+        // 주소로 좌표(mapX/mapY)를 조회한다. 못 찾아도 등록은 그대로 진행한다(좌표만 null).
+        GeoPoint geoPoint = kakaoGeocodingClient.geocode(request.getAddr1());
+
         // DTO -> Entity 변환 하는 코드
         Camp camp = Camp.builder()
                 .facltNm(request.getFacltNm())
                 .addr1(request.getAddr1())
                 .addr2(request.getAddr2())
+                .mapX(geoPoint != null ? geoPoint.mapX() : null)
+                .mapY(geoPoint != null ? geoPoint.mapY() : null)
                 .tel(request.getTel())
                 .induty(request.getInduty())
                 .price(request.getPrice())
@@ -365,6 +375,11 @@ public class CampService {
 
         // 엔티티 메서드 호출해서 반영하기
         camp.updateInfo(request);
+
+        // 주소가 바뀌면 좌표도 다시 조회해서 반영한다 (실패 시 기존 좌표 유지)
+        if (request.getAddr1() != null) {
+            camp.updateLocation(kakaoGeocodingClient.geocode(request.getAddr1()));
+        }
 
         // 더티 체킹을 고려하여 save 가 아니라 Return 하기
         return camp;

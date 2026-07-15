@@ -2,6 +2,7 @@ package com.basecamp.backend.domain.camp.entity;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.camp.client.kakao.GeoPoint;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -181,6 +182,14 @@ public class Camp {
         }
         // 수정 시각 갱신
         this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+    }
+
+    // 주소 변경에 따른 좌표 갱신. 지오코딩 실패(geoPoint == null) 시 기존 좌표를 그대로 둔다.
+    public void updateLocation(GeoPoint geoPoint) {
+        if (geoPoint != null) {
+            this.mapX = geoPoint.mapX();
+            this.mapY = geoPoint.mapY();
+        }
     }
 
 
