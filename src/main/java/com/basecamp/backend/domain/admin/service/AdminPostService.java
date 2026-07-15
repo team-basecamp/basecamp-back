@@ -51,10 +51,13 @@ public class AdminPostService {
 		Post post = postRepository.findById(postId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
-		// 상태 전이 검증은 엔티티가 던진다(BLINDED → 409, DELETED → 404).
+		// 상태 전이 검증은 엔티티가 던진다(BLINDED → 409, DELETED → 404). (아직 영속성 컨텍스트에만, DB 미반영)
 		post.blind(reason);
 
-		// 블라인드가 확정된 뒤에만 신고를 정리한다. 위에서 예외가 나면 여기 도달하지 않는다.
+		// BLINDED 변경을 먼저 DB에 반영
+		postRepository.flush();
+
+		// 블라인드가 확정된 뒤에만 신고를 정리한다. 위에서 예외가 나면 여기 도달하지 않는다. 벌크 UPDATE + clearAutomatically=true
 		postReportRepository.acceptPendingReportsByPost(postId);
 	}
 }
