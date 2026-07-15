@@ -106,4 +106,46 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("createdAt") LocalDateTime createdAt,
             @Param("postId") Long postId,
             Limit limit);
+
+
+    // ---------------------------------------------------------------------
+    // 마이페이지 "내가 쓴 게시글" 목록 조회 (커서 페이징)
+    //
+    // 공용 목록과 정렬 키 · 커서 조건은 완전히 같고, 카테고리 조건 대신 작성자(user_id) 조건이 붙는다.
+    // status = ACTIVE 만 노출한다 — 소프트 삭제(DELETED)한 글이 새로고침에 되살아나면 안 되고,
+    // 관리자 블라인드(BLINDED)된 글도 공용 목록과 같은 기준으로 가린다.
+    //
+    // 인덱스: idx_posts_user (user_id, status, created_at DESC, post_id DESC) — V21에서 재정의.
+    //   category 조회와 같은 이유로 (user_id is null or ...) 합침 없이 커서 유무에 따라 메서드를 나눈다.
+    // ---------------------------------------------------------------------
+
+    // 내 글 · 첫 페이지 (커서 없음)
+    // 응답(MyPostResponse)이 작성자 nickname을 쓰지 않으므로 공용 목록과 달리 user를 fetch 하지 않는다.
+    // where 조건의 p.user.id는 posts.user_id FK 컬럼을 그대로 읽어 users 조인이 붙지 않는다.
+    @Query("""
+            select p from Post p
+            where p.status = :status
+              and p.user.id = :userId
+            order by p.createdAt desc, p.postId desc
+            """)
+    List<Post> findFirstPageByUser(
+            @Param("status") PostStatus status,
+            @Param("userId") Long userId,
+            Limit limit);
+
+    // 내 글 · 다음 페이지 (커서 이후)
+    @Query("""
+            select p from Post p
+            where p.status = :status
+              and p.user.id = :userId
+              and (p.createdAt < :createdAt
+                   or (p.createdAt = :createdAt and p.postId < :postId))
+            order by p.createdAt desc, p.postId desc
+            """)
+    List<Post> findNextPageByUser(
+            @Param("status") PostStatus status,
+            @Param("userId") Long userId,
+            @Param("createdAt") LocalDateTime createdAt,
+            @Param("postId") Long postId,
+            Limit limit);
 }
