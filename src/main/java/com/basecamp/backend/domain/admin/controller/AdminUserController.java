@@ -6,7 +6,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -76,7 +75,7 @@ public class AdminUserController {
 	@Operation(summary = "회원 제재 해제",
 			description = "제재를 해제하고 무효화 표시를 지운다. 제재 중에는 토큰이 발급되지 않았으므로 사용자는 다시 로그인해야 한다. "
 					+ "제재 상태가 아닌 회원이면 409.")
-	@DeleteMapping("/{userId}/blacklist")
+	@PostMapping("/{userId}/blacklist/release")
 	public ResponseEntity<Void> releaseUser(@PathVariable Long userId) {
 		adminUserService.releaseUser(userId);
 		return ResponseEntity.noContent().build();
