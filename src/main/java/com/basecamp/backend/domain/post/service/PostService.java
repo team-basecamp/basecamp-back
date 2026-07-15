@@ -11,7 +11,10 @@ import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
 import com.basecamp.backend.domain.post.dto.response.PostListCursorResponse;
 import com.basecamp.backend.domain.post.dto.response.PostReportResponse;
 import com.basecamp.backend.domain.post.entity.Post;
+import com.basecamp.backend.domain.post.entity.PostCategory;
 import com.basecamp.backend.domain.post.entity.PostReport;
+import com.basecamp.backend.domain.post.entity.PostStatus;
+import com.basecamp.backend.domain.post.entity.ReportStatus;
 import com.basecamp.backend.domain.post.repository.PostReportRepository;
 import com.basecamp.backend.domain.post.repository.PostRepository;
 import com.basecamp.backend.domain.user.entity.User;
@@ -23,9 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 // 게시글 비즈니스 로직. 기본은 읽기 전용 트랜잭션, 쓰기 메서드에만 @Transactional을 따로 건다.
@@ -33,15 +34,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PostService {
-
-    // 게시글 상태값 (posts.status: ACTIVE / BLINDED / DELETED)
-    private static final String STATUS_ACTIVE = "ACTIVE";
-    private static final String STATUS_BLINDED = "BLINDED";
-    private static final String STATUS_DELETED = "DELETED";
-    // 신고 처리 상태값 (post_reports.status). 접수 직후 상태.
-    private static final String REPORT_STATUS_PENDING = "PENDING";
-    // 게시판 카테고리. DB에 저장되는 값은 이 3개뿐이다.
-    private static final Set<String> CATEGORIES = Set.of("GENERAL", "CAMP_MATE", "RESERVATION_TRANSFER");
 
     // "전체" 탭을 위한 값. DB에 ALL이라는 카테고리를 만들지 않고, 카테고리 조건 자체를 빼는 것으로 처리한다.
     private static final String CATEGORY_ALL = "ALL";
@@ -65,7 +57,7 @@ public class PostService {
     //
     // 커서 페이징이다. cursor가 없으면 첫 페이지, 있으면 그 커서 "다음"부터 size건을 준다.
     public PostListCursorResponse getList(String category, String cursor, int size) {
-        String filter = resolveCategory(category);
+        PostCategory filter = resolveCategory(category);
         int limit = resolveSize(size);
         PostCursorRequest decoded = PostCursorRequest.decode(cursor);
 
@@ -97,43 +89,22 @@ public class PostService {
     }
 
     // 카테고리 유무 · 커서 유무 4가지 조합을 각 전용 쿼리로 보낸다.
-    private List<Post> findPage(String category, PostCursorRequest cursor, Limit limit) {
+    private List<Post> findPage(PostCategory category, PostCursorRequest cursor, Limit limit) {
         if (category == null) {
             return (cursor == null)
-                    ? postRepository.findFirstPage(STATUS_ACTIVE, limit)
-                    : postRepository.findNextPage(STATUS_ACTIVE, cursor.createdAt(), cursor.postId(), limit);
+                    ? postRepository.findFirstPage(PostStatus.ACTIVE, limit)
+                    : postRepository.findNextPage(PostStatus.ACTIVE, cursor.createdAt(), cursor.postId(), limit);
         }
 
         return (cursor == null)
-                ? postRepository.findFirstPageByCategory(STATUS_ACTIVE, category, limit)
-                : postRepository.findNextPageByCategory(STATUS_ACTIVE, category, cursor.createdAt(), cursor.postId(), limit);
+                ? postRepository.findFirstPageByCategory(PostStatus.ACTIVE, category, limit)
+                : postRepository.findNextPageByCategory(PostStatus.ACTIVE, category, cursor.createdAt(), cursor.postId(), limit);
     }
 
 
 
 
 
-//    // 게시글 상세 조회: 단건을 조회해 상세 응답으로 반환한다. (클래스 기본 readOnly 트랜잭션)
-//    //
-//    // 노출 정책 — posts.status에 따라 갈린다.
-//    //   ACTIVE  : 정상 반환
-//    //   DELETED : 소프트 삭제된 글. 없는 글과 구분되면 "삭제된 글이 여기 있었다"는 사실이 새므로 404로 통일.
-//    //   BLINDED : 관리자가 가린 글. 삭제와 달리 존재 자체는 감출 필요가 없어 사유를 알 수 있는 403으로 구분.
-//    public PostDetailResponse getDetail(Long postId) {
-//        // 응답에 nickname이 필요하므로 작성자까지 fetch join으로 함께 로딩한다.
-//        Post post = postRepository.findWithUserByPostId(postId)
-//                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
-//
-//        if (STATUS_DELETED.equals(post.getStatus())) {
-//            throw new BusinessException(ErrorCode.POST_NOT_FOUND);
-//        }
-//
-//        if (STATUS_BLINDED.equals(post.getStatus())) {
-//            throw new BusinessException(ErrorCode.POST_BLINDED);
-//        }
-//
-//        return PostDetailResponse.from(post);
-//    }
 
 
 
@@ -149,20 +120,18 @@ public class PostService {
     // 요청으로 들어온 category를 조회 조건으로 변환한다.
     // 전체 조회(=조건 없음)면 null, 특정 카테고리면 그 값. 정의되지 않은 값이면 400으로 막는다.
     // 값을 검증하지 않고 그대로 넘기면 오타난 카테고리가 조용히 빈 목록을 반환해 프런트가 원인을 못 찾는다.
-    private String resolveCategory(String category) {
+    private PostCategory resolveCategory(String category) {
         if (category == null || category.isBlank()) {
             return null;
         }
 
-        String normalized = category.trim().toUpperCase(Locale.ROOT);
-        if (CATEGORY_ALL.equals(normalized)) {
+        // "전체" 탭은 특정 카테고리가 아니라 "카테고리 조건 없음"이다. enum 파싱 전에 먼저 걸러 null로 돌려준다.
+        if (CATEGORY_ALL.equalsIgnoreCase(category.trim())) {
             return null;
         }
 
-        if (!CATEGORIES.contains(normalized)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        return normalized;
+        // 정규화·검증은 PostCategory.from이 맡는다. 정의되지 않은 값이면 여기서 400(INVALID_INPUT_VALUE).
+        return PostCategory.from(category);
     }
 
     // 게시글 상세 조회: 단건을 조회해 상세 응답으로 반환한다. (클래스 기본 readOnly 트랜잭션)
@@ -176,11 +145,11 @@ public class PostService {
         Post post = postRepository.findWithUserByPostId(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
-        if (STATUS_DELETED.equals(post.getStatus())) {
+        if (post.getStatus() == PostStatus.DELETED) {
             throw new BusinessException(ErrorCode.POST_NOT_FOUND);
         }
 
-        if (STATUS_BLINDED.equals(post.getStatus())) {
+        if (post.getStatus() == PostStatus.BLINDED) {
             throw new BusinessException(ErrorCode.POST_BLINDED);
         }
 
@@ -196,7 +165,9 @@ public class PostService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
 
-        Post post = new Post(user, category, title, content);
+        // 카테고리 문자열을 enum으로 확정한다. 요청 DTO의 @Pattern이 1차로 걸러 주지만,
+        // 서비스 경계에서 다시 검증해 유효하지 않으면 400(INVALID_INPUT_VALUE)으로 막는다.
+        Post post = new Post(user, PostCategory.from(category), title, content);
         // 저장한 뒤 방금 쓴 게시글을 그대로 볼 수 있게 응답 DTO로 변환해 반환.
         // user가 이미 로딩된 상태라 from()에서 nickname 접근 시 추가 쿼리가 발생하지 않는다.
         Post saved = postRepository.save(post);
@@ -212,7 +183,7 @@ public class PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
 
         // 변경 감지(dirty checking)로 트랜잭션 커밋 시점에 UPDATE 반영
-        post.update(request.category(), request.title(), request.content());
+        post.update(PostCategory.from(request.category()), request.title(), request.content());
 
         return PostDetailResponse.from(post);
     }
@@ -241,7 +212,7 @@ public class PostService {
         // 신고 대상 게시글 조회. 없거나 이미 삭제된 글이면 신고할 수 없다(404).
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
-        if (STATUS_DELETED.equals(post.getStatus())) {
+        if (post.getStatus() == PostStatus.DELETED) {
             throw new BusinessException(ErrorCode.POST_NOT_FOUND);
         }
 
@@ -250,7 +221,7 @@ public class PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
 
         // 같은 회원이 아직 처리되지 않은(PENDING) 신고를 이미 넣었다면 중복 접수를 막는다. (빠른 선검사)
-        if (postReportRepository.existsByPost_PostIdAndReporter_IdAndStatus(postId, reporterId, REPORT_STATUS_PENDING)) {
+        if (postReportRepository.existsByPost_PostIdAndReporter_IdAndStatus(postId, reporterId, ReportStatus.PENDING)) {
             throw new BusinessException(ErrorCode.ALREADY_REPORTED_POST);
         }
 

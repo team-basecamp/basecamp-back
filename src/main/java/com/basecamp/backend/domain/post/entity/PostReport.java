@@ -42,8 +42,10 @@ public class PostReport {
     private String description;
 
     // 신고 처리 상태 (PENDING / ACCEPTED / REJECTED). 접수 시 PENDING으로 시작한다.
+    // VARCHAR 컬럼에 enum 이름 문자열로 저장한다(@Enumerated(STRING)).
+    @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
-    private String status;
+    private ReportStatus status;
 
     // 신고 접수 일시
     @Column(name = "created_at", nullable = false)
@@ -56,7 +58,7 @@ public class PostReport {
         this.reason = reason;
         this.description = description;
         // DB DEFAULT가 있어도 JPA가 NULL로 밀어넣으면 적용되지 않아 자바단에서 초기값을 채운다.
-        this.status = "PENDING";
+        this.status = ReportStatus.PENDING;
         this.createdAt = LocalDateTime.now();
     }
 }
