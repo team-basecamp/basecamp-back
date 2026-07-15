@@ -51,6 +51,20 @@ public class CommentController {
         return ResponseEntity.ok(response);
     }
 
+    // 댓글 삭제: 인증 회원(commentId)이 본인이 쓴 댓글을 삭제(DELETED)하고, 관리자는 임의 댓글을 블라인드(BLINDED)한다.
+    // commentId가 전역 유니크 PK라 게시글 경로(postId) 없이 단건 리소스로 다룬다.
+    // (본래 삭제는 DELETE지만, 요구사항에 맞춰 POST + /delete 경로로 노출한다.)
+    @Operation(summary = "댓글 삭제", description = "작성자 본인은 댓글을 삭제(DELETED), 관리자는 블라인드(BLINDED) 처리하는 소프트 삭제. 실제 행은 남고 안내 문구로 대체 노출된다.")
+    @PostMapping("/api/v1/comments/{commentId}/delete")
+    public ResponseEntity<Void> deleteComment(
+            @AuthenticationPrincipal AuthUser user,             // JWT에서 꺼낸 로그인 회원 (id, role)
+            @PathVariable("commentId") Long commentId) {        // 삭제할 댓글 id (경로 변수)
+        // 회원 id·권한은 토큰에서 꺼낸 값만 신뢰한다. 소유권/관리자 분기는 서비스가 담당한다.
+        commentService.deleteComment(user.id(), user.role(), commentId);
+        // 삭제 성공은 본문 없이 204 No Content 로 응답
+        return ResponseEntity.noContent().build();
+    }
+
     // 댓글 목록 조회: 경로의 게시글(postId)에 달린 댓글을 작성 순으로 반환한다.
     // 작성자 식별·본인 여부 표시는 프론트에서 처리하므로 별도 인증 정보는 받지 않는다.
     // (게시판은 SecurityConfig의 anyRequest().authenticated()로 로그인 사용자만 접근 가능하다.)
