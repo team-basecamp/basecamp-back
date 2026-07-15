@@ -98,6 +98,7 @@ class AdminUserControllerTest {
 		// when & then
 		mockMvc.perform(get("/api/v1/admin/users/blacklist"))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.content[0].userId").value(USER_ID))
 				.andExpect(jsonPath("$.data.content[0].blacklistReason").value("어뷰징"))
 				.andExpect(jsonPath("$.data.totalElements").value(1));

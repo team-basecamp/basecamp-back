@@ -97,6 +97,7 @@ class AuthControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"code\":\"auth-code\"}"))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.accessToken").value("access-token"))
 				.andExpect(jsonPath("$.data.tokenType").value("Bearer"))
 				.andExpect(jsonPath("$.data.email").value("user@example.com"))
@@ -147,6 +148,7 @@ class AuthControllerTest {
 		// when & then
 		mockMvc.perform(post("/api/v1/auth/token/refresh"))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true))
 				.andExpect(jsonPath("$.data.accessToken").value("new-access"))
 				.andExpect(jsonPath("$.data.tokenType").value("Bearer"))
 				.andExpect(header().exists(HttpHeaders.SET_COOKIE))
