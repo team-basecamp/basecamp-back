@@ -163,7 +163,7 @@ public class PostService {
         // findById로 실제 로딩하고, 존재하지 않으면 예외로 막는다.
         // (JWT는 통과했지만 탈퇴/삭제 등으로 회원이 사라졌을 수 있어 DB 존재 여부를 최종 검증한다.)
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         // 카테고리 문자열을 enum으로 확정한다. 요청 DTO의 @Pattern이 1차로 걸러 주지만,
         // 서비스 경계에서 다시 검증해 유효하지 않으면 400(INVALID_INPUT_VALUE)으로 막는다.
@@ -180,7 +180,7 @@ public class PostService {
     public PostDetailResponse update(Long id, PostUpdateRequest request) {
         // 수정할 게시글 조회, 없으면 예외
         Post post = postRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
         // 변경 감지(dirty checking)로 트랜잭션 커밋 시점에 UPDATE 반영
         post.update(PostCategory.from(request.category()), request.title(), request.content());
@@ -194,7 +194,7 @@ public class PostService {
     public void delete(Long userId, Long postId) {
         // 삭제할 게시글 조회, 없으면 예외
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
         // 소유권 확인: 내 글이 아니면 삭제 거부(403). 권한(ROLE)과 별개로 서비스에서 막는다.
         if (!post.getUser().getId().equals(userId)) {
@@ -218,7 +218,7 @@ public class PostService {
 
         // 신고자 회원을 최종 검증한다. (JWT는 통과했지만 탈퇴/삭제로 회원이 사라졌을 수 있다.)
         User reporter = userRepository.findById(reporterId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         // 같은 회원이 아직 처리되지 않은(PENDING) 신고를 이미 넣었다면 중복 접수를 막는다. (빠른 선검사)
         if (postReportRepository.existsByPost_PostIdAndReporter_IdAndStatus(postId, reporterId, ReportStatus.PENDING)) {
