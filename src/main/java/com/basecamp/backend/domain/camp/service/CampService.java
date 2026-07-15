@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.camp.service;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
+import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
@@ -92,19 +93,11 @@ public class CampService {
         }
     }
 
-    // 고캠핑 API에 없는 가격 정보를 대체하기 위해 설정된 범위 내에서 unit 단위로 임의 가격을 생성한다.
+    // 고캠핑 API 가격 설정
+    // 없는 가격 정보를 대체하기 위해 설정된 범위 내에서 unit 단위로 임의 가격을 생성한다.
     private int generateRandomPrice() {
         int steps = (defaultPriceMax - defaultPriceMin) / defaultPriceUnit + 1;
         return defaultPriceMin + ThreadLocalRandom.current().nextInt(steps) * defaultPriceUnit;
-    }
-
-    // 가격 정책 적용 전에 저장돼 price=0으로 남아있는 기존 캠핑장을 일괄 백필한다.
-    // 조회된 엔티티는 트랜잭션 내에서 관리되므로, 값 변경만으로 커밋 시점에 dirty checking이 자동 반영한다.
-    @Transactional
-    public int backfillMissingPrices() {
-        List<Camp> targets = campRepository.findByContentIdIsNotNullAndPrice(0);
-        targets.forEach(camp -> camp.assignDefaultPriceIfMissing(generateRandomPrice()));
-        return targets.size();
     }
 
     /**
@@ -298,6 +291,10 @@ public class CampService {
         }
     }
 
+    /*
+    * 고객이 직접 캠핑장을 등록/수정/삭제
+    */
+
     // 캠핑장 등록 비지니스 로직
     @Transactional
     public Camp registerCamp(CampRegistrationRequest request,Long ownerId){
@@ -348,6 +345,48 @@ public class CampService {
                 .toList();
 
         return CampListResponseDto.ok(dtos, dtos.size());
+    }
+
+    // 캠핑장 정보 수정 ( 본인이 등록한 캠핑장만 가능하도록 )
+    @Transactional
+    public Camp updateCamp(Long campId, CampUpdateRequest request, Long ownerId){
+
+        // campId 로 DB에서 조회를 시도하기 ( 기존의 getCampId)메서드를 재사용하여
+        Camp camp = getCampId(campId);
+        // campId로 캠핑장 조회 : 없으면 예외 ( 에러코드 )
+        if(camp == null) {
+            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND,"캠핑장을 찾을 수 없습니다.");
+        }
+
+        // 권한 검증 : camp와 로그인 한 사람이 맞는지?
+        if (!java.util.Objects.equals(camp.getOwnerId(), ownerId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장 수정만 가능");
+        }
+
+        // 엔티티 메서드 호출해서 반영하기
+        camp.updateInfo(request);
+
+        // 더티 체킹을 고려하여 save 가 아니라 Return 하기
+        return camp;
+
+    }
+
+    // 캠핑장 삭제 기능 구현
+    @Transactional
+    public void deleteCamp(Long campId, Long ownerId){
+        // campId 로 캠핑장을 조회하기
+        Camp camp = getCampId(campId);
+        // 없으면 CAMP_NOT_FOUND (예외)
+        if(camp == null){
+            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND,"삭제할 캠핑장이 없습니다");
+        }
+        // 소유자 권한 검증 (ACCESS_DENIED)
+        if(!java.util.Objects.equals(camp.getOwnerId(),ownerId)){
+            throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장이 아닙니다");
+        }
+        // softDelete() 호출하기
+        camp.softDelete();
+
     }
 
 }

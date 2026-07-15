@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.camp.controller;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
+import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampDetailResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
@@ -13,6 +14,7 @@ import com.basecamp.backend.domain.camp.service.CampService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.service.GenericResponseService;
 import org.springframework.http.ResponseEntity;
 import com.basecamp.backend.common.model.AuthUser;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,16 +30,22 @@ public class CampController {
 
     // Service 자동 주입
     private final CampService campService;
+    private final GenericResponseService responseBuilder;
 
     //고캠핑 API에서 캠핑장 데이터를 동기화
-    // 외부 데이터를 DB 에 직접 밀어넣는 관리자용 트리거다. /fetch 와 같은 이유로 ADMIN 만 허용한다.
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/sync")
     public ResponseEntity<String> syncCamps(
             @RequestBody List<GocampingApiResponseDto> apiCamps) {
-        // 오류는 GlobalExceptionHandler 가 통일된 ApiResponse 봉투로 변환하므로 직접 잡지 않는다.
-        campService.saveCampsFromApi(apiCamps);
-        return ResponseEntity.ok("캠핑장 데이터가 성공적으로 동기화되었습니다");
+
+        try {
+            campService.saveCampsFromApi(apiCamps);
+            return ResponseEntity.ok("캠핑장 데이터가 성공적으로 동기화되었습니다");
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body("동기화 실패: " + e.getMessage());
+        }
     }
 
     // 고캠핑 API 전체를 직접 호출해서 DB에 저장 (관리자용 수동 트리거)
@@ -46,16 +54,14 @@ public class CampController {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/fetch")
     public ResponseEntity<String> fetchCamps() {
-        campService.fetchAndSaveCampsFromGocampingApi();
-        return ResponseEntity.ok("고캠핑 API 전체 데이터가 성공적으로 동기화되었습니다");
-    }
+        try {
+            campService.fetchAndSaveCampsFromGocampingApi();
+            return ResponseEntity.ok("고캠핑 API 전체 데이터가 성공적으로 동기화되었습니다");
 
-    // 가격 정책 적용 전에 저장돼 price=0으로 남아있는 기존 캠핑장(고캠핑 API 수집분)을 일괄 백필 (관리자용 수동 트리거)
-    @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/backfill-price")
-    public ResponseEntity<CampPriceBackfillResponseDto> backfillMissingPrices() {
-        int updatedCount = campService.backfillMissingPrices();
-        return ResponseEntity.ok(CampPriceBackfillResponseDto.of(updatedCount));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body("동기화 실패: " + e.getMessage());
+        }
     }
 
 // 특정 캠핑장 ID(PK) 로 조회 (상세페이지용 - 자체 등록 캠핑장은 contentId가 없어 이 엔드포인트로 통일 조회)
@@ -110,21 +116,44 @@ public class CampController {
 //모든 캠핑장 조회
     @GetMapping
     public ResponseEntity<List<Camp>> getAllCamps() {
-        return ResponseEntity.ok(campService.getAllCamps());
+        try {
+            // Service의 getAllCamps() 메서드 호출
+            List<Camp> camps = campService.getAllCamps();
+            return ResponseEntity.ok(camps);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
     }
 
 // 캠핑장 이름으로 검색
     @GetMapping("/search/name")
     public ResponseEntity<List<Camp>> searchByName(
             @RequestParam String name) {
-        return ResponseEntity.ok(campService.searchByName(name));
+
+        try {
+            // Service의 searchByName() 메서드 호출
+            List<Camp> camps = campService.searchByName(name);
+            return ResponseEntity.ok(camps);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
     }
 
      // 특정 지역의 캠핑장을 검색
     @GetMapping("/search/address")
     public ResponseEntity<List<Camp>> searchByAddress(
             @RequestParam String address) {
-        return ResponseEntity.ok(campService.searchByAddress(address));
+
+        try {
+            // Service의 searchByAddress() 메서드 호출
+            List<Camp> camps = campService.searchByAddress(address);
+            return ResponseEntity.ok(camps);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
     }
 
     // 업체가 등록한 캠핑장 목록 조회 ("내 캠핑장")
@@ -152,11 +181,48 @@ public class CampController {
         // Service 호출
         Camp savedCamp = campService.registerCamp(request, owner.id());
         // Entity -> Response DTO 변환하기
-
         CampResponseDto responseDto = CampResponseDto.from(savedCamp);
         // Envelope로 감싸기
         CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
         // 201 Created로 응답 반환
         return ResponseEntity.status(201).body(response);
     }
+
+    // 캠핑장 정보 수정 기능
+    @PreAuthorize("hasRole('CAMP_OWNER')")
+    @PatchMapping("/{campId}")
+    public ResponseEntity<CampDetailResponseDto> updateCamp(
+            @PathVariable
+            Long campId,
+            @Valid
+            @RequestBody
+            CampUpdateRequest request,
+            @AuthenticationPrincipal
+            AuthUser owner
+    ){
+        // Service 호출 하기
+        Camp modifyCamp = campService.updateCamp(campId,request,owner.id());
+        // 엔티티 -> ResponseDTO 변환
+        CampResponseDto responseDto = CampResponseDto.from(modifyCamp);
+        // Envelope로 감싸기
+        CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
+        // 응답반환
+        return ResponseEntity.ok(response);
+    }
+
+    // 캠핑장 삭제 (softDelete) controller
+    @Operation(summary = "캠핑장 삭제",
+            description = "캠핑업체(CAMP_OWNER)가 본인이 등록한 캠핑장을 삭제(소프트 삭제) 처리합니다.")
+    @PreAuthorize("hasRole('CAMP_OWNER')")
+    @DeleteMapping("/{campId}")
+    public ResponseEntity<Void> deleteCamp(
+            @PathVariable Long campId,
+            @AuthenticationPrincipal AuthUser owner
+    ){
+        // Service 의 DeleteCamp() 호출하기
+        campService.deleteCamp(campId, owner.id());
+        // 204 No Content 로 응답 반환하기
+        return ResponseEntity.noContent().build();
+    }
+
 }
