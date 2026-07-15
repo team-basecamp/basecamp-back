@@ -168,9 +168,10 @@ public class ReservationService {
     public ReservationStatsResponse getReservationStats(Long ownerId) {
         List<ReservationStatus> confirmedOnly = List.of(ReservationStatus.RESERVED);
 
-        LocalDateTime monthStart = LocalDate.now().withDayOfMonth(1).atStartOfDay();
+        LocalDate today = LocalDate.now();
+        LocalDateTime monthStart = today.withDayOfMonth(1).atStartOfDay();
         LocalDateTime nextMonthStart = monthStart.plusMonths(1);
-        LocalDateTime yearStart = LocalDate.now().withDayOfYear(1).atStartOfDay();
+        LocalDateTime yearStart = today.withDayOfYear(1).atStartOfDay();
         LocalDateTime nextYearStart = yearStart.plusYears(1);
 
         long monthlyRevenue = reservationRepository.sumRevenueByOwnerAndPeriod(

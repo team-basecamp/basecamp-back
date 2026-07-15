@@ -95,7 +95,7 @@ public class ReservationController {
     }
 
     @Operation(summary = "예약 통계", description = "사업자 대시보드용 예약 현황 통계 (확정 예약 기준)")
-    //@PreAuthorize("hasRole('CAMP_OWNER')")
+    @PreAuthorize("hasRole('CAMP_OWNER')")
     @GetMapping("/stats")
     public ResponseEntity<ReservationStatsResponse> getReservationStats(
             @AuthenticationPrincipal AuthUser user) {
