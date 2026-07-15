@@ -73,6 +73,11 @@ public class CommentService {
         Comment comment = commentRepository.findByIdWithUser(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
+        // 이미 삭제/블라인드된 댓글은 수정할 수 없다. (존재 사실이 새지 않도록 없는 댓글과 동일하게 404)
+        if (!comment.isActive()) {
+            throw new BusinessException(ErrorCode.COMMENT_NOT_FOUND);
+        }
+
         // 노출 정책을 작성/조회와 동일하게 맞춘다. (숨김/삭제된 글의 댓글은 수정도 막는다.)
         //   DELETED : 소프트 삭제된 글. 존재 사실이 새지 않도록 없는 글과 동일하게 404.
         //   BLINDED : 관리자가 가린 글. 가려진 동안에는 댓글도 수정할 수 없으므로 403.
