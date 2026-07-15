@@ -27,8 +27,10 @@ public interface PostReportRepository extends JpaRepository<PostReport, Long> {
 
     // 특정 게시글의 아직 처리되지 않은(PENDING) 신고들을 일괄 ACCEPTED로 바꾼다.
     // 관리자가 글을 블라인드하면 그 글에 쌓인 대기 신고는 조치가 끝난 것이므로 큐에서 내린다.
-    // 벌크 UPDATE라 영속성 컨텍스트를 우회하므로, 남아 있을 수 있는 stale 엔티티를 비우도록 clearAutomatically를 켠다.
-    @Modifying(clearAutomatically = true)
+    // 벌크 UPDATE라 영속성 컨텍스트를 우회한다. 실행 전 flush(flushAutomatically)로 아직 반영되지 않은 변경(블라인드 처리 등)을
+    // DB에 먼저 내보내고, 실행 후 clear(clearAutomatically)로 남아 있을 수 있는 stale 엔티티를 비운다.
+    // 이 순서가 메서드 안에 갇혀 있어야 호출부가 flush 시점을 신경 쓰지 않아도 안전하다.
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             update PostReport r
                set r.status = com.basecamp.backend.domain.post.entity.ReportStatus.ACCEPTED
