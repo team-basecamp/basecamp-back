@@ -15,15 +15,11 @@ public record PostListResponse(
         Integer commentCount
 ) {
 
-    // TODO: 댓글 수 하드코딩. comment 도메인이 아직 목록 조회에 붙지 않아 임시로 10을 내려준다.
-    //       comments 테이블이 붙으면 post_id로 GROUP BY COUNT한 값을 조회 쿼리에서 함께 가져와야 한다.
-    //       게시글마다 count 쿼리를 따로 날리면 N+1이 되므로, 목록 쿼리에 집계를 합치거나
-    //       posts에 comment_count 반정규화 컬럼을 두는 방식 중 하나를 골라야 한다.
-    private static final Integer COMMENT_COUNT_PLACEHOLDER = 10;
-
     // 엔티티 → DTO 변환 정적 팩토리.
     // post.getUser()에 접근하므로 호출 전에 작성자가 함께 로딩돼 있어야 한다. (리포지토리의 @EntityGraph 참고)
-    public static PostListResponse from(Post post) {
+    // commentCount는 목록 쿼리와 별도로 post_id 집계로 미리 구한 값을 받는다.
+    // (게시글마다 count를 따로 조회하면 N+1이 되므로 페이지 단위로 한 번에 집계한다 — CommentRepository.countByPostIds 참고)
+    public static PostListResponse from(Post post, int commentCount) {
         return new PostListResponse(
                 post.getPostId(),
                 post.getCategory(),
@@ -31,7 +27,7 @@ public record PostListResponse(
                 post.getUser().getNickname(),
                 post.getCreatedAt(),
                 post.getViewCount(),
-                COMMENT_COUNT_PLACEHOLDER
+                commentCount
         );
     }
 }

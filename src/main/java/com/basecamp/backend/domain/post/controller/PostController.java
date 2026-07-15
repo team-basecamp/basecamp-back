@@ -2,10 +2,14 @@ package com.basecamp.backend.domain.post.controller;
 
 import com.basecamp.backend.common.model.AuthUser;
 import com.basecamp.backend.domain.post.dto.request.PostCreateRequest;
+import com.basecamp.backend.domain.post.dto.request.PostReportRequest;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
 import com.basecamp.backend.domain.post.dto.response.PostDeleteResponse;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
 import com.basecamp.backend.domain.post.dto.response.PostListCursorResponse;
+import com.basecamp.backend.domain.post.dto.response.PostReportResponse;
+import org.springframework.dao.DataIntegrityViolationException;
+import com.basecamp.backend.domain.post.dto.response.PostReportResponse;
 import com.basecamp.backend.domain.post.service.PostService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -90,5 +94,18 @@ public class PostController {
         postService.delete(user.id(), postId);
         // 삭제 후 React가 게시글 목록(GET /api/v1/posts)으로 이동하도록 경로를 내려준다.
         return ResponseEntity.ok(PostDeleteResponse.toPostList());
+    }
+
+    // 게시글 신고: 경로의 postId 게시글을 로그인 회원이 신고 접수한다.
+    @Operation(summary = "게시글 신고", description = "로그인한 사용자가 게시글을 신고한다. 접수된 신고 id와 안내 메시지를 반환한다.")
+    @PostMapping("/api/v1/posts/{postId}/report")
+    public ResponseEntity<PostReportResponse> reportPost(
+            @AuthenticationPrincipal AuthUser user,           // JWT에서 꺼낸 로그인 회원 (id, role)
+            @PathVariable("postId") Long postId,              // 신고할 게시글 id (경로 변수, 본문의 postId보다 우선)
+            @RequestBody @Valid PostReportRequest request) {  // 신고 요청 본문(검증 대상)
+        // 신고자 id는 토큰에서 꺼낸 user.id()만 신뢰한다. (요청 본문의 값을 믿지 않는다)
+        PostReportResponse response = postService.report(user.id(), postId, request);
+        // 신고 접수 성공은 201 Created 로 응답
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
