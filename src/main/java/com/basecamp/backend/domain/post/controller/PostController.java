@@ -14,13 +14,19 @@ import com.basecamp.backend.domain.post.service.PostService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Encoding;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.multipart.MultipartFile;
 
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -30,12 +36,27 @@ public class PostController {
     private final PostService postService;
 
     // 게시글 작성: 인증 회원(userId)이 새 글을 등록하고 생성된 게시글을 반환한다.
-    @Operation(summary = "게시글 작성", description = "인증된 사용자가 새 게시글을 작성한다.")
-    @PostMapping("/api/v1/posts")
+    // multipart/form-data 로 받는다 — 본문 필드는 application/json 파트 "request", 이미지는 파일 파트 "images"(선택).
+    @Operation(
+            summary = "게시글 작성",
+            description = "인증된 사용자가 새 게시글을 작성한다. multipart/form-data 로 전송하며, "
+                    + "'request'(application/json) 파트에 제목·내용·카테고리를, 'images' 파트에 이미지 파일들을 담는다. "
+                    + "이미지는 선택이며 로컬에 저장되고 응답의 imageUrls 에 상대경로(/images/파일명)로 내려간다."
+    )
+    // Swagger UI 가 'request' 파트를 text/plain 으로 보내 415 가 나는 것을 막는다.
+    // @Encoding 으로 해당 파트의 Content-Type 을 application/json 으로 명시한다. (문서/Swagger 전송 형식에만 영향, 런타임 계약은 그대로)
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            content = @Content(
+                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    encoding = @Encoding(name = "request", contentType = MediaType.APPLICATION_JSON_VALUE)
+            )
+    )
+    @PostMapping(value = "/api/v1/posts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<PostDetailResponse> createPost(
-            @AuthenticationPrincipal AuthUser user,           // JWT에서 꺼낸 로그인 회원 (id, role)
-            @RequestBody @Valid PostCreateRequest request) {  // 작성 요청 본문(검증 대상)
-        PostDetailResponse response = postService.createPost(user.id(), request.category(), request.title(), request.content());
+            @AuthenticationPrincipal AuthUser user,                 // JWT에서 꺼낸 로그인 회원 (id, role)
+            @RequestPart("request") @Valid PostCreateRequest request, // 작성 요청 본문(JSON 파트, 검증 대상)
+            @RequestPart(value = "images", required = false) List<MultipartFile> images) { // 첨부 이미지(선택)
+        PostDetailResponse response = postService.createPost(user.id(), request, images);
         // 생성 성공은 201 Created 로 응답
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -96,7 +117,7 @@ public class PostController {
         return ResponseEntity.ok(PostDeleteResponse.toPostList());
     }
 
-    // 게시글 신고: 경로의 postId 게시글을 로그인 회원이 신고 접수한다.
+    // 게시글 신고: 경로의 postId 게시글을 로그인 회원이 신고 접수한다.     .
     @Operation(summary = "게시글 신고", description = "로그인한 사용자가 게시글을 신고한다. 접수된 신고 id와 안내 메시지를 반환한다.")
     @PostMapping("/api/v1/posts/{postId}/report")
     public ResponseEntity<PostReportResponse> reportPost(

@@ -58,7 +58,7 @@ public class UserController {
 	@Operation(summary = "내가 쓴 게시글 목록 조회",
 			description = "로그인한 회원이 작성한 게시글 목록을 최신순으로 조회한다. "
 					+ "첫 페이지는 cursor 없이 요청하고, 이후에는 응답의 nextCursor를 그대로 cursor에 실어 보낸다. "
-					+ "hasNext가 false면 nextCursor는 null이고 더 조회할 목록이 없다. 삭제·블라인드된 글은 목록에서 제외된다.")
+					+ "hasNext가 false면 nextCursor는  null이고 더 조회할 목록이 없다. 삭제·블라인드된 글은 목록에서 제외된다.")
 	@GetMapping("/me/posts")
 	public ResponseEntity<MyPostCursorResponse> getMyPosts(
 			@AuthenticationPrincipal AuthUser user,

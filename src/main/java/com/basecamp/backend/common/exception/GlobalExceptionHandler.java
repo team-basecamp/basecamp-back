@@ -16,6 +16,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -75,6 +76,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 		log.warn("AccessDeniedException: {}", ex.getMessage());
 		return ResponseEntity.status(ErrorCode.ACCESS_DENIED.getStatus())
 				.body(ApiResponse.error(ErrorCode.ACCESS_DENIED));
+	}
+
+	/** 업로드 파일 용량이 {@code spring.servlet.multipart} 상한을 넘겼을 때 — 413 으로 봉투에 담아 알려준다. */
+	@Override
+	protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
+			MaxUploadSizeExceededException ex,
+			HttpHeaders headers,
+			HttpStatusCode status,
+			WebRequest request) {
+		log.warn("MaxUploadSizeExceededException: {}", ex.getMessage());
+		ApiResponse<Void> body = ApiResponse.error(ErrorCode.IMAGE_SIZE_EXCEEDED);
+		return handleExceptionInternal(ex, body, headers, ErrorCode.IMAGE_SIZE_EXCEEDED.getStatus(), request);
 	}
 
 	@ExceptionHandler(Exception.class)

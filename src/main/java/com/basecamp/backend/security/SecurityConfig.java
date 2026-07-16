@@ -1,5 +1,6 @@
 package com.basecamp.backend.security;
 
+import com.basecamp.backend.common.storage.FileStorageProperties;
 import com.basecamp.backend.security.cache.TokenBlacklistCache;
 import com.basecamp.backend.security.cache.UserRevocationCache;
 import com.basecamp.backend.security.config.CookieProperties;
@@ -41,7 +42,7 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class, CookieProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class, CookieProperties.class, FileStorageProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -60,10 +61,15 @@ public class SecurityConfig {
 	private final TokenBlacklistCache tokenBlacklistCache;
 	private final UserRevocationCache userRevocationCache;
 	private final CorsProperties corsProperties;
+	private final FileStorageProperties fileStorageProperties;
 	private final ObjectMapper objectMapper;
 
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		// WebConfig 리소스 핸들러와 같은 값을 써서 정확히 같은 경로만 공개한다.
+		// 정규화·검증은 FileStorageProperties 바인딩 시점에 끝나므로 여기서 다시 손대지 않는다.
+		String matcher = fileStorageProperties.getUrlPrefixPattern();
+
 		http
 				.csrf(AbstractHttpConfigurer::disable)
 				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -74,6 +80,8 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
 						.requestMatchers(SWAGGER_ENDPOINTS).permitAll()
+						// 업로드/더미 이미지는 로그인 없이 URL로 접근 가능해야 하므로 GET 조회를 공개한다.
+						.requestMatchers(HttpMethod.GET, matcher).permitAll()
 						// 홈페이지 시/도 날씨 위젯은 비로그인 방문자도 봐야 하므로 공개한다.
 						.requestMatchers(HttpMethod.GET, "/api/v1/weather/**").permitAll()
 						// "내 캠핑장" 조회는 로그인한 소유자 본인만 볼 수 있어야 하므로, 아래 공개 규칙보다 먼저 인증을 요구한다.
