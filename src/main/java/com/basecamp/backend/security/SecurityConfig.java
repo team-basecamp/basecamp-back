@@ -74,6 +74,8 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
 						.requestMatchers(SWAGGER_ENDPOINTS).permitAll()
+						// 업로드/더미 이미지는 로그인 없이 URL로 접근 가능해야 하므로 GET 조회를 공개한다.
+						.requestMatchers(HttpMethod.GET, "/images/**").permitAll()
 						// "내 캠핑장" 조회는 로그인한 소유자 본인만 볼 수 있어야 하므로, 아래 공개 규칙보다 먼저 인증을 요구한다.
 						// 먼저 매칭된 규칙이 이긴다. 순서를 바꾸면 /my 가 조용히 공개된다(CampControllerSecurityTest 가 잡는다).
 						.requestMatchers(HttpMethod.GET, "/api/v1/camps/my").authenticated()

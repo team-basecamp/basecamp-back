@@ -2,6 +2,7 @@ package com.basecamp.backend.domain.post.entity;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.domain.user.entity.Image;
 import com.basecamp.backend.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -9,6 +10,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 // 게시글 엔티티. posts 테이블과 매핑되며, 게시판 글 한 건을 표현한다.
 @Entity
@@ -58,6 +61,17 @@ public class Post {
     @Column(name = "blind_reason", length = 200)
     private String blindReason;
 
+    // 게시글 첨부 이미지 (1 게시글 : N 이미지). V3의 공용 저장소(images)와 중간 테이블(post_images)로 연결한다.
+    // post_images는 순수 LIST 조인이라 @OrderColumn(sort_order)로 첨부 순서를 그대로 보존한다.
+    // cascade=PERSIST: 게시글 저장 시 새 Image 행과 연결(post_images)이 함께 저장된다. (created_at은 DB DEFAULT)
+    @ManyToMany(cascade = CascadeType.PERSIST)
+    @JoinTable(
+            name = "post_images",
+            joinColumns = @JoinColumn(name = "post_id"),
+            inverseJoinColumns = @JoinColumn(name = "image_id"))
+    @OrderColumn(name = "sort_order")
+    private List<Image> images = new ArrayList<>();
+
     // 작성 일시
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -84,6 +98,15 @@ public class Post {
         this.viewCount = 0;
         this.status = PostStatus.ACTIVE;
         this.createdAt = LocalDateTime.now();
+    }
+
+    // 게시글에 이미지를 첨부한다. 저장소에 올린 뒤 만든 Image들을 순서대로 붙인다(전달 순서가 곧 노출 순서).
+    // 비어 있으면 아무것도 하지 않는다. (수정 시 교체 로직이 붙을 확장 지점)
+    public void attachImages(List<Image> images) {
+        if (images == null || images.isEmpty()) {
+            return;
+        }
+        this.images.addAll(images);
     }
 
     // 게시글 수정. 변경 감지(dirty checking)로 트랜잭션 커밋 시점에 UPDATE 되도록 필드 값만 바꾼다.

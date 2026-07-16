@@ -2,8 +2,10 @@ package com.basecamp.backend.domain.post.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.common.storage.FileStorageService;
 import com.basecamp.backend.domain.comment.dto.PostCommentCount;
 import com.basecamp.backend.domain.comment.repository.CommentRepository;
+import com.basecamp.backend.domain.post.dto.request.PostCreateRequest;
 import com.basecamp.backend.domain.post.dto.request.PostCursorRequest;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
 import com.basecamp.backend.domain.post.dto.request.PostReportRequest;
@@ -18,6 +20,7 @@ import com.basecamp.backend.domain.post.entity.PostStatus;
 import com.basecamp.backend.domain.post.entity.ReportStatus;
 import com.basecamp.backend.domain.post.repository.PostReportRepository;
 import com.basecamp.backend.domain.post.repository.PostRepository;
+import com.basecamp.backend.domain.user.entity.Image;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +28,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -51,6 +55,8 @@ public class PostService {
     private final PostReportRepository postReportRepository;
     // 목록의 댓글 수 집계용 리포지토리 (post_id 단위 GROUP BY COUNT)
     private final CommentRepository commentRepository;
+    // 첨부 이미지를 로컬 저장소에 올리고 상대경로를 돌려주는 저장 서비스 (로컬/원격 구현 교체 가능)
+    private final FileStorageService fileStorageService;
 
     // 게시글 목록 조회: 카테고리로 걸러 최신순 한 페이지를 반환한다. (클래스 기본 readOnly 트랜잭션)
     // category가 없거나 ALL이면 3개 카테고리 전부, 즉 카테고리 조건을 걸지 않은 결과를 준다.
@@ -176,9 +182,10 @@ public class PostService {
         return PostDetailResponse.from(post);
     }
 
-    // 게시글 작성: 작성자를 검증한 뒤 새 글을 저장하고 상세 응답으로 반환한다. (쓰기 트랜잭션)
+    // 게시글 작성: 작성자를 검증하고 첨부 이미지를 저장한 뒤 새 글을 저장하고 상세 응답으로 반환한다. (쓰기 트랜잭션)
+    // images는 선택 사항(null/빈 목록 가능)이며, 있으면 로컬 저장소에 올린 상대경로로 Image를 만들어 함께 저장한다.
     @Transactional
-    public PostDetailResponse createPost(Long userId, String category, String title, String content){
+    public PostDetailResponse createPost(Long userId, PostCreateRequest request, List<MultipartFile> images){
         // 작성자 회원을 먼저 조회한다. 응답에 nickname을 담아야 하므로 프록시(getReferenceById)가 아닌
         // findById로 실제 로딩하고, 존재하지 않으면 예외로 막는다.
         // (JWT는 통과했지만 탈퇴/삭제 등으로 회원이 사라졌을 수 있어 DB 존재 여부를 최종 검증한다.)
@@ -187,9 +194,19 @@ public class PostService {
 
         // 카테고리 문자열을 enum으로 확정한다. 요청 DTO의 @Pattern이 1차로 걸러 주지만,
         // 서비스 경계에서 다시 검증해 유효하지 않으면 400(INVALID_INPUT_VALUE)으로 막는다.
-        Post post = new Post(user, PostCategory.from(category), title, content);
+        Post post = new Post(user, PostCategory.from(request.category()), request.title(), request.content());
+
+        // 첨부 이미지를 저장소에 올려 상대경로(/images/xxx.jpg)를 받고, 그 경로로 Image를 만들어 게시글에 붙인다.
+        // storeAll이 null/빈 목록·형식·개수 검증을 담당하므로 여기서는 반환된 경로만 매핑한다.
+        // (검증 실패 시 예외가 나면 트랜잭션이 롤백되지만, 이미 디스크에 쓰인 파일 정리는 후속 과제로 남긴다.)
+        List<Image> attachedImages = fileStorageService.storeAll(images).stream()
+                .map(Image::of)
+                .toList();
+        post.attachImages(attachedImages);
+
         // 저장한 뒤 방금 쓴 게시글을 그대로 볼 수 있게 응답 DTO로 변환해 반환.
         // user가 이미 로딩된 상태라 from()에서 nickname 접근 시 추가 쿼리가 발생하지 않는다.
+        // cascade=PERSIST 로 Image 행과 post_images 연결이 함께 저장된다.
         Post saved = postRepository.save(post);
         return PostDetailResponse.from(saved);
     }
