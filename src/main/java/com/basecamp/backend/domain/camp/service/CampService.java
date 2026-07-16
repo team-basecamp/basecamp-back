@@ -216,6 +216,9 @@ public class CampService {
     @Transactional(readOnly = true)
     public CampListResponseDto searchCamps(String keyword, String region, String induty,
                                             Integer priceMax, String sort, int pageNo, int numOfRows) {
+        if (numOfRows <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE, "numOfRows는 1이상이어야 합니다");
+        }
         int page = Math.max(pageNo - 1, 0);
         Page<Camp> result;
 
