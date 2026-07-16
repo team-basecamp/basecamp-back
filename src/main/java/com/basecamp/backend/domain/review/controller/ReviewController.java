@@ -23,7 +23,7 @@ public class ReviewController {
     @PostMapping("/api/v1/reservations/{reservationId}/reviews")
     public ResponseEntity<ReviewResponse> createReview(
             @AuthenticationPrincipal AuthUser user,                 // JWT에서 꺼낸 로그인 회원 (id, role)
-            @PathVariable Long reservationId,      // 리뷰를 남길 예약 id (경로 변수)
+            @PathVariable Long reservationId,                       // 리뷰를 남길 예약 id (경로 변수)
             @RequestBody @Valid ReviewRequest request) {            // 작성 요청 본문(검증 대상)
 
         ReviewResponse response = reviewService.createReview(user.id(), reservationId, request);
@@ -36,12 +36,24 @@ public class ReviewController {
     @PostMapping("/api/v1/reviews/{reviewId}")
     public ResponseEntity<ReviewResponse> updateReview(
             @AuthenticationPrincipal AuthUser user,                 // JWT에서 꺼낸 로그인 회원 (id, role)
-            @PathVariable Long reviewId,                // 수정할 리뷰 id (경로 변수)
+            @PathVariable Long reviewId,                            // 수정할 리뷰 id (경로 변수)
             @RequestBody @Valid ReviewRequest request) {            // 수정 요청 본문(검증 대상)
 
         ReviewResponse response = reviewService.updateReview(user.id(), reviewId, request);
 
         return ResponseEntity.ok(response);
+    }
+
+    // 리뷰 삭제: 인증 회원이 본인이 쓴 리뷰(reviewId)를 삭제한다. (하드 삭제)
+    @Operation(summary = "리뷰 삭제", description = "예약자 본인이 작성한 리뷰를 삭제한다.")
+    @PostMapping("/api/v1/reviews/{reviewId}/delete")
+    public ResponseEntity<Void> deleteReview(
+            @AuthenticationPrincipal AuthUser user,                 // JWT에서 꺼낸 로그인 회원 (id, role)
+            @PathVariable Long reviewId) {                          // 삭제할 리뷰 id (경로 변수)
+
+        reviewService.deleteReview(user.id(), reviewId);
+
+        return ResponseEntity.noContent().build();
     }
 
 
