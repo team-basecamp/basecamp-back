@@ -1,5 +1,6 @@
 package com.basecamp.backend.security;
 
+import com.basecamp.backend.common.storage.FileStorageProperties;
 import com.basecamp.backend.security.cache.TokenBlacklistCache;
 import com.basecamp.backend.security.cache.UserRevocationCache;
 import com.basecamp.backend.security.config.CookieProperties;
@@ -41,7 +42,7 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class, CookieProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class, CookieProperties.class, FileStorageProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -60,10 +61,16 @@ public class SecurityConfig {
 	private final TokenBlacklistCache tokenBlacklistCache;
 	private final UserRevocationCache userRevocationCache;
 	private final CorsProperties corsProperties;
+	private final FileStorageProperties fileStorageProperties;
 	private final ObjectMapper objectMapper;
 
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		// WebConfig 리소스 핸들러(urlPrefix + "/**")와 같은 경로를 공개하도록 설정값에서 패턴을 만든다.
+		// 접두어 끝에 슬래시 하나만 보장한 뒤 "**" 를 붙인다. ("/images" · "/images/" 모두 "/images/**")
+		String prefix = fileStorageProperties.getUrlPrefix();
+		String matcher = (prefix.endsWith("/") ? prefix : prefix + "/") + "**";
+
 		http
 				.csrf(AbstractHttpConfigurer::disable)
 				.cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -75,7 +82,7 @@ public class SecurityConfig {
 						.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
 						.requestMatchers(SWAGGER_ENDPOINTS).permitAll()
 						// 업로드/더미 이미지는 로그인 없이 URL로 접근 가능해야 하므로 GET 조회를 공개한다.
-						.requestMatchers(HttpMethod.GET, "/images/**").permitAll()
+						.requestMatchers(HttpMethod.GET, matcher).permitAll()
 						// "내 캠핑장" 조회는 로그인한 소유자 본인만 볼 수 있어야 하므로, 아래 공개 규칙보다 먼저 인증을 요구한다.
 						// 먼저 매칭된 규칙이 이긴다. 순서를 바꾸면 /my 가 조용히 공개된다(CampControllerSecurityTest 가 잡는다).
 						.requestMatchers(HttpMethod.GET, "/api/v1/camps/my").authenticated()
