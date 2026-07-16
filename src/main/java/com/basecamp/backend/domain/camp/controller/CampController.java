@@ -1,12 +1,11 @@
 package com.basecamp.backend.domain.camp.controller;
 
-import com.basecamp.backend.common.exception.BusinessException;
-import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampDetailResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
+import com.basecamp.backend.domain.camp.dto.response.CampPriceBackfillResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
@@ -37,7 +36,7 @@ public class CampController {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/sync")
     public ResponseEntity<String> syncCamps(
-            @RequestBody List<GocampingApiResponseDto> apiCamps) {
+            @Valid @RequestBody List<@Valid GocampingApiResponseDto> apiCamps) {
         campService.saveCampsFromApi(apiCamps);
         return ResponseEntity.ok("캠핑장 데이터가 성공적으로 동기화되었습니다");
     }
@@ -60,11 +59,6 @@ public class CampController {
     @GetMapping("/{campId}")
     public ResponseEntity<CampDetailResponseDto> getCampById(@PathVariable Long campId) {
         Camp camp = campService.getCampId(campId);
-
-        if (camp == null) {
-            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
-        }
-
         return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
     }
 
@@ -76,7 +70,7 @@ public class CampController {
         Camp camp = campService.getCampByContentId(contentId);
 
         if (camp == null) {
-            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
+            throw new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
         }
 
         return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
@@ -166,7 +160,7 @@ public class CampController {
     // 업체가 직접 등록하는 캠핑장(camps.owner_id). 공공데이터에서 온 캠핑장(content_id)과 배타적이다.
     // CAMP_OWNER 만 등록할 수 있다. 승격 경로는 #53 의 관리자 심사다.
     @Operation(summary = "내 캠핑장 등록 기능",
-            description = "캠핑없체가 등록한 캠핑장을 최근 등록 순으로 조회 합니다.")
+            description = "캠핑업체(CAMP_OWNER)가 신규 캠핑장을 등록합니다.")
     @PreAuthorize("hasRole('CAMP_OWNER')")
     @PostMapping("/register")
     public ResponseEntity<CampDetailResponseDto> registerCamp(

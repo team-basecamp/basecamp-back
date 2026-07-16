@@ -176,35 +176,41 @@ public class CampService {
         }
     }
 
-    // 특정 캠핑장 ID 조회 (Read)
+    // 특정 캠핑장 ID 조회 (Read). 없으면 CAMP_NOT_FOUND.
+    @Transactional(readOnly = true)
     public Camp getCampId(Long campId){
         return campRepository.findById(campId)
-                .orElse(null); // 없다면 null을 반환하라는 것
+                .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다"));
     }
 
-    // 고캠핑 API의 contentId로 캠핑장 조회 (Read)
+    // 고캠핑 API의 contentId로 캠핑장 조회 (Read). 없으면 CAMP_NOT_FOUND.
+    @Transactional(readOnly = true)
     public Camp getCampByContentId(Long contentId){
         return campRepository.findByContentId(contentId)
-                .orElse(null);
+                .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다"));
     }
 
     // 모든 캠핑장 조회
+    @Transactional(readOnly = true)
     public List <Camp> getAllCamps(){
         return campRepository.findAll();
     }
 
    // 캠핑장 이름으로 검색
+   @Transactional(readOnly = true)
    public List<Camp> searchByName(String name) {
        return campRepository.findByFacltNmContaining(name);
    }
 
    //특정 지역 캠핑장 검색
+   @Transactional(readOnly = true)
    public List<Camp> searchByAddress(String address) {
        return campRepository.findByAddr1Containing(address);
    }
 
     // 키워드/지역/유형/최대금액 필터 + 정렬 + 페이징을 조합한 캠핑장 목록/상세검색 조회
     // sort: recommended(기본, 평점->예약건수순) / rating(평점순) / reviewCount(리뷰많은순) / priceAsc(가격낮은순) / recent(최근등록순)
+    @Transactional(readOnly = true)
     public CampListResponseDto searchCamps(String keyword, String region, String induty,
                                             Integer priceMax, String sort, int pageNo, int numOfRows) {
         int page = Math.max(pageNo - 1, 0);
@@ -228,6 +234,7 @@ public class CampService {
     }
 
     // HOT 캠핑장 조회 (평점순 / 예약건수순)
+    @Transactional(readOnly = true)
     public CampListResponseDto getHotCamps(String sortBy, int pageNo, int numOfRows) {
         Sort sort = "reservationCount".equals(sortBy)
                 ? Sort.by(Sort.Direction.DESC, "reservationCount")
@@ -239,6 +246,7 @@ public class CampService {
     }
 
     // 최근 등록된 캠핑장 조회
+    @Transactional(readOnly = true)
     public CampListResponseDto getRecentCamps(int numOfRows) {
         return searchCamps(null, null, null, null, "recent", 1, numOfRows);
     }
@@ -364,12 +372,8 @@ public class CampService {
     // 더티 체킹에 기대는 대신 명시적으로 save()를 호출한다.
     public Camp updateCamp(Long campId, CampUpdateRequest request, Long ownerId){
 
-        // campId 로 DB에서 조회를 시도하기 ( 기존의 getCampId)메서드를 재사용하여
+        // campId 로 DB에서 조회를 시도하기 ( 기존의 getCampId)메서드를 재사용하여, 없으면 CAMP_NOT_FOUND
         Camp camp = getCampId(campId);
-        // campId로 캠핑장 조회 : 없으면 예외 ( 에러코드 )
-        if(camp == null) {
-            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND,"캠핑장을 찾을 수 없습니다.");
-        }
 
         // 권한 검증 : camp와 로그인 한 사람이 맞는지?
         if (!java.util.Objects.equals(camp.getOwnerId(), ownerId)) {
@@ -398,12 +402,8 @@ public class CampService {
     // 캠핑장 삭제 기능 구현
     @Transactional
     public void deleteCamp(Long campId, Long ownerId){
-        // campId 로 캠핑장을 조회하기
+        // campId 로 캠핑장을 조회하기, 없으면 CAMP_NOT_FOUND (예외)
         Camp camp = getCampId(campId);
-        // 없으면 CAMP_NOT_FOUND (예외)
-        if(camp == null){
-            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND,"삭제할 캠핑장이 없습니다");
-        }
         // 소유자 권한 검증 (ACCESS_DENIED)
         if(!java.util.Objects.equals(camp.getOwnerId(),ownerId)){
             throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장이 아닙니다");
