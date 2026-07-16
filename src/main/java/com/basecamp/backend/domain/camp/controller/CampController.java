@@ -1,22 +1,29 @@
 package com.basecamp.backend.domain.camp.controller;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
-import com.basecamp.backend.domain.camp.dto.response.CampDetailResponseDto;
-import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
-import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
+import com.basecamp.backend.domain.camp.dto.response.*;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
+import com.basecamp.backend.domain.weather.service.WeatherService;
+import com.basecamp.backend.domain.weather.dto.response.CampWeatherResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.service.GenericResponseService;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import com.basecamp.backend.common.model.AuthUser;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
+
+import java.time.LocalDate;
 import java.util.List;
 
 // 캠핑장 API 앤드포인트
@@ -28,6 +35,7 @@ public class CampController {
     // Service 자동 주입
     private final CampService campService;
     private final GenericResponseService responseBuilder;
+    private final WeatherService weatherService;
 
     //고캠핑 API에서 캠핑장 데이터를 동기화
     @Operation(summary = "고캠핑 API 데이터 동기화",
@@ -67,6 +75,11 @@ public class CampController {
     @GetMapping("/content/{contentId}")
     public ResponseEntity<CampDetailResponseDto> getCampByContentId(@PathVariable Long contentId) {
         Camp camp = campService.getCampByContentId(contentId);
+
+        if (camp == null) {
+            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
+        }
+
         return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
     }
 
@@ -210,6 +223,19 @@ public class CampController {
         campService.deleteCamp(campId, owner.id());
         // 204 No Content 로 응답 반환하기
         return ResponseEntity.noContent().build();
+    }
+
+    // 캠핑장 예약일 날씨 조회
+    // 캠핑장에 "속한" 리소스이므로 /camps/{campId} 하위에 둔다(api-design.md 의 /camps/{campId}/reviews 와 같은 형태).
+    @Operation(summary = "캠핑장 예약일 날씨 조회",
+            description = "캠핑장 좌표 기준으로 체크인~체크아웃 기간의 날씨를 조회합니다. "
+                    + "예보 범위(5일)를 벗어난 날짜는 결과에 포함되지 않습니다.")
+    @GetMapping("/{campId}/weather")
+    public ResponseEntity<CampWeatherResponseDto> getCampWeather(
+            @PathVariable Long campId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkInDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOutDate) {
+        return ResponseEntity.ok(weatherService.getCampWeather(campId, checkInDate, checkOutDate));
     }
 
 }
