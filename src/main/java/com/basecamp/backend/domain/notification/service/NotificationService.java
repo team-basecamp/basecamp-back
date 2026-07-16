@@ -73,9 +73,18 @@ public class NotificationService {
 	 *
 	 * <p>트리거 트랜잭션의 커밋 이후({@code AFTER_COMMIT})에 호출되므로, 저장은 <b>새 트랜잭션</b>에서 이뤄져야 한다
 	 * ({@code REQUIRES_NEW}). 알림 저장 실패는 트리거(예약 확정 등)를 되돌리지 않는다 — 알림은 best-effort 다.</p>
+	 *
+	 * <p><b>멱등 보장:</b> 같은 {@code (userId, type, targetId)} 알림이 이미 있으면 저장도 push 도 하지 않는다.
+	 * 스케줄러 재실행이나 다중 인스턴스에서 D-1 등 알림이 중복 발송되는 것을 막는다. 아래 존재 검사는 재실행을
+	 * 조용히 걸러내는 fast-path 이고, 인스턴스 간 동시 삽입 경합의 <b>최종 방어선은 DB 유니크 제약</b>
+	 * {@code uq_notif_user_type_target}(V22) 이다 — 경합에서 진 쪽의 저장은 무결성 예외로 실패하고 push 되지 않는다.</p>
 	 */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void send(Long userId, NotificationType type, Long targetId, String arg) {
+		// 이미 보낸 알림이면 재발송하지 않는다(멱등). target 이 없는 알림(공지 등)은 중복 개념이 없어 검사에서 제외.
+		if (targetId != null && notificationRepository.existsByUserIdAndTypeAndTargetId(userId, type, targetId)) {
+			return;
+		}
 		Notification saved = notificationRepository.save(
 				Notification.create(userId, type, type.render(arg), targetId));
 		push(userId, NotificationResponse.from(saved));

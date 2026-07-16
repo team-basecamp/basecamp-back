@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.basecamp.backend.domain.notification.entity.Notification;
+import com.basecamp.backend.domain.notification.entity.NotificationType;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
@@ -19,6 +20,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
 	/** 안읽은 알림 개수(뱃지 표시용). */
 	long countByUserIdAndIsReadFalse(Long userId);
+
+	/**
+	 * 같은 (수신자, 종류, 대상)의 알림이 이미 있는지. 발송 멱등성 확보용 — 스케줄러 재실행 시
+	 * 유니크 제약 위반 예외 없이 조용히 스킵하기 위한 fast-path 다({@code uq_notif_user_type_target}).
+	 */
+	boolean existsByUserIdAndTypeAndTargetId(Long userId, NotificationType type, Long targetId);
 
 	/**
 	 * 내 안읽은 알림을 한 번의 UPDATE 로 전부 읽음 처리한다.

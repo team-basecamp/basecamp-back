@@ -104,6 +104,21 @@ class NotificationServiceTest {
 		verify(emitterRepository).remove(USER_ID, deadEmitter);
 	}
 
+	@Test
+	@DisplayName("send_같은알림이이미있으면_저장도push도하지않는다(멱등)")
+	void send_이미같은알림이있으면_스킵한다() {
+		// given: 같은 (userId, type, targetId) 알림이 이미 존재(스케줄러 재실행/중복 트리거 상황).
+		given(notificationRepository.existsByUserIdAndTypeAndTargetId(USER_ID, NotificationType.RESERVATION_D1, 42L))
+				.willReturn(true);
+
+		// when
+		notificationService.send(USER_ID, NotificationType.RESERVATION_D1, 42L, "해운대 오토캠핑장");
+
+		// then: 중복 저장/전송이 없다.
+		verify(notificationRepository, never()).save(any());
+		verify(emitterRepository, never()).findByUserId(any());
+	}
+
 	// ── 읽음 처리 ─────────────────────────────────────────────────────────
 
 	@Test

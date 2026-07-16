@@ -20,6 +20,10 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>매일 오전 10시에 <b>다음 날 체크인하는 확정({@code RESERVED}) 예약</b>을 찾아 예약자에게 알림을 보낸다.
  * 한 건의 실패가 나머지를 막지 않도록 개별 예약마다 예외를 잡는다.</p>
+ *
+ * <p>스케줄러 재실행이나 다중 인스턴스에서 같은 예약에 D-1 알림이 <b>중복 발송되지 않는다</b>. 중복 방지는
+ * {@code NotificationService.send()} 의 멱등 처리(존재 검사 + DB 유니크 제약 {@code uq_notif_user_type_target})가
+ * 책임지므로, 이 스케줄러는 대상 조회와 발송 위임만 한다.</p>
  */
 @Slf4j
 @Component
