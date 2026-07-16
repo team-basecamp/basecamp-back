@@ -74,7 +74,7 @@ public class Camp {
     private String firstImageUrl;
 
     @Column(name = "manage_sttus", length = 20, nullable = false)
-    private String manageSttus;
+    private CampManageStatus manageSttus;
 
     @Column(name = "lineIntro", length = 500)
     private String lineIntro;
@@ -208,7 +208,7 @@ public class Camp {
                 .autoSiteCo(dto.getAutoSiteCo())
                 .glampSiteCo(dto.getGlampSiteCo())
                 .firstImageUrl(dto.getFirstImageUrl())
-                .manageSttus(dto.getManageSttus())
+                .manageSttus(CampManageStatus.fromLabel(dto.getManageSttus()))
                 .lineIntro(truncate(dto.getIntro(), 500))
                 .homepage(truncate(dto.getHomepage(), 255))
                 .sbrsCl(truncate(dto.getSbrsCl(), 500))

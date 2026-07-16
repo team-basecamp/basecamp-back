@@ -40,6 +40,13 @@ public class Comment {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
+    // 댓글 노출 상태 (comments.status). 게시글 status와 동일한 소프트 삭제 정책.
+    // 실제 행은 지우지 않고 이 값만 바꾸며, 목록에서는 상태에 맞는 안내 문구로 대체 노출한다.
+    // 이름 문자열('ACTIVE'/'BLINDED'/'DELETED')로 저장하도록 EnumType.STRING을 쓴다.
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20, nullable = false)
+    private CommentStatus status;
+
     // 작성 일시
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -56,6 +63,7 @@ public class Comment {
         this.user = user;
         this.content = content;
         // DB DEFAULT가 있어도 JPA가 NULL로 밀어넣으면 적용되지 않아 자바단에서 초기값을 채운다.
+        this.status = CommentStatus.ACTIVE;
         this.createdAt = LocalDateTime.now();
     }
 
@@ -63,6 +71,23 @@ public class Comment {
     // 관리 상태(영속 컨텍스트) 엔티티에서 호출하면 트랜잭션 커밋 시 변경 감지로 UPDATE가 나간다.
     public void updateContent(String content) {
         this.content = content;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    // 아직 노출 중인 정상 댓글인지 여부. 이미 삭제/블라인드된 댓글의 재삭제·수정을 막는 데 쓴다.
+    public boolean isActive() {
+        return this.status.isActive();
+    }
+
+    // 작성자 본인 삭제(소프트 삭제). 실제 행을 지우지 않고 상태만 DELETED로 바꾼다.
+    public void deleteByOwner() {
+        this.status = CommentStatus.DELETED;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    // 관리자 삭제(소프트 삭제). 존재 자체는 남기고 상태만 BLINDED로 바꿔 안내 문구로 가린다.
+    public void blindByAdmin() {
+        this.status = CommentStatus.BLINDED;
         this.updatedAt = LocalDateTime.now();
     }
 }

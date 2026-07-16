@@ -64,9 +64,18 @@ public enum ErrorCode {
 	POST_NOT_FOUND(HttpStatus.NOT_FOUND, "PO001", "게시글을 찾을 수 없습니다."),
 	POST_BLINDED(HttpStatus.FORBIDDEN, "PO002", "관리자에 의해 블라인드 처리된 게시글입니다."),
 	ALREADY_REPORTED_POST(HttpStatus.CONFLICT, "PO003", "이미 신고한 게시글입니다."),
+	POST_ALREADY_BLINDED(HttpStatus.CONFLICT, "PO004", "이미 블라인드 처리된 게시글입니다."),
+	REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "PO005", "신고 내역을 찾을 수 없습니다."),
+	REPORT_ALREADY_PROCESSED(HttpStatus.CONFLICT, "PO006", "이미 처리된 신고입니다."),
+
 
 	// Comment (댓글)
 	COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "CM001", "댓글을 찾을 수 없습니다."),
+
+	// Review (리뷰)
+	REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "RV001", "리뷰를 찾을 수 없습니다."),
+	REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "RV002", "이미 작성한 리뷰가 있습니다."),
+	REVIEW_NOT_ALLOWED_BEFORE_CHECKOUT(HttpStatus.BAD_REQUEST, "RV003", "체크아웃이 완료된 예약만 리뷰를 작성할 수 있습니다."),
 	;
 
 	private final HttpStatus status;

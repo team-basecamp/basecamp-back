@@ -1,13 +1,10 @@
 package com.basecamp.backend.domain.camp.controller;
 
-import com.basecamp.backend.common.exception.BusinessException;
-import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampDetailResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
-import com.basecamp.backend.domain.camp.dto.response.CampPriceBackfillResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
@@ -33,62 +30,49 @@ public class CampController {
     private final GenericResponseService responseBuilder;
 
     //고캠핑 API에서 캠핑장 데이터를 동기화
+    @Operation(summary = "고캠핑 API 데이터 동기화",
+            description = "관리자가 전달한 고캠핑 API 캠핑장 목록을 DB에 동기화합니다.")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/sync")
     public ResponseEntity<String> syncCamps(
-            @RequestBody List<GocampingApiResponseDto> apiCamps) {
-
-        try {
-            campService.saveCampsFromApi(apiCamps);
-            return ResponseEntity.ok("캠핑장 데이터가 성공적으로 동기화되었습니다");
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("동기화 실패: " + e.getMessage());
-        }
+            @Valid @RequestBody List<@Valid GocampingApiResponseDto> apiCamps) {
+        campService.saveCampsFromApi(apiCamps);
+        return ResponseEntity.ok("캠핑장 데이터가 성공적으로 동기화되었습니다");
     }
 
     // 고캠핑 API 전체를 직접 호출해서 DB에 저장 (관리자용 수동 트리거)
     // 경로가 /api/v1/admin 아래가 아니라 SecurityConfig 의 URL 규칙으로는 묶이지 않는다.
     // 메서드 하나에만 걸리는 규칙이므로 @PreAuthorize 로 보호한다.
+    @Operation(summary = "고캠핑 API 전체 동기화",
+            description = "관리자가 고캠핑 공공데이터 API를 직접 호출해 전체 캠핑장 데이터를 동기화합니다.")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/fetch")
     public ResponseEntity<String> fetchCamps() {
-        try {
-            campService.fetchAndSaveCampsFromGocampingApi();
-            return ResponseEntity.ok("고캠핑 API 전체 데이터가 성공적으로 동기화되었습니다");
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("동기화 실패: " + e.getMessage());
-        }
+        campService.fetchAndSaveCampsFromGocampingApi();
+        return ResponseEntity.ok("고캠핑 API 전체 데이터가 성공적으로 동기화되었습니다");
     }
 
 // 특정 캠핑장 ID(PK) 로 조회 (상세페이지용 - 자체 등록 캠핑장은 contentId가 없어 이 엔드포인트로 통일 조회)
+    @Operation(summary = "캠핑장 상세 조회 (campId)",
+            description = "PK(campId)로 캠핑장 상세 정보를 조회합니다. 자체 등록 캠핑장처럼 contentId가 없는 경우에도 사용합니다.")
     @GetMapping("/{campId}")
     public ResponseEntity<CampDetailResponseDto> getCampById(@PathVariable Long campId) {
         Camp camp = campService.getCampId(campId);
-
-        if (camp == null) {
-            throw new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
-        }
-
         return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
     }
 
 // 고캠핑 contentId로 캠핑장 조회 (상세페이지용)
+    @Operation(summary = "캠핑장 상세 조회 (contentId)",
+            description = "고캠핑 API의 contentId로 캠핑장 상세 정보를 조회합니다.")
     @GetMapping("/content/{contentId}")
     public ResponseEntity<CampDetailResponseDto> getCampByContentId(@PathVariable Long contentId) {
         Camp camp = campService.getCampByContentId(contentId);
-
-        if (camp == null) {
-            throw new BusinessException(ErrorCode.ENTITY_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
-        }
-
         return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
     }
 
 // 캠핑장 검색 (키워드/지역/유형/최대금액 필터 + 정렬 + 페이징 조합)
+    @Operation(summary = "캠핑장 검색",
+            description = "키워드/지역/유형/최대금액 필터와 정렬, 페이징을 조합해 캠핑장을 검색합니다.")
     @GetMapping("/search")
     public ResponseEntity<CampListResponseDto> searchCamps(
             @RequestParam(required = false) String keyword,
@@ -104,6 +88,8 @@ public class CampController {
     }
 
 // HOT 캠핑장 조회 (평점순 / 예약건수순)
+    @Operation(summary = "HOT 캠핑장 조회",
+            description = "평점순 또는 예약건수순으로 인기 캠핑장을 조회합니다.")
     @GetMapping("/hot")
     public ResponseEntity<CampListResponseDto> getHotCamps(
             @RequestParam(required = false, defaultValue = "rating") String sortBy,
@@ -114,6 +100,8 @@ public class CampController {
     }
 
 //모든 캠핑장 조회
+    @Operation(summary = "모든 캠핑장 조회",
+            description = "찾아보기 탭에서 모든 캠핑장을 조회할 수 있습니다")
     @GetMapping
     public ResponseEntity<List<CampResponseDto>> getAllCamps() {
         // Service의 getAllCamps() 메서드 호출 후 엔티티 -> 응답 DTO 변환
@@ -124,6 +112,8 @@ public class CampController {
     }
 
 // 캠핑장 이름으로 검색
+    @Operation(summary = "캠핑장이름으로 검색",
+            description = "검색 시 캠핑장 이름으로 검색을 하면 캠핑장 이름으로 검색이 됩니다.")
     @GetMapping("/search/name")
     public ResponseEntity<List<CampResponseDto>> searchByName(
             @RequestParam String name) {
@@ -136,6 +126,8 @@ public class CampController {
     }
 
      // 특정 지역의 캠핑장을 검색
+    @Operation(summary = "특정 지역 캠핑장 검색",
+            description = "검색 기능으로 특정 지역캠핑장을 검색할 때 사용합니다." )
     @GetMapping("/search/address")
     public ResponseEntity<List<CampResponseDto>> searchByAddress(
             @RequestParam String address) {
@@ -161,6 +153,8 @@ public class CampController {
     // 캠핑장 등록
     // 업체가 직접 등록하는 캠핑장(camps.owner_id). 공공데이터에서 온 캠핑장(content_id)과 배타적이다.
     // CAMP_OWNER 만 등록할 수 있다. 승격 경로는 #53 의 관리자 심사다.
+    @Operation(summary = "내 캠핑장 등록 기능",
+            description = "캠핑업체(CAMP_OWNER)가 신규 캠핑장을 등록합니다.")
     @PreAuthorize("hasRole('CAMP_OWNER')")
     @PostMapping("/register")
     public ResponseEntity<CampDetailResponseDto> registerCamp(
@@ -180,6 +174,8 @@ public class CampController {
     }
 
     // 캠핑장 정보 수정 기능
+    @Operation(summary = "캠핑장 정보 수정",
+            description = "캠핑업체(CAMP_OWNER)가 본인이 등록한 캠핑장 정보를 수정합니다.")
     @PreAuthorize("hasRole('CAMP_OWNER')")
     @PatchMapping("/{campId}")
     public ResponseEntity<CampDetailResponseDto> updateCamp(
