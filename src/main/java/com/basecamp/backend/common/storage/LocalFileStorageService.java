@@ -63,7 +63,7 @@ public class LocalFileStorageService implements FileStorageService {
 		}
 
 		// DB에는 절대경로가 아닌 상대경로만 남긴다. (예: /images/abc123.jpg)
-		return properties.getUrlPrefix() + "/" + storedName;
+		return properties.getUrlPrefixPath() + storedName;
 	}
 
 	@Override
@@ -110,7 +110,7 @@ public class LocalFileStorageService implements FileStorageService {
 		if (relativePath == null || relativePath.isBlank()) {
 			return;
 		}
-		String prefix = properties.getUrlPrefix() + "/";
+		String prefix = properties.getUrlPrefixPath();
 		if (!relativePath.startsWith(prefix)) {
 			// 우리가 저장한 형식의 경로가 아니면(더미 이미지 등) 삭제 대상이 아니다.
 			return;

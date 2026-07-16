@@ -37,7 +37,7 @@ public class WebConfig implements WebMvcConfigurer {
 			uploadLocation = uploadLocation + "/";
 		}
 
-		registry.addResourceHandler(properties.getUrlPrefix() + "/**")
+		registry.addResourceHandler(properties.getUrlPrefixPattern())
 				.addResourceLocations(uploadLocation, "classpath:/static/images/");
 	}
 }

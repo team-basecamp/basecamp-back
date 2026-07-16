@@ -66,10 +66,9 @@ public class SecurityConfig {
 
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-		// WebConfig 리소스 핸들러(urlPrefix + "/**")와 같은 경로를 공개하도록 설정값에서 패턴을 만든다.
-		// 접두어 끝에 슬래시 하나만 보장한 뒤 "**" 를 붙인다. ("/images" · "/images/" 모두 "/images/**")
-		String prefix = fileStorageProperties.getUrlPrefix();
-		String matcher = (prefix.endsWith("/") ? prefix : prefix + "/") + "**";
+		// WebConfig 리소스 핸들러와 같은 값을 써서 정확히 같은 경로만 공개한다.
+		// 정규화·검증은 FileStorageProperties 바인딩 시점에 끝나므로 여기서 다시 손대지 않는다.
+		String matcher = fileStorageProperties.getUrlPrefixPattern();
 
 		http
 				.csrf(AbstractHttpConfigurer::disable)
