@@ -79,6 +79,21 @@ public class ReviewService {
         return ReviewResponse.from(review);
     }
 
+    // 리뷰 삭제: 리뷰를 조회해 예약 소유자 본인일 때만 실제 행을 삭제한다. (하드 삭제)
+    @Transactional
+    public void deleteReview(Long userId, Long reviewId) {
+        // 삭제할 리뷰를 예약·작성자와 함께 조회한다. 없으면 404.
+        Review review = reviewRepository.findByIdWithReservation(reviewId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
+
+        // 예약 소유자(작성자) 본인만 삭제할 수 있다. 아니면 403.
+        if (!review.getReservation().getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED);
+        }
+
+        reviewRepository.delete(review);
+    }
+
 
     // 체크아웃 완료 검증: 예약이 확정(RESERVED) 상태이고 체크아웃 날짜가 지났을 때만 리뷰 작성을 허용한다.
     private void validateCheckedOut(Reservation reservation) {
