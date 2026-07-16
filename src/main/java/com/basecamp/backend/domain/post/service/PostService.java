@@ -7,6 +7,7 @@ import com.basecamp.backend.domain.comment.repository.CommentRepository;
 import com.basecamp.backend.domain.post.dto.request.PostCursorRequest;
 import com.basecamp.backend.domain.post.dto.request.PostUpdateRequest;
 import com.basecamp.backend.domain.post.dto.request.PostReportRequest;
+import com.basecamp.backend.domain.post.dto.response.MyPostCursorResponse;
 import com.basecamp.backend.domain.post.dto.response.PostDetailResponse;
 import com.basecamp.backend.domain.post.dto.response.PostListCursorResponse;
 import com.basecamp.backend.domain.post.dto.response.PostReportResponse;
@@ -68,6 +69,25 @@ public class PostService {
         Map<Long, Integer> commentCounts = countCommentsByPost(lookahead);
 
         return PostListCursorResponse.of(lookahead, limit, commentCounts);
+    }
+
+    // 마이페이지 "내가 쓴 게시글" 목록 조회: 로그인 회원 본인의 글을 최신순 한 페이지로 반환한다. (클래스 기본 readOnly 트랜잭션)
+    // 공용 목록(getList)과 커서 방식 · 댓글 수 집계는 동일하고, 카테고리 대신 작성자(userId)로 거른다.
+    // userId는 컨트롤러에서 토큰(AuthUser)으로부터 넘어온 값이라 신뢰할 수 있다.
+    // 목록에는 ACTIVE만 노출한다. 삭제(DELETED)·블라인드(BLINDED)된 글은 공용 목록과 같은 기준으로 가린다.
+    public MyPostCursorResponse getMyPosts(Long userId, String cursor, int size) {
+        int limit = resolveSize(size);
+        PostCursorRequest decoded = PostCursorRequest.decode(cursor);
+
+        // 다음 페이지 존재 여부를 알아내려고 한 건 더 조회한다. 초과분은 응답 DTO가 잘라낸다.
+        List<Post> lookahead = (decoded == null)
+                ? postRepository.findFirstPageByUser(PostStatus.ACTIVE, userId, Limit.of(limit + 1))
+                : postRepository.findNextPageByUser(PostStatus.ACTIVE, userId, decoded.createdAt(), decoded.postId(), Limit.of(limit + 1));
+
+        // 이 페이지 게시글들의 댓글 수를 한 번에 집계한다. (게시글마다 count를 날리면 N+1)
+        Map<Long, Integer> commentCounts = countCommentsByPost(lookahead);
+
+        return MyPostCursorResponse.of(lookahead, limit, commentCounts);
     }
 
     // 목록에 실린 게시글들의 댓글 수를 post_id → count 맵으로 만든다.
