@@ -117,7 +117,7 @@ public class PostController {
         return ResponseEntity.ok(PostDeleteResponse.toPostList());
     }
 
-    // 게시글 신고: 경로의 postId 게시글을 로그인 회원이 신고 접수한다.
+    // 게시글 신고: 경로의 postId 게시글을 로그인 회원이 신고 접수한다.     .
     @Operation(summary = "게시글 신고", description = "로그인한 사용자가 게시글을 신고한다. 접수된 신고 id와 안내 메시지를 반환한다.")
     @PostMapping("/api/v1/posts/{postId}/report")
     public ResponseEntity<PostReportResponse> reportPost(
