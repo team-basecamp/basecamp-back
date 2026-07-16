@@ -85,6 +85,9 @@ public enum ErrorCode {
 	IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "IMG002", "이미지 저장에 실패했습니다."),
 	IMAGE_COUNT_EXCEEDED(HttpStatus.BAD_REQUEST, "IMG003", "첨부할 수 있는 이미지 개수를 초과했습니다."),
 	IMAGE_SIZE_EXCEEDED(HttpStatus.PAYLOAD_TOO_LARGE, "IMG004", "이미지 용량이 허용 범위를 초과했습니다."),
+
+	// Notification (알림)
+	NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "N001", "알림을 찾을 수 없습니다."),
 	;
 
 	private final HttpStatus status;
