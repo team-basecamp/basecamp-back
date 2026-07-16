@@ -7,7 +7,7 @@ package com.basecamp.backend.domain.weather.entity;
  * 어색한 것이 섞여 있고, 제공자가 번역을 바꾸면 우리 화면 문구도 함께 바뀐다.
  * 반면 <b>코드는 계약이라 잘 바뀌지 않는다.</b> 그래서 표시 문구는 우리가 코드로부터 직접 결정한다.</p>
  *
- * <p>코드 대역: 2xx 뇌우 / 3xx 이슬비 / 5xx 비 / 6xx 눈 / 7xx 대기(안개·황사) / 800 맑음 / 80x 구름</p>
+ * <p>코드 대역: 2xx 뇌우 / 3xx 이슬비 / 5xx 비 / 6xx 눈 / 7xx 대기(안개·황사·돌풍) / 800 맑음 / 80x 구름</p>
  */
 public final class WeatherCondition {
 
@@ -30,7 +30,7 @@ public final class WeatherCondition {
             case 3 -> "이슬비";
             case 5 -> rain(id);
             case 6 -> snow(id);
-            case 7 -> "안개";
+            case 7 -> atmosphere(id);
             case 8 -> clouds(id);
             default -> null;
         };
@@ -50,6 +50,28 @@ public final class WeatherCondition {
         if (id >= 611 && id <= 616) return "진눈깨비";
         if (id >= 620) return "소낙눈";
         return "눈";
+    }
+
+    /**
+     * 7xx 는 다른 대역과 달리 안에 서로 다른 현상이 섞여 있어(박무·황사·돌풍·토네이도) 뭉뚱그릴 수 없다.
+     * 실제 안개는 741 하나뿐이라, 대역 전체를 "안개"로 두면 돌풍(771)·토네이도(781)까지 안개가 되어
+     * 야외 활동인 캠핑의 위험을 잘못 안내하게 된다.
+     *
+     * <p>모르는 코드에 임의의 문구를 붙이지 않고 null 을 돌려 API 번역문에 맡긴다(다른 대역과 다른 점).</p>
+     */
+    private static String atmosphere(int id) {
+        return switch (id) {
+            case 701 -> "박무";
+            case 711 -> "연기";
+            case 721 -> "연무";
+            case 731 -> "모래먼지";
+            case 741 -> "안개";
+            case 751, 761 -> "황사";
+            case 762 -> "화산재";
+            case 771 -> "돌풍";
+            case 781 -> "토네이도";
+            default -> null;
+        };
     }
 
     private static String clouds(int id) {
