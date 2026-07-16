@@ -20,17 +20,34 @@ public enum NotificationType {
 
 	private final NotificationTargetType targetType;
 	private final String template;
+	/** 템플릿에 {@code %s} 자리표시자가 있는지. 있으면 {@link #render(String)} 에 인자가 필수다. */
+	private final boolean hasPlaceholder;
 
 	NotificationType(NotificationTargetType targetType, String template) {
 		this.targetType = targetType;
 		this.template = template;
+		this.hasPlaceholder = template.contains("%s");
 	}
 
 	/**
-	 * 메시지를 완성한다. {@code arg} 가 {@code null} 이면 템플릿을 그대로 쓴다
-	 * (자리표시자 없는 타입은 인자 없이 호출된다).
+	 * 메시지를 완성한다.
+	 *
+	 * <ul>
+	 *   <li>자리표시자가 있는 타입(예: {@code RESERVATION_*}): {@code arg} 가 <b>필수</b>다. {@code null} 이면
+	 *       {@code %s} 가 그대로 남아 DB·SSE 로 새어나가므로 예외를 던진다.</li>
+	 *   <li>자리표시자가 없는 타입(예: {@code CAMP_OWNER_*}): {@code arg} 는 무시되고 템플릿을 그대로 쓴다.</li>
+	 * </ul>
+	 *
+	 * @throws IllegalArgumentException 자리표시자가 있는 타입인데 {@code arg} 가 {@code null} 인 경우
 	 */
 	public String render(String arg) {
-		return arg == null ? template : String.format(template, arg);
+		if (!hasPlaceholder) {
+			return template;
+		}
+		if (arg == null) {
+			throw new IllegalArgumentException(
+					"알림 종류 " + name() + " 는 메시지 인자가 필요합니다.");
+		}
+		return String.format(template, arg);
 	}
 }
