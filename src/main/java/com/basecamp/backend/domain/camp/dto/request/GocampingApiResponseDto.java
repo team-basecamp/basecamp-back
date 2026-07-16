@@ -3,6 +3,8 @@ package com.basecamp.backend.domain.camp.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -15,10 +17,12 @@ import lombok.NoArgsConstructor;
 public class GocampingApiResponseDto {
 
     // 캠핑장 고유 ID
+    @NotNull
     @JsonProperty("contentId")
     private Long contentId;
 
     // 캠핑장 이름
+    @NotBlank
     @JsonProperty("facltNm")
     private String facltNm;
 
