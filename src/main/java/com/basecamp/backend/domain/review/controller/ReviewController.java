@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 public class ReviewController {
@@ -56,5 +58,24 @@ public class ReviewController {
         return ResponseEntity.noContent().build();
     }
 
+    // 리뷰 목록 조회: 경로의 캠핑장(campId)에 달린 리뷰를 최신순으로 반환한다.
+    @Operation(summary = "캠핑장 리뷰 목록 조회", description = "캠핑장에 작성된 리뷰를 최신순으로 조회한다.")
+    @GetMapping("/api/v1/camps/{campId}/reviews")
+    public ResponseEntity<List<ReviewResponse>> getReviews(
+            @PathVariable Long campId) {                        // 리뷰를 조회할 캠핑장 id (경로 변수)
+        List<ReviewResponse> responses = reviewService.getReviewsByCamp(campId);
+
+        return ResponseEntity.ok(responses);
+    }
+
+    // 내가 쓴 리뷰 목록: 로그인 회원 본인이 작성한 리뷰를 모아서 반환한다.
+    @Operation(summary = "내 리뷰 목록 조회", description = "로그인한 회원이 작성한 리뷰를 최신순으로 조회한다.")
+    @GetMapping("/api/v1/reviews/me")
+    public ResponseEntity<List<ReviewResponse>> getMyReviews(
+            @AuthenticationPrincipal AuthUser user) {
+        // 회원 id는 토큰에서 꺼낸 user.id()만 신뢰한다.
+        List<ReviewResponse> reviews = reviewService.getMyReviews(user.id());
+        return ResponseEntity.ok(reviews);
+    }
 
 }

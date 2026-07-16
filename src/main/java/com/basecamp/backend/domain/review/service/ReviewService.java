@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 
 // 리뷰 비즈니스 로직. 기본은 읽기 전용 트랜잭션, 쓰기 메서드에만 @Transactional을 따로 건다.
 @Service
@@ -94,6 +95,19 @@ public class ReviewService {
         reviewRepository.delete(review);
     }
 
+    // 캠핑장 리뷰 목록 조회: 해당 캠핑장의 리뷰를 최신순으로 반환한다. (읽기 전용 트랜잭션)
+    public List<ReviewResponse> getReviewsByCamp(Long campId) {
+        return reviewRepository.findByCampIdWithUser(campId).stream()
+                .map(ReviewResponse::from)
+                .toList();
+    }
+
+    // 내가 쓴 리뷰 목록 조회: 로그인한 회원이 작성한 리뷰를 최신순으로 반환한다. (읽기 전용 트랜잭션)
+    public List<ReviewResponse> getMyReviews(Long userId) {
+        return reviewRepository.findByReservationUserIdWithDetails(userId).stream()
+                .map(ReviewResponse::from)
+                .toList();
+    }
 
     // 체크아웃 완료 검증: 예약이 확정(RESERVED) 상태이고 체크아웃 날짜가 지났을 때만 리뷰 작성을 허용한다.
     private void validateCheckedOut(Reservation reservation) {

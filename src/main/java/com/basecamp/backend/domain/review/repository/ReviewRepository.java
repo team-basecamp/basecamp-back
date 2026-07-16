@@ -17,7 +17,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     boolean existsByReservation_Id(Long reservationId);
 
     // 한 캠핑장의 리뷰 목록을 최신순으로 조회한다.
-    // 응답에 작성자 nickname을 담아야 하는데, 리뷰마다 예약·회원을 따로 로딩하면 N+1이 되므로
     // 예약(reservation)과 그 회원(user)을 fetch join으로 함께 로딩한다. (둘 다 NOT NULL이라 inner join)
     @Query("""
             select rv from Review rv
@@ -38,4 +37,17 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             where rv.reviewId = :reviewId
             """)
     Optional<Review> findByIdWithReservation(@Param("reviewId") Long reviewId);
+
+
+    @Query("""
+        SELECT r FROM Review r
+        JOIN FETCH r.reservation res
+        JOIN FETCH res.user
+        JOIN FETCH r.camp
+        WHERE res.user.id = :userId
+        ORDER BY r.createdAt DESC, r.reviewId DESC
+        """)
+    List<Review> findByReservationUserIdWithDetails(@Param("userId") Long userId);
+
+
 }
