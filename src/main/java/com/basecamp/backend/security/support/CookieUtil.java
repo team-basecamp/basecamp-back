@@ -1,4 +1,4 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.support;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -7,6 +7,9 @@ import java.util.Optional;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
+import com.basecamp.backend.security.config.CookieProperties;
+import com.basecamp.backend.security.config.JwtProperties;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;

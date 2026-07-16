@@ -30,7 +30,7 @@ import com.basecamp.backend.domain.campowner.repository.CampOwnerApplicationRepo
 import com.basecamp.backend.domain.user.entity.Provider;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
-import com.basecamp.backend.security.UserRevocationCache;
+import com.basecamp.backend.security.cache.UserRevocationCache;
 
 /**
  * 관리자의 캠핑업체 승격 심사 단위 테스트(#53).

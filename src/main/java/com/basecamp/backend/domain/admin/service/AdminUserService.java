@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.security.UserRevocationCache;
+import com.basecamp.backend.security.cache.UserRevocationCache;
 import com.basecamp.backend.domain.admin.dto.response.AdminUserResponse;
 import com.basecamp.backend.domain.admin.dto.response.BlacklistedUserResponse;
 import com.basecamp.backend.domain.user.entity.User;

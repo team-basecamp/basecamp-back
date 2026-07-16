@@ -1,4 +1,4 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

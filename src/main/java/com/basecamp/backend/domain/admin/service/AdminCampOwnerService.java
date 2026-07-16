@@ -15,7 +15,7 @@ import com.basecamp.backend.domain.campowner.entity.CampOwnerApplication;
 import com.basecamp.backend.domain.campowner.repository.CampOwnerApplicationRepository;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
-import com.basecamp.backend.security.UserRevocationCache;
+import com.basecamp.backend.security.cache.UserRevocationCache;
 
 import lombok.RequiredArgsConstructor;
 

@@ -1,4 +1,4 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.handler;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

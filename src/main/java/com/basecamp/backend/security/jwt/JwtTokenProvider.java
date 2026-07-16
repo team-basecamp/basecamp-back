@@ -1,4 +1,4 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.jwt;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -8,6 +8,8 @@ import java.util.UUID;
 import javax.crypto.SecretKey;
 
 import org.springframework.stereotype.Component;
+
+import com.basecamp.backend.security.config.JwtProperties;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

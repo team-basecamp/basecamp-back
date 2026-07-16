@@ -1,4 +1,4 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -18,6 +18,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.model.AuthUser;
+import com.basecamp.backend.security.cache.TokenBlacklistCache;
+import com.basecamp.backend.security.cache.UserRevocationCache;
+import com.basecamp.backend.security.config.JwtProperties;
 
 /**
  * {@link JwtAuthenticationFilter} 단위 테스트. Step 8 의 핵심인 "폐기된 access 토큰 즉시 거부"를 검증한다.
