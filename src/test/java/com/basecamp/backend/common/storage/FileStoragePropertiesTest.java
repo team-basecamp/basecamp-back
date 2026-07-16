@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
 import jakarta.validation.Validation;
@@ -12,12 +13,12 @@ import jakarta.validation.ValidatorFactory;
 
 class FileStoragePropertiesTest {
 
-	private static final Validator VALIDATOR;
+	private static final ValidatorFactory VALIDATOR_FACTORY = Validation.buildDefaultValidatorFactory();
+	private static final Validator VALIDATOR = VALIDATOR_FACTORY.getValidator();
 
-	static {
-		try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
-			VALIDATOR = factory.getValidator();
-		}
+	@AfterAll
+	static void closeValidatorFactory() {
+		VALIDATOR_FACTORY.close();
 	}
 
 	private Set<?> violations(String urlPrefix) {
