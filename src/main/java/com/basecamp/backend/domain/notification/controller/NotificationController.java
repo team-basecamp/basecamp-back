@@ -9,8 +9,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -57,7 +57,7 @@ public class NotificationController {
 	}
 
 	@Operation(summary = "개별 알림 읽음 처리", description = "본인 알림 하나를 읽음 처리한다. 이미 읽었어도 정상 처리된다(멱등).")
-	@PatchMapping("/{notificationId}/read")
+	@PostMapping("/{notificationId}/read")
 	public ResponseEntity<Void> markAsRead(
 			@PathVariable Long notificationId,
 			@AuthenticationPrincipal AuthUser user) {
@@ -66,7 +66,7 @@ public class NotificationController {
 	}
 
 	@Operation(summary = "전체 알림 읽음 처리", description = "내 안읽은 알림을 모두 읽음 처리한다.")
-	@PatchMapping("/read-all")
+	@PostMapping("/read-all")
 	public ResponseEntity<Void> markAllAsRead(@AuthenticationPrincipal AuthUser user) {
 		notificationService.markAllAsRead(user.id());
 		return ResponseEntity.ok().build();

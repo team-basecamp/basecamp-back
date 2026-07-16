@@ -6,7 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -127,7 +127,7 @@ class NotificationControllerTest {
 	@DisplayName("markAsRead_200과_본인id로_서비스를호출한다")
 	void markAsRead_200과_서비스를호출한다() throws Exception {
 		// when & then
-		mockMvc.perform(patch("/api/v1/notifications/{id}/read", NOTIFICATION_ID))
+		mockMvc.perform(post("/api/v1/notifications/{id}/read", NOTIFICATION_ID))
 				.andExpect(status().isOk());
 
 		verify(notificationService).markAsRead(NOTIFICATION_ID, USER_ID);
@@ -141,7 +141,7 @@ class NotificationControllerTest {
 				.given(notificationService).markAsRead(NOTIFICATION_ID, USER_ID);
 
 		// when & then
-		mockMvc.perform(patch("/api/v1/notifications/{id}/read", NOTIFICATION_ID))
+		mockMvc.perform(post("/api/v1/notifications/{id}/read", NOTIFICATION_ID))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.code").value(ErrorCode.NOTIFICATION_NOT_FOUND.getCode()));
 	}
@@ -154,7 +154,7 @@ class NotificationControllerTest {
 				.given(notificationService).markAsRead(NOTIFICATION_ID, USER_ID);
 
 		// when & then
-		mockMvc.perform(patch("/api/v1/notifications/{id}/read", NOTIFICATION_ID))
+		mockMvc.perform(post("/api/v1/notifications/{id}/read", NOTIFICATION_ID))
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.getCode()));
 	}
@@ -163,7 +163,7 @@ class NotificationControllerTest {
 	@DisplayName("markAllAsRead_200과_서비스를호출한다")
 	void markAllAsRead_200과_서비스를호출한다() throws Exception {
 		// when & then
-		mockMvc.perform(patch("/api/v1/notifications/read-all"))
+		mockMvc.perform(post("/api/v1/notifications/read-all"))
 				.andExpect(status().isOk());
 
 		verify(notificationService).markAllAsRead(USER_ID);
