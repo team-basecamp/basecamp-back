@@ -46,7 +46,13 @@ public class ReviewService {
         }
 
         // 리뷰 대상 캠핑장은 예약의 캠핑장을 그대로 따른다. (별도 입력 없이 예약에서 파생)
-        Review review = new Review(reservation, reservation.getCamp(), request.rating(), request.content());
+        Review review = Review.builder()
+                .reservation(reservation)
+                .camp(reservation.getCamp())
+                .rating(request.rating())
+                .content(request.content())
+                .build();
+
         try {
             reviewRepository.saveAndFlush(review);
         } catch (DataIntegrityViolationException e) {
@@ -62,7 +68,7 @@ public class ReviewService {
     // 아직 체크아웃 전이거나 취소/거절된 예약이면 400.
     private void validateCheckedOut(Reservation reservation) {
         boolean checkedOut = reservation.getStatus() == ReservationStatus.RESERVED
-                && !reservation.getCheckOutDate().isAfter(LocalDate.now());
+                && reservation.getCheckOutDate().isBefore(LocalDate.now());
         if (!checkedOut) {
             throw new BusinessException(ErrorCode.REVIEW_NOT_ALLOWED_BEFORE_CHECKOUT);
         }

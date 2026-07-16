@@ -55,7 +55,7 @@ public class Review {
 
     // 리뷰 생성자. 대상 예약·캠핑장·평점·본문을 받고 작성 시각은 여기서 채운다.
     @Builder
-    public Review(Reservation reservation, Camp camp, int rating, String content) {
+    private Review(Reservation reservation, Camp camp, int rating, String content) {
         this.reservation = reservation;
         this.camp = camp;
         this.rating = BigDecimal.valueOf(rating); //클라이언트에서 정수로 받음
