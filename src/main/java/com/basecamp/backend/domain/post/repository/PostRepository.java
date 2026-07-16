@@ -19,10 +19,23 @@ import java.util.Optional;
 public interface PostRepository extends JpaRepository<Post, Long> {
 
     // 상세 조회용 단건 조회.
-    // PostDetailResponse가 작성자 nickname을 요구하는데 Post.user는 LAZY라
-    // 기본 findById로 가져오면 DTO 변환 시점에 회원 조회 쿼리가 한 번 더 나간다.
-    // fetch join으로 작성자까지 한 번에 로딩해 추가 쿼리를 없앤다.
-    @Query("select p from Post p join fetch p.user where p.postId = :postId")
+    // PostDetailResponse가 작성자 nickname과 첨부 이미지를 요구하는데 Post.user와 Post.images는 둘 다 LAZY라
+    // 기본 findById로 가져오면 DTO 변환 시점에 회원 조회 · 이미지 조회 쿼리가 각각 한 번씩 더 나간다.
+    // fetch join으로 둘 다 한 번에 로딩해 추가 쿼리를 없앤다.
+    //
+    // images가 left join인 이유: 첨부가 없는 글이 대부분이고, inner join이면 그런 글이 결과에서 통째로 사라진다.
+    // 컬렉션을 fetch join하면 이미지 수만큼 Post 행이 중복돼 나오지만, Hibernate가 같은 식별자의 루트 엔티티를
+    // 하나로 합쳐주므로 Optional 단건 반환에는 영향이 없다.
+    // @OrderColumn(sort_order)이 붙은 LIST라 fetch join으로 가져와도 첨부 순서는 그대로 유지된다.
+    //
+    // 이미지를 쓰지 않는 관리자 상세(AdminPostDetailResponse)도 이 메서드를 함께 쓴다.
+    // 그쪽은 이미지를 안 읽지만, 조인 한 번이 늘 뿐 쿼리 수는 그대로라 따로 메서드를 나누지 않았다.
+    @Query("""
+            select p from Post p
+            join fetch p.user
+            left join fetch p.images
+            where p.postId = :postId
+            """)
     Optional<Post> findWithUserByPostId(@Param("postId") Long postId);
 
 
