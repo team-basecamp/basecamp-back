@@ -1,4 +1,4 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.cache;
 
 import java.time.Duration;
 import java.time.Instant;

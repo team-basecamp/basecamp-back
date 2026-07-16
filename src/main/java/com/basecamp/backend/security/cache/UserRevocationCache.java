@@ -1,9 +1,11 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.cache;
 
 import java.time.Duration;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+
+import com.basecamp.backend.security.config.JwtProperties;
 
 import lombok.extern.slf4j.Slf4j;
 

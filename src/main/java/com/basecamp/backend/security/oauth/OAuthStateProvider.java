@@ -1,4 +1,4 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.oauth;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -14,6 +14,8 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
+import com.basecamp.backend.security.config.JwtProperties;
 
 /**
  * OAuth 로그인 CSRF 방지용 state 발급/검증 — 서명된 무상태(stateless) 방식.

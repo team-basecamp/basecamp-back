@@ -1,8 +1,10 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.support;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+
+import com.basecamp.backend.security.jwt.JwtTokenProvider;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

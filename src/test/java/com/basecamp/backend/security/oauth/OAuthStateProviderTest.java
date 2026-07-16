@@ -1,4 +1,4 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.oauth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -9,6 +9,8 @@ import java.time.ZoneId;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import com.basecamp.backend.security.config.JwtProperties;
 
 /**
  * {@link OAuthStateProvider} 단위 테스트. 서명 state 의 CSRF 방어 핵심 동작(정상 왕복/위조/만료/키 불일치/형식)을 검증한다.

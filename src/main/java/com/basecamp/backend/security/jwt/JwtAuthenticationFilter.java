@@ -1,4 +1,4 @@
-package com.basecamp.backend.security;
+package com.basecamp.backend.security.jwt;
 
 import java.io.IOException;
 import java.util.List;
@@ -13,6 +13,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.model.AuthUser;
+import com.basecamp.backend.security.cache.TokenBlacklistCache;
+import com.basecamp.backend.security.cache.UserRevocationCache;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
