@@ -15,10 +15,13 @@ import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.MonthlyRevenueProjection;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
+import com.basecamp.backend.domain.notification.entity.NotificationType;
+import com.basecamp.backend.domain.notification.event.NotificationEvent;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -41,6 +44,7 @@ public class ReservationService {
     private final CampRepository campRepository;
     private final PaymentService paymentService;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${payment.waiting-expiry-minutes}")
     private long paymentWaitingExpiryMinutes;
@@ -136,6 +140,11 @@ public class ReservationService {
         reservation.getCamp().validateOwner(ownerId); // 소유권 검증
         reservation.approve(); // 예약상태변경(RESERVED)
 
+        // 커밋 이후 예약자에게 확정 알림 (AFTER_COMMIT 리스너가 저장·push)
+        eventPublisher.publishEvent(NotificationEvent.of(
+                reservation.getUser().getId(), NotificationType.RESERVATION_CONFIRMED,
+                reservation.getId(), reservation.getCamp().getFacltNm()));
+
         return ReservationResponse.from(reservation);
     }
 
@@ -148,6 +157,11 @@ public class ReservationService {
         reservation.getCamp().validateOwner(ownerId); // 소유권 검증
         reservation.reject(request.reason()); // 예약상태변경(REJECTED, reject_reason값 할당)
         paymentService.refund(reservationId); // PENDING = 결제 완료 상태이므로 항상 환불
+
+        // 커밋 이후 예약자에게 거절 알림 (AFTER_COMMIT 리스너가 저장·push)
+        eventPublisher.publishEvent(NotificationEvent.of(
+                reservation.getUser().getId(), NotificationType.RESERVATION_REJECTED,
+                reservation.getId(), reservation.getCamp().getFacltNm()));
 
         return ReservationResponse.from(reservation);
     }

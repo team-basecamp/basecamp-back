@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.basecamp.backend.common.enums.Role;
@@ -27,6 +28,8 @@ import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.campowner.entity.ApplicationStatus;
 import com.basecamp.backend.domain.campowner.entity.CampOwnerApplication;
 import com.basecamp.backend.domain.campowner.repository.CampOwnerApplicationRepository;
+import com.basecamp.backend.domain.notification.entity.NotificationType;
+import com.basecamp.backend.domain.notification.event.NotificationEvent;
 import com.basecamp.backend.domain.user.entity.Provider;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
@@ -56,12 +59,15 @@ class AdminCampOwnerServiceTest {
 	@Mock
 	private UserRevocationCache userRevocationCache;
 
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+
 	private AdminCampOwnerService adminCampOwnerService;
 
 	@BeforeEach
 	void setUp() {
 		adminCampOwnerService = new AdminCampOwnerService(
-				applicationRepository, userRepository, userRevocationCache, Clock.fixed(NOW, ZONE));
+				applicationRepository, userRepository, userRevocationCache, eventPublisher, Clock.fixed(NOW, ZONE));
 	}
 
 	private User activeUser() {
@@ -97,6 +103,10 @@ class AdminCampOwnerServiceTest {
 
 		// role 은 토큰 클레임에 있다. 무효화하지 않으면 최대 30분간 CUSTOMER 로 남는다.
 		verify(userRevocationCache).revoke(USER_ID);
+
+		// 신청자에게 승인 알림 이벤트가 발행된다(#92).
+		verify(eventPublisher).publishEvent(
+				NotificationEvent.of(USER_ID, NotificationType.CAMP_OWNER_APPROVED, APPLICATION_ID, null));
 	}
 
 	@Test
@@ -200,6 +210,10 @@ class AdminCampOwnerServiceTest {
 		assertThat(application.getRejectReason()).isEqualTo("사업자등록증 확인 불가");
 		assertThat(application.getProcessedBy()).isEqualTo(ADMIN_ID);
 		verify(userRevocationCache, never()).revoke(anyLong());
+
+		// 신청자에게 반려 알림 이벤트가 발행된다(#92).
+		verify(eventPublisher).publishEvent(
+				NotificationEvent.of(USER_ID, NotificationType.CAMP_OWNER_REJECTED, APPLICATION_ID, null));
 	}
 
 	@Test
