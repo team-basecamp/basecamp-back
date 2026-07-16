@@ -171,7 +171,7 @@ public class PostService {
     //   DELETED : 소프트 삭제된 글. 없는 글과 구분되면 "삭제된 글이 여기 있었다"는 사실이 새므로 404로 통일.
     //   BLINDED : 관리자가 가린 글. 삭제와 달리 존재 자체는 감출 필요가 없어 사유를 알 수 있는 403으로 구분.
     public PostDetailResponse getDetail(Long postId) {
-        // 응답에 nickname이 필요하므로 작성자까지 fetch join으로 함께 로딩한다.
+        // 응답에 nickname과 첨부 이미지가 필요하므로 작성자·이미지까지 fetch join으로 함께 로딩한다.
         Post post = postRepository.findWithUserByPostId(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 

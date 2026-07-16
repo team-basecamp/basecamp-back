@@ -27,6 +27,7 @@ public record PostDetailResponse(
     // 엔티티 → DTO 변환 정적 팩토리.
     // post.getUser()로 연관 User를 조인해 nickname을 채운다. (호출은 트랜잭션 안에서 이뤄져 LAZY 초기화가 안전하다.)
     // post.getImages()도 LAZY라 같은 트랜잭션 안에서 초기화해 상대경로만 뽑아 담는다.
+    // (상세 조회 경로에서는 findWithUserByPostId가 이미 fetch join으로 채워둬 여기서 추가 쿼리가 나가지 않는다.)
     public static PostDetailResponse from(Post post) {
         User user = post.getUser();
         List<String> imageUrls = post.getImages().stream()
