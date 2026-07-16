@@ -89,13 +89,13 @@ class CampServiceTest {
 	}
 
 	@Test
-	@DisplayName("registerCamp_ownerId없음_UNAUTHORIZED를던지고지오코딩을호출하지않는다")
-	void registerCamp_ownerId없음_UNAUTHORIZED를던진다() {
+	@DisplayName("registerCamp_ownerId없음_ACCESS_DENIED를던지고지오코딩을호출하지않는다")
+	void registerCamp_ownerId없음_ACCESS_DENIED를던진다() {
 		// when & then
 		assertThatThrownBy(() -> campService.registerCamp(baseRequest().build(), null))
 				.isInstanceOf(BusinessException.class)
 				.extracting(e -> ((BusinessException) e).getErrorCode())
-				.isEqualTo(ErrorCode.UNAUTHORIZED);
+				.isEqualTo(ErrorCode.ACCESS_DENIED);
 		verify(kakaoGeocodingClient, never()).geocode(any());
 		verify(campRepository, never()).save(any());
 	}
