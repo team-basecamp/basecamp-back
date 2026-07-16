@@ -51,7 +51,7 @@ docker compose up -d
 
 > Redis가 없거나 조회에 실패하면 필터는 **fail-open**(경고 로그 후 통과)합니다. Redis를 단일 장애점으로 만들지 않기 위한 선택이며, 이때 동작은 "access token은 만료(기본 30분)까지 유효"로 퇴화합니다. Refresh token 재발급 경로는 Redis를 쓰지도 읽지도 않으므로(재사용 탐지는 MySQL 담당) Redis 상태와 무관합니다.
 >
-> Docker가 처음이라면 [docs/docker-setting.md](docs/docker-setting.md)를 참고하세요.
+> Docker가 처음이라면 [docs/docker-setting.md](docs/infra/docker-setting.md)를 참고하세요.
 
 ### 4. 환경변수 설정
 

@@ -11,8 +11,8 @@ import org.springframework.util.StringUtils;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.security.JwtTokenProvider;
-import com.basecamp.backend.security.OAuthStateProvider;
+import com.basecamp.backend.security.jwt.JwtTokenProvider;
+import com.basecamp.backend.security.oauth.OAuthStateProvider;
 import com.basecamp.backend.domain.auth.client.OAuthUserInfo;
 import com.basecamp.backend.domain.auth.client.SocialClientResolver;
 import com.basecamp.backend.domain.auth.entity.BlacklistReason;

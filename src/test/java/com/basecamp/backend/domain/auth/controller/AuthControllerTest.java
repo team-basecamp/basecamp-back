@@ -33,7 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.model.AuthUser;
-import com.basecamp.backend.security.CookieUtil;
+import com.basecamp.backend.security.support.CookieUtil;
 import com.basecamp.backend.domain.auth.dto.response.LoginResponse;
 import com.basecamp.backend.domain.auth.dto.response.TokenRefreshResponse;
 import com.basecamp.backend.domain.auth.service.AuthService;

@@ -26,6 +26,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -164,15 +165,17 @@ public class CampService {
                         pageNo++;
                     }
                 } else {
-                    throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "고캠핑 API 응답이 비정상입니다");
+                    throw new BusinessException(ErrorCode.GOCAMPING_SERVER_ERROR, "고캠핑 API 응답이 비정상입니다");
                 }
             }
 
             log.info("총 {}개의 캠핑장이 저장되었습니다", totalSaved);
 
-        } catch (Exception e) {
+        } catch (BusinessException e) {
+            throw e;
+        } catch (RestClientException e) {
             log.error("고캠핑 API 호출 실패: {}", e.getClass().getSimpleName());
-            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "고캠핑 API 호출 중 오류가 발생했습니다");
+            throw new BusinessException(ErrorCode.GOCAMPING_SERVER_ERROR, "고캠핑 API 호출 중 오류가 발생했습니다");
         }
     }
 
@@ -213,6 +216,9 @@ public class CampService {
     @Transactional(readOnly = true)
     public CampListResponseDto searchCamps(String keyword, String region, String induty,
                                             Integer priceMax, String sort, int pageNo, int numOfRows) {
+        if (numOfRows <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE, "numOfRows는 1이상이어야 합니다");
+        }
         int page = Math.max(pageNo - 1, 0);
         Page<Camp> result;
 
@@ -235,12 +241,25 @@ public class CampService {
 
     // HOT 캠핑장 조회 (평점순 / 예약건수순)
     @Transactional(readOnly = true)
+// 예약건수순: reservations 실시간 COUNT (PENDING+RESERVED만, 결제 완료된 예약만 유효하게 카운트)
+// 평점순: 캐싱된 average_rating 컬럼 기준, 동점이면 예약건수로 2차 정렬
     public CampListResponseDto getHotCamps(String sortBy, int pageNo, int numOfRows) {
-        Sort sort = "reservationCount".equals(sortBy)
-                ? Sort.by(Sort.Direction.DESC, "reservationCount")
-                : Sort.by(Sort.Direction.DESC, "averageRating");
-        Pageable pageable = PageRequest.of(Math.max(pageNo - 1, 0), numOfRows, sort);
-        Page<Camp> result = campRepository.findAll(CampSpecs.isOperating(), pageable);
+        if (numOfRows <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE,"numOfRows는 1이상이어야 합니다");
+        }
+        int page = Math.max(pageNo - 1, 0);
+        Page<Camp> result;
+        if ("reservationCount".equals(sortBy)) {
+            List<String> statuses = List.of("PENDING", "RESERVED");
+            Pageable pageable = PageRequest.of(page, numOfRows);
+            result = campRepository.findHotCampsByReservationCountDesc(statuses, pageable);
+        } else {
+            Sort sort = Sort.by(Sort.Direction.DESC, "averageRating")
+                    .and(Sort.by(Sort.Direction.DESC, "reservationCount"))
+                    .and(Sort.by(Sort.Direction.ASC, "campId"));
+            Pageable pageable = PageRequest.of(page, numOfRows, sort);
+            result = campRepository.findAll(CampSpecs.isOperating(), pageable);
+        }
         List<CampResponseDto> dtos = result.getContent().stream().map(CampResponseDto::from).toList();
         return CampListResponseDto.ok(dtos, result.getTotalElements());
     }
@@ -317,7 +336,7 @@ public class CampService {
         // ownerId == null : 인증 정보 자체가 없는 것 ( 로그인을 안함, 토큰이 없음 )
         // ownerId <= 0 : 이상한 값 ( 있을 수 없는 ID )
         if(ownerId == null || ownerId <= 0) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED,"캠핑장 등록 권한이 없습니다.");
+            throw new BusinessException(ErrorCode.ACCESS_DENIED,"캠핑장 등록 권한이 없습니다.");
         }
 
         // 주소로 좌표(mapX/mapY)를 조회한다. 못 찾아도 등록은 그대로 진행한다(좌표만 null).
@@ -355,8 +374,14 @@ public class CampService {
     // 로그인한 회원(ownerId)이 등록한 캠핑장 목록 조회
     @Transactional(readOnly = true)
     public CampListResponseDto getMyCamps(Long ownerId) {
-        if (ownerId == null || ownerId <= 0) {
+        if (ownerId == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "로그인이 필요합니다.");
+            // "너 누군지 모르겠다" → 인증 자체가 없는 상황 → 401
+        }
+
+        if (ownerId <= 0) {
+            throw new BusinessException(ErrorCode.CAMP_NOT_ACCESSED, "캠핑장 등록 권한이 없습니다.");
+            // "값은 있는데 이상하다(음수/0)" → 뭔가 조작되었거나 잘못된 값 → 403
         }
 
         List<Camp> camps = campRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId);
@@ -377,7 +402,7 @@ public class CampService {
 
         // 권한 검증 : camp와 로그인 한 사람이 맞는지?
         if (!java.util.Objects.equals(camp.getOwnerId(), ownerId)) {
-            throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장 수정만 가능");
+            throw new BusinessException(ErrorCode.CAMP_NOT_ACCESSED,"본인이 등록한 캠핑장 수정만 가능");
         }
 
         // 주소가 바뀌면 좌표도 다시 조회한다. DB 트랜잭션을 시작하기 전에 호출해서
@@ -406,7 +431,7 @@ public class CampService {
         Camp camp = getCampId(campId);
         // 소유자 권한 검증 (ACCESS_DENIED)
         if(!java.util.Objects.equals(camp.getOwnerId(),ownerId)){
-            throw new BusinessException(ErrorCode.ACCESS_DENIED,"본인이 등록한 캠핑장이 아닙니다");
+            throw new BusinessException(ErrorCode.CAMP_NOT_ACCESSED,"본인이 등록한 캠핑장이 아닙니다");
         }
         // softDelete() 호출하기
         camp.softDelete();
