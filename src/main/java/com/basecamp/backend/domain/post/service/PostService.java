@@ -24,10 +24,13 @@ import com.basecamp.backend.domain.user.entity.Image;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -35,6 +38,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 // 게시글 비즈니스 로직. 기본은 읽기 전용 트랜잭션, 쓰기 메서드에만 @Transactional을 따로 건다.
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -198,11 +202,33 @@ public class PostService {
 
         // 첨부 이미지를 저장소에 올려 상대경로(/images/xxx.jpg)를 받고, 그 경로로 Image를 만들어 게시글에 붙인다.
         // storeAll이 null/빈 목록·형식·개수 검증을 담당하므로 여기서는 반환된 경로만 매핑한다.
-        // (검증 실패 시 예외가 나면 트랜잭션이 롤백되지만, 이미 디스크에 쓰인 파일 정리는 후속 과제로 남긴다.)
-        List<Image> attachedImages = fileStorageService.storeAll(images).stream()
+        List<String> storedPaths = fileStorageService.storeAll(images);
+        List<Image> attachedImages = storedPaths.stream()
                 .map(Image::of)
                 .toList();
         post.attachImages(attachedImages);
+
+        // 파일은 이미 디스크에 쓰였지만 DB 트랜잭션은 아직 커밋 전이다. save() 이후의 flush/커밋 실패로
+        // 트랜잭션이 롤백되면 파일만 고아로 남으므로, 커밋이 성공하지 못한 경우(afterCompletion status가
+        // COMMITTED가 아닌 모든 경우 = 롤백·커밋 실패)에 한해 저장했던 파일을 되돌린다.
+        if (!storedPaths.isEmpty()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == STATUS_COMMITTED) {
+                        return;
+                    }
+                    for (String path : storedPaths) {
+                        try {
+                            fileStorageService.delete(path);
+                        } catch (RuntimeException e) {
+                            // 보상 삭제 실패가 원래 실패 원인을 덮지 않도록 로그만 남긴다.
+                            log.warn("게시글 작성 롤백 중 이미지 삭제 실패: {}", path, e);
+                        }
+                    }
+                }
+            });
+        }
 
         // 저장한 뒤 방금 쓴 게시글을 그대로 볼 수 있게 응답 DTO로 변환해 반환.
         // user가 이미 로딩된 상태라 from()에서 nickname 접근 시 추가 쿼리가 발생하지 않는다.

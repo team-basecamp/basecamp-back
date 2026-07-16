@@ -6,8 +6,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
+import javax.imageio.ImageIO;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -81,9 +84,25 @@ public class LocalFileStorageService implements FileStorageService {
 			throw new BusinessException(ErrorCode.IMAGE_COUNT_EXCEEDED);
 		}
 
-		return nonEmpty.stream()
-				.map(this::store)
-				.toList();
+		// 여러 파일을 하나라도 실패하면 전부 실패로 본다. 도중에 실패하면 이미 저장한 파일을
+		// 그대로 두지 않고 되돌려(delete), 고아 파일이 디스크에 남지 않게 한다.
+		List<String> stored = new ArrayList<>(nonEmpty.size());
+		try {
+			for (MultipartFile file : nonEmpty) {
+				stored.add(store(file));
+			}
+		} catch (RuntimeException e) {
+			// 정리 실패가 원래 실패 원인을 가리지 않도록 best-effort 로 되돌린다.
+			for (String path : stored) {
+				try {
+					delete(path);
+				} catch (RuntimeException cleanupError) {
+					log.warn("업로드 롤백 중 이미지 삭제 실패: {}", path, cleanupError);
+				}
+			}
+			throw e;
+		}
+		return List.copyOf(stored);
 	}
 
 	@Override
@@ -130,6 +149,19 @@ public class LocalFileStorageService implements FileStorageService {
 		boolean imageContentType = contentType != null && contentType.startsWith("image/");
 		if (!allowedExtension || !imageContentType) {
 			throw new BusinessException(ErrorCode.INVALID_IMAGE_TYPE);
+		}
+
+		// 확장자·Content-Type 은 위조가 쉬우므로, 실제 바이트가 디코딩 가능한 이미지인지 한 번 더 확인한다.
+		// (예: .txt 를 .jpg 로 바꿔 올린 경우 여기서 걸러진다)
+		// 단, JDK 기본 ImageIO 에는 webp 리더가 없어 정상 webp 도 null 이 되므로 이 검사에서만 제외한다.
+		if (!"webp".equals(extension)) {
+			try (InputStream in = file.getInputStream()) {
+				if (ImageIO.read(in) == null) {
+					throw new BusinessException(ErrorCode.INVALID_IMAGE_TYPE);
+				}
+			} catch (IOException e) {
+				throw new BusinessException(ErrorCode.INVALID_IMAGE_TYPE);
+			}
 		}
 		return extension;
 	}
