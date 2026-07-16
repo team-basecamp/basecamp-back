@@ -45,9 +45,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         JOIN FETCH res.user
         JOIN FETCH r.camp
         WHERE res.user.id = :userId
-        ORDER BY r.createdAt DESC
+        ORDER BY r.createdAt DESC, r.reviewId DESC
         """)
     List<Review> findByReservationUserIdWithDetails(@Param("userId") Long userId);
 
-    
+
 }
