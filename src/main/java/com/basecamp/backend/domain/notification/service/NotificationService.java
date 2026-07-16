@@ -1,14 +1,13 @@
 package com.basecamp.backend.domain.notification.service;
 
 import java.io.IOException;
+import java.util.Optional;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.basecamp.backend.common.exception.BusinessException;
@@ -42,6 +41,7 @@ public class NotificationService {
 
 	private final NotificationRepository notificationRepository;
 	private final SseEmitterRepository emitterRepository;
+	private final NotificationWriter notificationWriter;
 
 	// ── 구독(SSE) ────────────────────────────────────────────────────────
 
@@ -71,46 +71,31 @@ public class NotificationService {
 	// ── 발생(저장 + push) ─────────────────────────────────────────────────
 
 	/**
-	 * 알림을 저장하고 접속 중인 연결로 push 한다.
+	 * 알림을 저장하고 접속 중인 연결로 push 한다. 알림은 best-effort 라 실패해도 트리거(예약 확정 등)를 되돌리지 않는다.
 	 *
-	 * <p>트리거 트랜잭션의 커밋 이후({@code AFTER_COMMIT})에 호출되므로, 저장은 <b>새 트랜잭션</b>에서 이뤄져야 한다
-	 * ({@code REQUIRES_NEW}). 알림 저장 실패는 트리거(예약 확정 등)를 되돌리지 않는다 — 알림은 best-effort 다.</p>
+	 * <p><b>멱등 보장.</b> 같은 {@code (userId, type, targetId)} 알림은 한 번만 저장·전송된다. 스케줄러 재실행처럼
+	 * 순차적인 중복은 {@link NotificationWriter#saveIfAbsent} 의 존재 검사가 걸러내고({@link Optional#empty()} 반환),
+	 * 다중 인스턴스의 <b>동시</b> 삽입 경합은 DB 유니크 제약 {@code uq_notif_user_type_target}(V22)이 막는다.
+	 * 경합에서 진 쪽은 {@link DataIntegrityViolationException} 을 받지만, 이는 "이미 다른 쪽이 저장했다"는 뜻일 뿐
+	 * 실패가 아니므로 <b>삼키고 정상 종료</b>한다(중복 insert 를 요청 실패로 전파하지 않는다).</p>
 	 *
-	 * <p><b>멱등 보장:</b> 같은 {@code (userId, type, targetId)} 알림이 이미 있으면 저장도 push 도 하지 않는다.
-	 * 스케줄러 재실행이나 다중 인스턴스에서 D-1 등 알림이 중복 발송되는 것을 막는다. 아래 존재 검사는 재실행을
-	 * 조용히 걸러내는 fast-path 이고, 인스턴스 간 동시 삽입 경합의 <b>최종 방어선은 DB 유니크 제약</b>
-	 * {@code uq_notif_user_type_target}(V22) 이다 — 경합에서 진 쪽의 저장은 무결성 예외로 실패하고 push 되지 않는다.</p>
-	 *
-	 * <p><b>push 는 커밋 이후로 미룬다.</b> 저장과 같은 트랜잭션 안에서 push 하면, 커밋 전에 클라이언트가 알림을 받은 뒤
-	 * 커밋이 실패(유니크 제약 경합 등)했을 때 <b>유령 알림</b>이 남는다. 그래서 {@link TransactionSynchronization#afterCommit()}
-	 * 에 push 를 등록해, 저장이 실제로 확정된 뒤에만 전송한다. 트랜잭션이 없는 호출(테스트 등)에서는 즉시 전송한다.</p>
+	 * <p><b>push 는 저장이 커밋된 뒤에만 한다.</b> {@code saveIfAbsent} 는 독립 트랜잭션({@code REQUIRES_NEW})이라
+	 * 정상 반환 = 커밋 완료다. 롤백되면 예외로 빠져 push 에 도달하지 않으므로 유령 알림이 생기지 않는다.</p>
 	 */
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void send(Long userId, NotificationType type, Long targetId, String arg) {
-		// 이미 보낸 알림이면 재발송하지 않는다(멱등). target 이 없는 알림(공지 등)은 중복 개념이 없어 검사에서 제외.
-		if (targetId != null && notificationRepository.existsByUserIdAndTypeAndTargetId(userId, type, targetId)) {
-			return;
-		}
-		Notification saved = notificationRepository.save(
-				Notification.create(userId, type, type.render(arg), targetId));
-		pushAfterCommit(userId, NotificationResponse.from(saved));
-	}
-
-	/**
-	 * 현재 트랜잭션이 커밋된 뒤에 push 하도록 등록한다. 트랜잭션 동기화가 없으면(테스트 등) 즉시 push 한다.
-	 * 커밋되지 않고 롤백되면 {@code afterCommit} 이 호출되지 않아 유령 알림이 생기지 않는다.
-	 */
-	private void pushAfterCommit(Long userId, NotificationResponse payload) {
-		if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-			push(userId, payload);
-			return;
-		}
-		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-			@Override
-			public void afterCommit() {
-				push(userId, payload);
+		Notification saved;
+		try {
+			Optional<Notification> result = notificationWriter.saveIfAbsent(userId, type, targetId, arg);
+			if (result.isEmpty()) {
+				return; // 이미 보낸 알림 → no-op
 			}
-		});
+			saved = result.get();
+		} catch (DataIntegrityViolationException e) {
+			// 동시 삽입 경합에서 진 경우. 다른 쪽이 이미 저장했으므로 중복은 정상 no-op 이다.
+			log.debug("중복 알림 무시(멱등). userId={}, type={}, targetId={}", userId, type, targetId);
+			return;
+		}
+		push(userId, NotificationResponse.from(saved));
 	}
 
 	private void push(Long userId, NotificationResponse payload) {

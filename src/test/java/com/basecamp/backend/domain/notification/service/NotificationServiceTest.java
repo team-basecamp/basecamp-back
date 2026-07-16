@@ -1,6 +1,7 @@
 package com.basecamp.backend.domain.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -17,10 +18,10 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -28,7 +29,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.notification.entity.Notification;
-import com.basecamp.backend.domain.notification.entity.NotificationTargetType;
 import com.basecamp.backend.domain.notification.entity.NotificationType;
 import com.basecamp.backend.domain.notification.repository.NotificationRepository;
 import com.basecamp.backend.domain.notification.repository.SseEmitterRepository;
@@ -52,6 +52,9 @@ class NotificationServiceTest {
 	@Mock
 	private SseEmitterRepository emitterRepository;
 
+	@Mock
+	private NotificationWriter notificationWriter;
+
 	@InjectMocks
 	private NotificationService notificationService;
 
@@ -67,23 +70,13 @@ class NotificationServiceTest {
 		// given: 유저가 하나의 SSE 연결을 열고 있다.
 		SseEmitter emitter = org.mockito.Mockito.mock(SseEmitter.class);
 		given(emitterRepository.findByUserId(USER_ID)).willReturn(List.of(emitter));
-		given(notificationRepository.save(any(Notification.class))).willAnswer(inv -> inv.getArgument(0));
+		given(notificationWriter.saveIfAbsent(USER_ID, NotificationType.RESERVATION_CONFIRMED, 42L, "해운대 오토캠핑장"))
+				.willReturn(Optional.of(notificationOf(USER_ID)));
 
 		// when
 		notificationService.send(USER_ID, NotificationType.RESERVATION_CONFIRMED, 42L, "해운대 오토캠핑장");
 
-		// then: 저장 내용이 알림 종류에서 파생된 값들로 채워진다.
-		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
-		verify(notificationRepository).save(captor.capture());
-		Notification saved = captor.getValue();
-		assertThat(saved.getUserId()).isEqualTo(USER_ID);
-		assertThat(saved.getType()).isEqualTo(NotificationType.RESERVATION_CONFIRMED);
-		assertThat(saved.getTargetType()).isEqualTo(NotificationTargetType.RESERVATION);
-		assertThat(saved.getTargetId()).isEqualTo(42L);
-		assertThat(saved.getMessage()).isEqualTo("'해운대 오토캠핑장' 예약이 확정되었습니다.");
-		assertThat(saved.isRead()).isFalse();
-
-		// 접속 중인 연결로 push 된다.
+		// then: 저장이 커밋된(=saveIfAbsent 가 정상 반환한) 뒤 접속 중인 연결로 push 된다.
 		verify(emitter).send(any(SseEmitter.SseEventBuilder.class));
 	}
 
@@ -93,7 +86,8 @@ class NotificationServiceTest {
 		// given: push 도중 연결이 끊겨 IOException 이 난다.
 		SseEmitter deadEmitter = org.mockito.Mockito.mock(SseEmitter.class);
 		given(emitterRepository.findByUserId(USER_ID)).willReturn(List.of(deadEmitter));
-		given(notificationRepository.save(any(Notification.class))).willAnswer(inv -> inv.getArgument(0));
+		given(notificationWriter.saveIfAbsent(USER_ID, NotificationType.RESERVATION_REJECTED, 42L, "해운대 오토캠핑장"))
+				.willReturn(Optional.of(notificationOf(USER_ID)));
 		org.mockito.BDDMockito.willThrow(new IOException("broken pipe"))
 				.given(deadEmitter).send(any(SseEmitter.SseEventBuilder.class));
 
@@ -105,17 +99,32 @@ class NotificationServiceTest {
 	}
 
 	@Test
-	@DisplayName("send_같은알림이이미있으면_저장도push도하지않는다(멱등)")
+	@DisplayName("send_같은알림이이미있으면_push하지않는다(멱등)")
 	void send_이미같은알림이있으면_스킵한다() {
-		// given: 같은 (userId, type, targetId) 알림이 이미 존재(스케줄러 재실행/중복 트리거 상황).
-		given(notificationRepository.existsByUserIdAndTypeAndTargetId(USER_ID, NotificationType.RESERVATION_D1, 42L))
-				.willReturn(true);
+		// given: 존재 검사에 걸려 저장이 생략된 상황(스케줄러 재실행 등 순차 중복).
+		given(notificationWriter.saveIfAbsent(USER_ID, NotificationType.RESERVATION_D1, 42L, "해운대 오토캠핑장"))
+				.willReturn(Optional.empty());
 
 		// when
 		notificationService.send(USER_ID, NotificationType.RESERVATION_D1, 42L, "해운대 오토캠핑장");
 
-		// then: 중복 저장/전송이 없다.
-		verify(notificationRepository, never()).save(any());
+		// then: 중복 전송이 없다.
+		verify(emitterRepository, never()).findByUserId(any());
+	}
+
+	@Test
+	@DisplayName("send_동시삽입_유니크충돌_예외없이_noop으로끝나고_push하지않는다")
+	void send_유니크충돌_예외없이_noop으로끝난다() {
+		// given: 다중 인스턴스가 존재 검사를 함께 통과한 뒤, insert 에서 uq_notif_user_type_target 에 걸린 경합.
+		//        진 쪽은 DataIntegrityViolationException 을 받는다(= 이미 다른 쪽이 1회 저장했다는 뜻).
+		given(notificationWriter.saveIfAbsent(USER_ID, NotificationType.RESERVATION_D1, 42L, "해운대 오토캠핑장"))
+				.willThrow(new DataIntegrityViolationException("uq_notif_user_type_target"));
+
+		// when & then: 중복은 실패가 아니라 정상 no-op 이므로 예외가 전파되지 않는다.
+		assertThatCode(() -> notificationService.send(USER_ID, NotificationType.RESERVATION_D1, 42L, "해운대 오토캠핑장"))
+				.doesNotThrowAnyException();
+
+		// 저장에 성공한 쪽만 push 한다. 진 쪽이 push 하면 중복 전송이 되므로 하지 않는다.
 		verify(emitterRepository, never()).findByUserId(any());
 	}
 
