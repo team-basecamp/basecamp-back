@@ -5,15 +5,10 @@ import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.client.kakao.GeoPoint;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -186,13 +181,8 @@ public class Camp {
         this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
     }
 
-    // 리뷰 생성/수정/삭제 후 재계산된 평균 평점을 반영한다.
-    // average_rating은 DECIMAL(3,2) NOT NULL이라, 리뷰가 없어 null이 넘어오면 0.0으로 둔다.
-    public void applyAverageRating(Double averageRating) {
-        this.averageRating = averageRating == null
-                ? new BigDecimal("0.0")
-                : BigDecimal.valueOf(averageRating).setScale(1, RoundingMode.HALF_UP);
-    }
+    // average_rating은 엔티티에서 직접 바꾸지 않는다. 동시 갱신 시 마지막 커밋이 옛 평균으로 덮어쓰는 걸 막으려고
+    // CampRepository.refreshAverageRating(campId)의 UPDATE 한 문장으로만 갱신한다.
 
     // 주소 변경에 따른 좌표 갱신. 지오코딩 실패(geoPoint == null) 시 좌표를 비워서
     // 새 주소와 옛 좌표가 어긋난 채로 저장되지 않도록 한다.

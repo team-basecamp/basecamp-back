@@ -2,7 +2,7 @@ package com.basecamp.backend.domain.review.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.domain.camp.entity.Camp;
+import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
@@ -26,6 +26,7 @@ public class ReviewService {
 
     private final ReviewRepository reviewRepository;
     private final ReservationRepository reservationRepository;
+    private final CampRepository campRepository;
 
     // 리뷰 작성: 예약 소유자가 체크아웃을 마친 예약에 한해 리뷰를 남길 수 있다. (쓰기 트랜잭션)
     @Transactional
@@ -61,7 +62,7 @@ public class ReviewService {
             throw new BusinessException(ErrorCode.REVIEW_ALREADY_EXISTS);
         }
 
-        refreshCampAverageRating(review.getCamp());
+        refreshCampAverageRating(review.getCamp().getCampId());
         return ReviewResponse.from(review);
     }
 
@@ -80,7 +81,7 @@ public class ReviewService {
         // 관리 상태 엔티티라 update 후 트랜잭션 커밋 시 변경 감지로 UPDATE가 나간다.
         review.update(request.rating(), request.content());
 
-        refreshCampAverageRating(review.getCamp());
+        refreshCampAverageRating(review.getCamp().getCampId());
         return ReviewResponse.from(review);
     }
 
@@ -96,11 +97,11 @@ public class ReviewService {
             throw new BusinessException(ErrorCode.ACCESS_DENIED);
         }
 
-        // 캠핑장 참조는 delete 전에 잡아둔다. (삭제 후엔 review에서 꺼내 쓰지 않는다)
-        Camp camp = review.getCamp();
+        // 캠핑장 식별자는 delete 전에 잡아둔다. (삭제 후엔 review에서 꺼내 쓰지 않는다)
+        Long campId = review.getCamp().getCampId();
         reviewRepository.delete(review);
 
-        refreshCampAverageRating(camp);
+        refreshCampAverageRating(campId);
     }
 
     // 캠핑장 리뷰 목록 조회: 해당 캠핑장의 리뷰를 최신순으로 반환한다. (읽기 전용 트랜잭션)
@@ -118,11 +119,11 @@ public class ReviewService {
     }
 
     // camps.average_rating 재계산: 리뷰가 바뀔 때마다 해당 캠핑장의 평균을 다시 집계해 캐싱 컬럼에 반영한다.
-    // 집계 전 flush가 필요하다. 방금의 수정(변경 감지)·삭제는 아직 DB에 반영되지 않은 상태라,
-    // flush 없이 AVG를 돌리면 옛 값이 잡힌다. 반영 자체는 변경 감지로 커밋 시 UPDATE가 나간다.
-    private void refreshCampAverageRating(Camp camp) {
-        reviewRepository.flush();
-        camp.applyAverageRating(reviewRepository.findAverageRatingByCampId(camp.getCampId()));
+    // 집계·반영을 UPDATE 한 문장으로 처리해 같은 캠핑장에 대한 동시 갱신을 직렬화한다. (CampRepository 주석 참고)
+    // 방금의 수정(변경 감지)·삭제는 아직 DB에 반영되지 않은 상태라, flushAutomatically로 UPDATE 전에 밀어넣는다.
+    // campId는 프록시를 초기화하지 않고 읽히므로 삭제된 캠핑장의 리뷰를 건드려도 프록시 초기화로 터지지 않는다.
+    private void refreshCampAverageRating(Long campId) {
+        campRepository.refreshAverageRating(campId);
     }
 
     // 체크아웃 완료 검증: 예약이 확정(RESERVED) 상태이고 체크아웃 날짜가 지났을 때만 리뷰 작성을 허용한다.
