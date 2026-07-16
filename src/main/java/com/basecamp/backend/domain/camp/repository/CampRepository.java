@@ -1,6 +1,7 @@
 package com.basecamp.backend.domain.camp.repository;
 
 import com.basecamp.backend.domain.camp.entity.Camp;
+import com.basecamp.backend.domain.camp.entity.CampManageStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -40,7 +41,7 @@ public interface CampRepository extends JpaRepository<Camp,Long>, JpaSpecificati
     List<Camp> findByAddr1Containing(String addr1);
 
     //운영 상태로 검색
-    List<Camp> findByManageSttus(String manageSttus);
+    List<Camp> findByManageSttus(CampManageStatus manageSttus);
 
     // "리뷰 많은순" 정렬 전용 조회. Review 엔티티가 아직 없어서 reviews 테이블을 native query로 직접 LEFT JOIN한다.
     // 키워드/지역/유형/최대금액 필터는 CampSpecs와 동일한 조건을 SQL로 재현한 것.
