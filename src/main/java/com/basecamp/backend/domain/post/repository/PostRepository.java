@@ -26,7 +26,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     Optional<Post> findWithUserByPostId(@Param("postId") Long postId);
 
 
-    // ---------------------------------------------------------------------
+    // -------w--------------------------------------------------------------
     // 게시글 목록 조회 (커서 페이징)
     //
     // 정렬 키는 (created_at DESC, post_id DESC) 하나로 고정하고, 커서도 이 두 값을 그대로 담는다.
