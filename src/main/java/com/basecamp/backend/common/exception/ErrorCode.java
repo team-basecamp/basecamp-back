@@ -79,6 +79,9 @@ public enum ErrorCode {
 	REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "RV001", "리뷰를 찾을 수 없습니다."),
 	REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "RV002", "이미 작성한 리뷰가 있습니다."),
 	REVIEW_NOT_ALLOWED_BEFORE_CHECKOUT(HttpStatus.BAD_REQUEST, "RV003", "체크아웃이 완료된 예약만 리뷰를 작성할 수 있습니다."),
+
+	// Notification (알림)
+	NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "N001", "알림을 찾을 수 없습니다."),
 	;
 
 	private final HttpStatus status;
