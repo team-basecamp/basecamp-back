@@ -4,6 +4,7 @@ import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -14,7 +15,6 @@ import java.time.LocalDateTime;
 // 작성자는 별도 컬럼 없이 연결된 예약(reservation)의 회원으로 식별한다.
 @Entity
 @Getter
-// 기본 생성자는 JPA가 요구하지만 외부에서 new Review() 남용을 막기 위해 PROTECTED로 제한
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "reviews")
 public class Review {
@@ -54,10 +54,11 @@ public class Review {
     private LocalDateTime updatedAt;
 
     // 리뷰 생성자. 대상 예약·캠핑장·평점·본문을 받고 작성 시각은 여기서 채운다.
-    public Review(Reservation reservation, Camp camp, BigDecimal rating, String content) {
+    @Builder
+    public Review(Reservation reservation, Camp camp, int rating, String content) {
         this.reservation = reservation;
         this.camp = camp;
-        this.rating = rating;
+        this.rating = BigDecimal.valueOf(rating); //클라이언트에서 정수로 받음
         this.content = content;
         // DB DEFAULT가 있어도 JPA가 NULL로 밀어넣으면 적용되지 않아 자바단에서 초기값을 채운다.
         this.createdAt = LocalDateTime.now();
@@ -65,8 +66,8 @@ public class Review {
 
     // 리뷰 수정. 평점·본문을 갈아끼우고 수정 시각을 현재로 채운다.
     // 관리 상태(영속 컨텍스트) 엔티티에서 호출하면 트랜잭션 커밋 시 변경 감지로 UPDATE가 나간다.
-    public void update(BigDecimal rating, String content) {
-        this.rating = rating;
+    public void update(int rating, String content) {
+        this.rating = BigDecimal.valueOf(rating);
         this.content = content;
         this.updatedAt = LocalDateTime.now();
     }
