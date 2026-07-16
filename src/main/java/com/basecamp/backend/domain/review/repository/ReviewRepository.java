@@ -49,5 +49,20 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         """)
     List<Review> findByReservationUserIdWithDetails(@Param("userId") Long userId);
 
+    // 한 캠핑장의 평균 평점을 집계한다. 리뷰가 하나도 없으면 avg가 null이라 0.0으로 대체한다. HQL의 avg는 Double을 반환한다.
+    @Query("""
+            select coalesce(avg(rv.rating), 0.0)
+            from Review rv
+            where rv.camp.campId = :campId
+            """)
+    Double findAverageRatingByCampId(@Param("campId") Long campId);
+
+    // 사업자 대시보드 통계: 해당 사업자가 소유한 모든 캠핑장의 평균 평점.
+    @Query("""
+            select avg(rv.rating)
+            from Review rv
+            where rv.camp.ownerId = :ownerId
+            """)
+    Double findAverageRatingByOwnerId(@Param("ownerId") Long ownerId);
 
 }

@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -183,6 +184,14 @@ public class Camp {
         }
         // 수정 시각 갱신
         this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+    }
+
+    // 리뷰 생성/수정/삭제 후 재계산된 평균 평점을 반영한다.
+    // average_rating은 DECIMAL(3,2) NOT NULL이라, 리뷰가 없어 null이 넘어오면 0.0으로 둔다.
+    public void applyAverageRating(Double averageRating) {
+        this.averageRating = averageRating == null
+                ? new BigDecimal("0.0")
+                : BigDecimal.valueOf(averageRating).setScale(1, RoundingMode.HALF_UP);
     }
 
     // 주소 변경에 따른 좌표 갱신. 지오코딩 실패(geoPoint == null) 시 좌표를 비워서
