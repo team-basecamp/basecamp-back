@@ -74,5 +74,31 @@ public interface CampRepository extends JpaRepository<Camp,Long>, JpaSpecificati
             @Param("priceMax") Integer priceMax,
             Pageable pageable
     );
+    // HOT 캠핑장 - 예약건수순 정렬 전용 조회.
+    // camps.reservation_count는 갱신 로직이 아직 없어 신뢰할 수 없으므로,
+    // reviews와 동일하게 reservations 테이블을 실시간 LEFT JOIN + COUNT로 집계한다.
+    // status 조건은 WHERE가 아니라 ON 절에 둬야 한다 — WHERE에 두면 매칭되는
+    // 예약이 없는 캠핑장(0건)까지 결과에서 통째로 빠지는 버그가 생긴다(사실상 INNER JOIN이 됨).
+    // COUNT(r.reservation_id): LEFT JOIN에서 매칭 안 되면 오른쪽 테이블(r) 컬럼은 전부 NULL이 되고,
+    // COUNT는 NULL을 안 세므로 예약 0건인 캠핑장은 정확히 0으로 집계된다.
+    @Query(
+            value = "SELECT c.* FROM camps c " +
+                    "LEFT JOIN reservations r ON r.camp_id = c.camp_id " +
+                    "    AND r.status IN (:statuses) " +
+                    "WHERE c.manage_sttus = '운영' " +
+                    "  AND c.deleted_at IS NULL " +
+                    "GROUP BY c.camp_id " +
+                    "ORDER BY COUNT(r.reservation_id) DESC, c.average_rating DESC, c.camp_id ASC",
+            countQuery = "SELECT COUNT(*) FROM (" +
+                    "  SELECT c.camp_id FROM camps c " +
+                    "  WHERE c.manage_sttus = '운영' AND c.deleted_at IS NULL" +
+                    ") t",
+            nativeQuery = true
+    )
+
+    Page<Camp> findHotCampsByReservationCountDesc(
+            @Param("statuses") List<String> statuses,
+            Pageable pageable
+    );
 
 }
