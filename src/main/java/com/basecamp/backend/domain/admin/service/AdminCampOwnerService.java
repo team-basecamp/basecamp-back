@@ -2,6 +2,7 @@ package com.basecamp.backend.domain.admin.service;
 
 import java.time.Clock;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,8 @@ import com.basecamp.backend.domain.campowner.dto.response.CampOwnerApplicationRe
 import com.basecamp.backend.domain.campowner.entity.ApplicationStatus;
 import com.basecamp.backend.domain.campowner.entity.CampOwnerApplication;
 import com.basecamp.backend.domain.campowner.repository.CampOwnerApplicationRepository;
+import com.basecamp.backend.domain.notification.entity.NotificationType;
+import com.basecamp.backend.domain.notification.event.NotificationEvent;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
 import com.basecamp.backend.security.cache.UserRevocationCache;
@@ -33,6 +36,7 @@ public class AdminCampOwnerService {
 	private final CampOwnerApplicationRepository applicationRepository;
 	private final UserRepository userRepository;
 	private final UserRevocationCache userRevocationCache;
+	private final ApplicationEventPublisher eventPublisher;
 	private final Clock clock;
 
 	@Transactional(readOnly = true)
@@ -59,11 +63,20 @@ public class AdminCampOwnerService {
 		application.approve(adminId, clock);   // PENDING 아니면 CO004
 		user.promoteToCampOwner();             // 이미 CAMP_OWNER 면 CO003
 		userRevocationCache.revoke(user.getId());
+
+		// 커밋 이후 신청자에게 승인 알림 (AFTER_COMMIT 리스너가 저장·push)
+		eventPublisher.publishEvent(NotificationEvent.of(
+				application.getUserId(), NotificationType.CAMP_OWNER_APPROVED, application.getId(), null));
 	}
 
 	/** 신청을 반려한다. 회원 권한은 그대로이므로 토큰을 건드리지 않는다. */
 	public void reject(Long applicationId, Long adminId, String reason) {
-		findApplication(applicationId).reject(adminId, reason, clock);
+		CampOwnerApplication application = findApplication(applicationId);
+		application.reject(adminId, reason, clock);
+
+		// 커밋 이후 신청자에게 반려 알림 (AFTER_COMMIT 리스너가 저장·push)
+		eventPublisher.publishEvent(NotificationEvent.of(
+				application.getUserId(), NotificationType.CAMP_OWNER_REJECTED, application.getId(), null));
 	}
 
 	private CampOwnerApplication findApplication(Long applicationId) {
