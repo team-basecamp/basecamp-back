@@ -26,6 +26,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -170,7 +171,9 @@ public class CampService {
 
             log.info("총 {}개의 캠핑장이 저장되었습니다", totalSaved);
 
-        } catch (Exception e) {
+        } catch (BusinessException e) {
+            throw e;
+        } catch (RestClientException e) {
             log.error("고캠핑 API 호출 실패: {}", e.getClass().getSimpleName());
             throw new BusinessException(ErrorCode.GOCAMPING_SERVER_ERROR, "고캠핑 API 호출 중 오류가 발생했습니다");
         }
@@ -238,6 +241,9 @@ public class CampService {
 // 예약건수순: reservations 실시간 COUNT (PENDING+RESERVED만, 결제 완료된 예약만 유효하게 카운트)
 // 평점순: 캐싱된 average_rating 컬럼 기준, 동점이면 예약건수로 2차 정렬
     public CampListResponseDto getHotCamps(String sortBy, int pageNo, int numOfRows) {
+        if (numOfRows <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE,"numOfRows는 1이상이어야 합니다");
+        }
         int page = Math.max(pageNo - 1, 0);
         Page<Camp> result;
         if ("reservationCount".equals(sortBy)) {
@@ -365,8 +371,14 @@ public class CampService {
     // 로그인한 회원(ownerId)이 등록한 캠핑장 목록 조회
     @Transactional(readOnly = true)
     public CampListResponseDto getMyCamps(Long ownerId) {
-        if (ownerId == null || ownerId <= 0) {
+        if (ownerId == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "로그인이 필요합니다.");
+            // "너 누군지 모르겠다" → 인증 자체가 없는 상황 → 401
+        }
+
+        if (ownerId <= 0) {
+            throw new BusinessException(ErrorCode.CAMP_NOT_ACCESSED, "캠핑장 등록 권한이 없습니다.");
+            // "값은 있는데 이상하다(음수/0)" → 뭔가 조작되었거나 잘못된 값 → 403
         }
 
         List<Camp> camps = campRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId);

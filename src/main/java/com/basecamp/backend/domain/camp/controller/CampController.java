@@ -1,7 +1,5 @@
 package com.basecamp.backend.domain.camp.controller;
 
-import com.basecamp.backend.common.exception.BusinessException;
-import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
@@ -69,11 +67,6 @@ public class CampController {
     @GetMapping("/content/{contentId}")
     public ResponseEntity<CampDetailResponseDto> getCampByContentId(@PathVariable Long contentId) {
         Camp camp = campService.getCampByContentId(contentId);
-
-        if (camp == null) {
-            throw new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
-        }
-
         return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
     }
 
