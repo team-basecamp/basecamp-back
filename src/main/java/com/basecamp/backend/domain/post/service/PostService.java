@@ -2,6 +2,7 @@ package com.basecamp.backend.domain.post.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.common.storage.FileStorageProperties;
 import com.basecamp.backend.common.storage.FileStorageService;
 import com.basecamp.backend.domain.comment.dto.PostCommentCount;
 import com.basecamp.backend.domain.comment.repository.CommentRepository;
@@ -22,6 +23,7 @@ import com.basecamp.backend.domain.post.repository.PostReportRepository;
 import com.basecamp.backend.domain.post.repository.PostRepository;
 import com.basecamp.backend.domain.user.entity.Image;
 import com.basecamp.backend.domain.user.entity.User;
+import com.basecamp.backend.domain.user.repository.ImageRepository;
 import com.basecamp.backend.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +35,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -61,6 +64,10 @@ public class PostService {
     private final CommentRepository commentRepository;
     // 첨부 이미지를 로컬 저장소에 올리고 상대경로를 돌려주는 저장 서비스 (로컬/원격 구현 교체 가능)
     private final FileStorageService fileStorageService;
+    // 게시글에서 떨어져 나간 이미지 행을 정리하기 위한 리포지토리
+    private final ImageRepository imageRepository;
+    // 첨부 개수 상한 등 업로드 정책 (수정은 기존+신규 합계로 상한을 봐야 한다)
+    private final FileStorageProperties fileStorageProperties;
 
     // 게시글 목록 조회: 카테고리로 걸러 최신순 한 페이지를 반환한다. (클래스 기본 readOnly 트랜잭션)
     // category가 없거나 ALL이면 3개 카테고리 전부, 즉 카테고리 조건을 걸지 않은 결과를 준다.
@@ -238,17 +245,125 @@ public class PostService {
     }
 
 
-    // 게시글 수정: 대상 글을 조회해 내용을 바꾸고 상세 응답으로 반환한다. (쓰기 트랜잭션)
+    // 게시글 수정: 작성자 본인의 글을 조회해 본문과 첨부 이미지를 바꾸고 상세 응답으로 반환한다. (쓰기 트랜잭션)
+    // userId는 컨트롤러에서 토큰(AuthUser)으로부터 넘어온 값이라 신뢰할 수 있다.
+    //
+    // 이미지는 PostMapping 의미대로 "전체 교체"다. 최종 목록 = request.keepImageUrls(남길 기존 것) + images(새로 올린 것) 이고,
+    // 남기지 않은 기존 이미지는 게시글에서 떼고 images 행과 디스크 파일까지 지운다.
+    // (남는 파일을 방치하면 디스크만 계속 불어나고, 경로를 아는 사람은 삭제한 사진을 계속 열어볼 수 있다.)
     @Transactional
-    public PostDetailResponse update(Long id, PostUpdateRequest request) {
-        // 수정할 게시글 조회, 없으면 예외
-        Post post = postRepository.findById(id)
+    public PostDetailResponse update(Long userId, Long postId, PostUpdateRequest request, List<MultipartFile> images) {
+        // 수정할 게시글 조회. 응답의 nickname·기존 이미지가 모두 필요하므로 작성자·이미지까지 함께 로딩한다.
+        Post post = postRepository.findWithUserByPostId(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+        // 상세 조회와 같은 노출 정책. 삭제된 글은 404로 통일하고, 블라인드된 글은 수정으로 되살릴 수 없게 403.
+        if (post.getStatus() == PostStatus.DELETED) {
+            throw new BusinessException(ErrorCode.POST_NOT_FOUND);
+        }
+        if (post.getStatus() == PostStatus.BLINDED) {
+            throw new BusinessException(ErrorCode.POST_BLINDED);
+        }
+
+        // 소유권 확인: 내 글이 아니면 수정 거부(403). 삭제와 동일하게 서비스에서 막는다.
+        if (!post.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // 남길 기존 이미지를 확정한다. 요청의 경로 문자열을 그대로 쓰지 않고, 이 게시글에 실제로 붙어 있는
+        // Image 인스턴스로만 되짚는다. (아래 resolveKeptImages 참고)
+        List<Image> keptImages = resolveKeptImages(post, request.keepImageUrls());
+
+        // 새 이미지를 저장소에 올린다. 형식·크기 검증과 실패 시 롤백은 storeAll이 담당한다.
+        List<String> storedPaths = fileStorageService.storeAll(images);
+
+        // 파일은 이미 디스크에 쓰였지만 DB는 아직 커밋 전이다. 이 아래 어디서든 실패해 롤백되면
+        // 방금 올린 파일만 고아로 남으므로, storeAll 직후 곧바로 되돌림 훅을 건다.
+        // 동시에, 커밋에 성공한 경우에만 떨어져 나간 옛 파일을 지운다 — 롤백됐는데 파일을 먼저 지워버리면
+        // DB에는 살아 있는 이미지의 실물이 사라져 깨진 링크가 된다.
+        List<String> removedPaths = new ArrayList<>();
+        registerImageCleanup(storedPaths, removedPaths);
+
+        List<Image> newImages = storedPaths.stream()
+                .map(Image::of)
+                .toList();
+
+        // 최종 개수 상한은 여기서 본다. storeAll은 이번에 올린 파일 수만 세므로,
+        // 기존 3장을 남긴 채 새로 3장을 올리는 식으로 상한을 넘기는 것을 잡지 못한다.
+        if (keptImages.size() + newImages.size() > fileStorageProperties.getMaxCount()) {
+            throw new BusinessException(ErrorCode.IMAGE_COUNT_EXCEEDED);
+        }
 
         // 변경 감지(dirty checking)로 트랜잭션 커밋 시점에 UPDATE 반영
         post.update(PostCategory.from(request.category()), request.title(), request.content());
 
+        // 남길 기존 것 + 새로 올린 것 순서로 최종 목록을 만든다. 이 순서가 곧 노출 순서다.
+        List<Image> finalImages = new ArrayList<>(keptImages);
+        finalImages.addAll(newImages);
+        List<Image> detachedImages = post.replaceImages(finalImages);
+
+        // 떨어져 나간 이미지는 이 게시글 전용이라 다른 곳에서 참조하지 않는다. 연결(post_images)만 끊고 두면
+        // images 행이 고아로 쌓이므로 행까지 지운다.
+        // 삭제 순서는 Hibernate가 보장한다 — 같은 flush 안에서 컬렉션 삭제(post_images)가 엔티티 삭제(images)보다 먼저 나간다.
+        if (!detachedImages.isEmpty()) {
+            imageRepository.deleteAll(detachedImages);
+            // 실물 파일 삭제는 커밋 성공 후에. 위에서 건 훅이 이 목록을 보고 지운다.
+            detachedImages.stream()
+                    .map(Image::getImageUrl)
+                    .forEach(removedPaths::add);
+        }
+
         return PostDetailResponse.from(post);
+    }
+
+    // 요청의 keepImageUrls를 이 게시글에 실제로 붙어 있는 Image 인스턴스 목록으로 되짚는다.
+    //   null       : 필드를 안 보낸 것 = 이미지는 건드리지 않는 수정. 기존 전부 유지.
+    //   빈 목록     : 전부 삭제하겠다는 뜻. 그대로 존중한다.
+    // 경로 문자열을 믿고 Image.of(url)로 새로 만들면 안 된다. 남의 게시글 이미지 경로를 keepImageUrls에 실어
+    // 내 글에 붙이거나, 임의 경로를 DB에 심을 수 있다. 그래서 "이 게시글에 지금 붙어 있는 것"만 통과시키고
+    // 그 밖의 값은 400으로 막는다. 중복도 막는다 — 같은 Image가 목록에 두 번 들어가면 post_images 키가 깨진다.
+    private List<Image> resolveKeptImages(Post post, List<String> keepImageUrls) {
+        if (keepImageUrls == null) {
+            return List.copyOf(post.getImages());
+        }
+        if (keepImageUrls.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Image> currentByUrl = post.getImages().stream()
+                .collect(Collectors.toMap(Image::getImageUrl, image -> image));
+
+        List<Image> kept = new ArrayList<>(keepImageUrls.size());
+        for (String url : keepImageUrls) {
+            Image image = currentByUrl.get(url);
+            // 이 게시글의 이미지가 아니거나(위조·오타), 같은 것을 두 번 보냈으면 400.
+            if (image == null || kept.contains(image)) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+            }
+            kept.add(image);
+        }
+        return kept;
+    }
+
+    // 수정 트랜잭션의 파일 정리 훅. 디스크는 트랜잭션에 참여하지 않으므로 커밋 결과를 보고 한쪽만 정리한다.
+    //   커밋 성공 : 게시글에서 떨어져 나간 옛 파일(removedPaths)을 지운다. 새 파일은 DB가 참조하므로 남긴다.
+    //   롤백/실패 : 방금 올린 새 파일(storedPaths)을 지운다. 옛 파일은 DB에 그대로 살아 있으므로 건드리지 않는다.
+    // removedPaths는 호출 후에 채워지는 것을 전제로 참조를 넘긴다. 훅은 커밋 시점에야 읽으므로 그때는 다 차 있다.
+    private void registerImageCleanup(List<String> storedPaths, List<String> removedPaths) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                List<String> targets = (status == STATUS_COMMITTED) ? removedPaths : storedPaths;
+                for (String path : targets) {
+                    try {
+                        fileStorageService.delete(path);
+                    } catch (RuntimeException e) {
+                        // 정리 실패로 요청 자체를 실패시키지는 않는다. 파일이 남는 것보다 나쁜 게 없으므로 로그만 남긴다.
+                        log.warn("게시글 수정 후 이미지 삭제 실패: {}", path, e);
+                    }
+                }
+            }
+        });
     }
 
     // 게시글 삭제: 작성자 본인만 상태를 DELETED로 바꾼다(소프트 삭제). (쓰기 트랜잭션)
