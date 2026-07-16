@@ -23,7 +23,7 @@ public class ReviewController {
     @PostMapping("/api/v1/reservations/{reservationId}/reviews")
     public ResponseEntity<ReviewResponse> createReview(
             @AuthenticationPrincipal AuthUser user,                 // JWT에서 꺼낸 로그인 회원 (id, role)
-            @PathVariable("reservationId") Long reservationId,      // 리뷰를 남길 예약 id (경로 변수)
+            @PathVariable Long reservationId,      // 리뷰를 남길 예약 id (경로 변수)
             @RequestBody @Valid ReviewRequest request) {            // 작성 요청 본문(검증 대상)
 
         ReviewResponse response = reviewService.createReview(user.id(), reservationId, request);
@@ -32,12 +32,11 @@ public class ReviewController {
     }
 
     // 리뷰 수정: 인증 회원이 본인이 쓴 리뷰(reviewId)의 평점·본문을 수정하고 수정된 리뷰를 반환한다.
-    // 평점·본문 전체를 교체하므로 PUT으로 노출한다.
     @Operation(summary = "리뷰 수정", description = "예약자 본인이 작성한 리뷰의 평점·내용을 수정한다.")
     @PostMapping("/api/v1/reviews/{reviewId}")
     public ResponseEntity<ReviewResponse> updateReview(
             @AuthenticationPrincipal AuthUser user,                 // JWT에서 꺼낸 로그인 회원 (id, role)
-            @PathVariable("reviewId") Long reviewId,                // 수정할 리뷰 id (경로 변수)
+            @PathVariable Long reviewId,                // 수정할 리뷰 id (경로 변수)
             @RequestBody @Valid ReviewRequest request) {            // 수정 요청 본문(검증 대상)
 
         ReviewResponse response = reviewService.updateReview(user.id(), reviewId, request);
