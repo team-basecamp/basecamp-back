@@ -28,10 +28,8 @@ public interface FileStorageService {
 	List<String> storeAll(List<MultipartFile> files);
 
 	/**
-	 * 상대경로의 저장 파일을 더 이상 서빙되지 않게 치운다. 경로가 비었거나 관리 대상이 아니면 조용히 무시한다.
-	 *
-	 * <p>호출 후 그 경로는 공개 URL로 열리지 않는다는 것까지만 계약이다. 실물 바이트를 즉시 지울지,
-	 * 복구를 위해 잠시 보관할지는 구현체가 정한다. (로컬 구현은 휴지통으로 옮겨 일정 기간 보관한다.)</p>
+	 * 상대경로로 저장 파일을 삭제한다. 경로가 비었거나 관리 대상이 아니면 조용히 무시한다.
+	 * (게시글 삭제/수정 기능에서 사용할 확장 지점)
 	 */
 	void delete(String relativePath);
 }

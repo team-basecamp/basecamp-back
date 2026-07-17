@@ -142,9 +142,6 @@ file:
     url-prefix: /images                           # 공개 URL 접두어 (더미 이미지 static/images 와 동일 경로)
     max-count: ${FILE_MAX_COUNT:10}               # 한 요청당 첨부 이미지 최대 개수
     allowed-extensions: jpg,jpeg,png,gif,webp     # 허용 확장자
-    # 삭제된 이미지는 지우지 않고 아래 휴지통으로 옮겨 보관한다. 자동 청소는 없으므로 쌓이면 직접 비운다.
-    # trash-dir 은 반드시 dir 바깥이어야 한다 — 안에 두면 삭제된 사진이 url-prefix 로 계속 공개된다(기동 시 검증).
-    trash-dir: ${FILE_TRASH_DIR:uploads/trash}    # 삭제 이미지 보관 위치 (Git 제외, 서빙 안 됨)
 
 # OpenWeatherMap API — 좌표 기반 현재 날씨/예보 조회
 openweather:

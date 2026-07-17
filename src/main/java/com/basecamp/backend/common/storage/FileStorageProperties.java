@@ -30,18 +30,6 @@ public class FileStorageProperties {
 	private String dir = "uploads/images";
 
 	/**
-	 * 삭제된 이미지를 옮겨 보관하는 휴지통 디렉터리(작업 디렉터리 기준 상대경로). Git 제외 대상.
-	 *
-	 * <p>게시글의 {@code status=DELETED} 소프트 삭제에 대응하는 파일 버전이다. 삭제 요청이 오면 파일을 지우지 않고
-	 * 이 디렉터리로 옮겨, 실수로 지운 사진을 되살릴 수 있게 둔다. 자동 청소는 하지 않으므로 계속 쌓인다.</p>
-	 *
-	 * <p><b>반드시 {@link #dir} 바깥이어야 한다.</b> 정적 리소스 핸들러는 DB를 보지 않고 {@code dir} 아래 파일을
-	 * {@link #urlPrefix} 로 그대로 서빙하므로, 휴지통이 {@code dir} 안에 있으면 "삭제된" 사진이 URL로 계속 열린다.
-	 * 이 조건은 {@link LocalFileStorageService} 가 기동 시점에 검증한다.</p>
-	 */
-	private String trashDir = "uploads/trash";
-
-	/**
 	 * 저장 파일에 부여하는 공개 URL 접두어. DB에는 이 접두어로 시작하는 상대경로만 저장한다.
 	 *
 	 * <p>{@link #setUrlPrefix}에서 끝 슬래시를 떼어 정규화하고, 아래 제약으로 바인딩 시점에 검증한다.
