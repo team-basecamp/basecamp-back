@@ -65,7 +65,7 @@ public class CampWishlistService {
     }
 
     /**
-     * 예외 원인이 위시리스트 복합 UNIQUE 위반인지 판별한다.
+     * 예외 원인이 위시리스트 복합 UNIQUE 위반인지 판별
      * MySQL 이 제약 이름을 "테이블명.제약명" 형태로 돌려주기도 해 contains 로 비교한다.
      */
     private boolean isWishlistDuplicate(DataIntegrityViolationException e) {
