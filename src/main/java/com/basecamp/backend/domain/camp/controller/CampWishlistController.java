@@ -7,6 +7,7 @@ import com.basecamp.backend.domain.camp.service.CampWishlistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,7 +30,11 @@ public class CampWishlistController {
             @AuthenticationPrincipal AuthUser user,
             @PathVariable Long campId) {
 
-        return ResponseEntity.ok(wishlistService.toggleWishlist(user.id(), campId));
+        WishlistToggleResponse response = wishlistService.toggleWishlist(user.id(), campId);
+
+        // 찜 등록은 리소스 생성이므로 201, 해제는 200. 결과는 응답 본문의 wished 로도 내려간다.
+        HttpStatus status = response.wished() ? HttpStatus.CREATED : HttpStatus.OK;
+        return ResponseEntity.status(status).body(response);
     }
 
     @Operation(summary = "내 찜 목록 조회", description = "로그인한 회원이 찜한 캠핑장 목록을 최신순으로 조회합니다.")
