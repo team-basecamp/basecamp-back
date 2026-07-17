@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -15,6 +16,19 @@ import java.util.Optional;
 
 @Repository
 public interface CampRepository extends JpaRepository<Camp,Long>, JpaSpecificationExecutor<Camp> {
+
+    // 리뷰 변경 후 캐싱 컬럼(camps.average_rating)을 리뷰 전체 재집계로 다시 채운다.
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            update camps c
+            set c.average_rating = (
+                select round(coalesce(avg(rv.rating), 0.0), 1)
+                from reviews rv
+                where rv.camp_id = c.camp_id
+            )
+            where c.camp_id = :campId
+            """, nativeQuery = true)
+    void refreshAverageRating(@Param("campId") Long campId);
 
     // contentId로 캠핑장 찾기
     Optional<Camp> findByContentId(Long contentId);
