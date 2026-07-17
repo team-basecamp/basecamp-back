@@ -133,6 +133,16 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
                                @Param("from") LocalDateTime from,
                                @Param("to") LocalDateTime to);
 
+    // 사업자 대시보드 통계: 기간 조건 없는 상태별 예약 건수 (승인 대기 배지용).
+    // 매출·건수와 달리 "지금 처리해야 할 건"이라 이번달/올해로 자르지 않는다.
+    @Query("""
+        select count(r) from Reservation r
+        where r.camp.ownerId = :ownerId
+          and r.status in :statuses
+        """)
+    long countByOwnerAndStatuses(@Param("ownerId") Long ownerId,
+                                 @Param("statuses") List<ReservationStatus> statuses);
+
     // 사업자 대시보드 통계: 월별 매출, 예약 건수
     @Query("""
         select month(r.createdAt) as month,

@@ -15,6 +15,7 @@ import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.MonthlyRevenueProjection;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
+import com.basecamp.backend.domain.review.repository.ReviewRepository;
 import com.basecamp.backend.domain.notification.entity.NotificationType;
 import com.basecamp.backend.domain.notification.event.NotificationEvent;
 import com.basecamp.backend.domain.user.entity.User;
@@ -28,6 +29,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,6 +44,7 @@ import java.util.stream.IntStream;
 public class ReservationService {
 
     private final ReservationRepository reservationRepository;
+    private final ReviewRepository reviewRepository;
     private final CampRepository campRepository;
     private final PaymentService paymentService;
     private final UserRepository userRepository;
@@ -200,12 +204,24 @@ public class ReservationService {
         long yearlyReservations = reservationRepository.countByOwnerAndPeriod(
                 ownerId, confirmedOnly, yearStart, nextYearStart);
 
+        // 승인 대기는 "지금 처리해야 할 건"이라 기간으로 자르지 않는다. 지난달에 들어온 미처리 신청도 대기 중이면 세야 한다.
+        long pendingCount = reservationRepository.countByOwnerAndStatuses(
+                ownerId, List.of(ReservationStatus.PENDING));
+
+        // 평점은 기간 조건 없이 보유 캠핑장의 리뷰 전체를 집계한다. (매출·건수와 달리 이번달/올해로 자르지 않는다)
         return new ReservationStatsResponse(
                 monthlyRevenue,
                 monthlyReservations,
                 yearlyReservations,
-                null // TODO: 리뷰/평점 도메인 구현 후 연동
+                pendingCount,
+                roundToFirstDecimal(reviewRepository.findAverageRatingByOwnerId(ownerId))
         );
+    }
+
+    // 평점 표시 단위를 캠핑장 평점(camps.average_rating)과 맞춘다. 리뷰가 없으면(null) 그대로 null을 넘겨
+    // "아직 평점 없음"과 "평점이 0.0점"을 화면에서 구분할 수 있게 둔다.
+    private Double roundToFirstDecimal(Double value) {
+        return value == null ? null : BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP).doubleValue();
     }
 
     // 사업자 대시보드용 예약 통계 (월별 매출, 예약 건수)
