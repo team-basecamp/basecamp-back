@@ -95,13 +95,32 @@ public class PostController {
         return ResponseEntity.ok(postService.getDetail(postId));
     }
 
-    // 게시글 수정: 경로의 게시글 id를 대상으로 내용을 수정한다.
-    @Operation(summary = "게시글 수정", description = "게시글의 카테고리·제목·내용을 수정한다.")
-    @PostMapping("/api/v1/posts/{postId}/update")
+    // 게시글 수정: 경로의 게시글 id를 대상으로 작성자 본인이 내용과 첨부 이미지를 수정한다.
+    // 작성과 같은 multipart/form-data 형식 — 본문 필드는 application/json 파트 "request", 새 이미지는 파일 파트 "images"(선택).
+    @Operation(
+            summary = "게시글 수정",
+            description = "작성자 본인이 게시글의 카테고리·제목·내용과 첨부 이미지를 수정한다. "
+                    + "multipart/form-data 로 전송하며, 'request'(application/json) 파트에 본문 필드를, "
+                    + "'images' 파트에 새로 추가할 이미지 파일들을 담는다. "
+                    + "이미지는 전체 교체 방식이라 최종 첨부 = request.keepImageUrls(남길 기존 이미지) + images(새 파일) 이며, "
+                    + "keepImageUrls 에 넣지 않은 기존 이미지는 삭제된다. "
+                    + "keepImageUrls 를 생략하면 기존 이미지를 그대로 유지하고, 빈 배열([])을 보내면 전부 삭제한다."
+    )
+    // 작성 API와 같은 이유 — Swagger UI 가 'request' 파트를 text/plain 으로 보내 415 가 나는 것을 막는다.
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            content = @Content(
+                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    encoding = @Encoding(name = "request", contentType = MediaType.APPLICATION_JSON_VALUE)
+            )
+    )
+    @PostMapping(value = "/api/v1/posts/{postId}/update", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<PostDetailResponse> updatePost(
-            @PathVariable("postId") Long id,               // 수정할 게시글 id
-            @RequestBody @Valid PostUpdateRequest request) {  // 수정 요청 본문(검증 대상)
-        return ResponseEntity.ok(postService.update(id, request));
+            @AuthenticationPrincipal AuthUser user,                    // JWT에서 꺼낸 로그인 회원 (id, role)
+            @PathVariable("postId") Long postId,                       // 수정할 게시글 id
+            @RequestPart("request") @Valid PostUpdateRequest request,  // 수정 요청 본문(JSON 파트, 검증 대상)
+            @RequestPart(value = "images", required = false) List<MultipartFile> images) { // 새로 추가할 이미지(선택)
+        // 회원 id는 토큰에서 꺼낸 user.id()만 신뢰한다. 소유권 확인은 서비스에서 한다.
+        return ResponseEntity.ok(postService.update(user.id(), postId, request, images));
     }
 
     // 게시글 삭제: 경로의 postId를 받아 작성자 본인 글의 상태를 DELETED로 바꾼다(소프트 삭제).

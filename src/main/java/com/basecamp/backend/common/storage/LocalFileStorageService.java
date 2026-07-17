@@ -116,8 +116,19 @@ public class LocalFileStorageService implements FileStorageService {
 			return;
 		}
 
+		// prefix 뒤에는 store()가 만든 UUID 파일명 하나만 와야 한다.
+		// 빈 값이면 저장 루트 자체를, 경로 구분자나 .. 가 섞이면 다른 디렉터리를 가리키게 된다.
+		String fileName = relativePath.substring(prefix.length());
+		if (fileName.isBlank()
+				|| ".".equals(fileName)
+				|| "..".equals(fileName)
+				|| fileName.contains("/")
+				|| fileName.contains("\\")) {
+			return;
+		}
+
 		Path baseDir = baseDir();
-		Path target = baseDir.resolve(relativePath.substring(prefix.length())).normalize();
+		Path target = baseDir.resolve(fileName).normalize();
 		if (!target.startsWith(baseDir)) {
 			// 경로 조작 방어: 저장 루트 밖은 건드리지 않는다.
 			return;

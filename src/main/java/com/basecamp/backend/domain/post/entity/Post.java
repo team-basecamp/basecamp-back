@@ -101,12 +101,27 @@ public class Post {
     }
 
     // 게시글에 이미지를 첨부한다. 저장소에 올린 뒤 만든 Image들을 순서대로 붙인다(전달 순서가 곧 노출 순서).
-    // 비어 있으면 아무것도 하지 않는다. (수정 시 교체 로직이 붙을 확장 지점)
+    // 비어 있으면 아무것도 하지 않는다.
     public void attachImages(List<Image> images) {
         if (images == null || images.isEmpty()) {
             return;
         }
         this.images.addAll(images);
+    }
+
+    // 첨부 이미지를 전달받은 목록으로 통째로 교체하고, 이번 교체로 떨어져 나간 이미지들을 돌려준다.
+    // 수정은 PostMapping 전체 교체라 "남길 기존 것 + 새로 올린 것"의 최종 목록을 그대로 받는다.
+    // 반환된 이미지는 이 게시글에서 완전히 빠진 것들이라, 호출측이 images 행과 디스크 파일을 정리하는 근거로 쓴다.
+    // 비교는 Image 인스턴스 동일성 기준이다. 남기는 이미지는 이미 이 컬렉션에 로딩된 바로 그 객체를 다시 넘겨야 한다.
+    public List<Image> replaceImages(List<Image> newImages) {
+        List<Image> detached = new ArrayList<>(this.images);
+        detached.removeAll(newImages);
+
+        this.images.clear();
+        this.images.addAll(newImages);
+        this.updatedAt = LocalDateTime.now();
+
+        return detached;
     }
 
     // 게시글 수정. 변경 감지(dirty checking)로 트랜잭션 커밋 시점에 UPDATE 되도록 필드 값만 바꾼다.

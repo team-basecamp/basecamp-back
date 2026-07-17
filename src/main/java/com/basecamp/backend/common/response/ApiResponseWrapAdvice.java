@@ -8,10 +8,13 @@ import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 도메인 컨트롤러({@code com.basecamp.backend.domain})의 모든 정상 응답 본문을
@@ -26,6 +29,7 @@ import lombok.RequiredArgsConstructor;
  *   <li>본문이 {@code null}(204 No Content)이면 감싸지 않아 응답 본문을 만들지 않는다.</li>
  * </ul>
  */
+@Slf4j
 @RestControllerAdvice(basePackages = "com.basecamp.backend.domain")
 @RequiredArgsConstructor
 public class ApiResponseWrapAdvice implements ResponseBodyAdvice<Object> {
@@ -61,7 +65,9 @@ public class ApiResponseWrapAdvice implements ResponseBodyAdvice<Object> {
 			try {
 				return objectMapper.writeValueAsString(ApiResponse.success(body));
 			} catch (JsonProcessingException e) {
-				throw new IllegalStateException("응답 직렬화에 실패했습니다.", e);
+				// BusinessException 은 원인(cause)을 담지 못하므로, 추적을 위해 여기서 원본을 남긴다.
+				log.error("응답 직렬화 실패", e);
+				throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
 			}
 		}
 		return ApiResponse.success(body);
