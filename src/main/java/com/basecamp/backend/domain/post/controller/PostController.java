@@ -131,7 +131,7 @@ public class PostController {
     @PostMapping("/api/v1/posts/{postId}/delete")
     public ResponseEntity<PostDeleteResponse> deletePost(
             @AuthenticationPrincipal AuthUser user,           // JWT에서 꺼낸 로그인 회원 (id, role)
-            @PathVariable("postId") Long postId) {            // 삭제할 게시글 id (경로 변수)
+            @PathVariable("postId") Long postId) {            // 삭제할 게시글 id ( 경로 변수 )
         // 회원 id는 토큰에서 꺼낸 user.id()만 신뢰한다. (요청 본문의 userId를 믿지 않는다)
         postService.delete(user.id(), postId);
         // 삭제 후 React가 게시글 목록(GET /api/v1/posts)으로 이동하도록 경로를 내려준다.
