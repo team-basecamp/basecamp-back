@@ -123,9 +123,11 @@ public class PostController {
         return ResponseEntity.ok(postService.update(user.id(), postId, request, images));
     }
 
-    // 게시글 삭제: 경로의 postId를 받아 작성자 본인 글의 상태를 DELETED로 바꾼다(소프트 삭제).
+    // 게시글 삭제: 경로의 postId를 받아 작성자 본인 글의 상태를 DELETED로 바꾸고(소프트 삭제), 첨부 이미지는 완전히 지운다.
     // 서버가 HTTP 리다이렉트를 하지 않고, 이동할 목록 경로를 응답 본문으로 내려주면 React가 라우팅한다.
-    @Operation(summary = "게시글 삭제", description = "작성자 본인이 게시글 상태를 DELETED로 변경(소프트 삭제)하고, React가 이동할 목록 경로를 반환한다.")
+    @Operation(summary = "게시글 삭제", description = "작성자 본인이 게시글 상태를 DELETED로 변경(소프트 삭제)한다. "
+            + "글은 행이 남지만 첨부 이미지는 images 행과 실제 파일까지 되돌릴 수 없게 삭제된다. "
+            + "React가 이동할 목록 경로를 반환한다.")
     @PostMapping("/api/v1/posts/{postId}/delete")
     public ResponseEntity<PostDeleteResponse> deletePost(
             @AuthenticationPrincipal AuthUser user,           // JWT에서 꺼낸 로그인 회원 (id, role)

@@ -345,9 +345,10 @@ public class PostService {
         return kept;
     }
 
-    // 수정 트랜잭션의 파일 정리 훅. 디스크는 트랜잭션에 참여하지 않으므로 커밋 결과를 보고 한쪽만 정리한다.
+    // 수정·삭제 트랜잭션의 파일 정리 훅. 디스크는 트랜잭션에 참여하지 않으므로 커밋 결과를 보고 한쪽만 정리한다.
     //   커밋 성공 : 게시글에서 떨어져 나간 옛 파일(removedPaths)을 지운다. 새 파일은 DB가 참조하므로 남긴다.
     //   롤백/실패 : 방금 올린 새 파일(storedPaths)을 지운다. 옛 파일은 DB에 그대로 살아 있으므로 건드리지 않는다.
+    // 삭제 경로처럼 새로 올리는 파일이 없으면 storedPaths는 빈 목록으로 넘어와 롤백 시 아무것도 지우지 않는다.
     // removedPaths는 호출 후에 채워지는 것을 전제로 참조를 넘긴다. 훅은 커밋 시점에야 읽으므로 그때는 다 차 있다.
     private void registerImageCleanup(List<String> storedPaths, List<String> removedPaths) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -366,8 +367,13 @@ public class PostService {
         });
     }
 
-    // 게시글 삭제: 작성자 본인만 상태를 DELETED로 바꾼다(소프트 삭제). (쓰기 트랜잭션)
+    // 게시글 삭제: 작성자 본인만 상태를 DELETED로 바꾸고(소프트 삭제), 첨부 이미지는 완전히 지운다. (쓰기 트랜잭션)
     // userId는 컨트롤러에서 토큰(AuthUser)으로부터 넘어온 값이라 신뢰할 수 있다.
+    //
+    // 글 자체는 소프트 삭제지만 이미지는 하드 삭제다 — 수정(update)에서 뺀 이미지를 지우는 것과 같은 기준이다.
+    // 남는 파일을 방치하면 디스크만 계속 불어나고, 경로를 아는 사람은 삭제한 사진을 계속 열어볼 수 있다.
+    // 되돌릴 수 없다는 점은 알고 받아들인 선택이다: 관리자 원문 열람(AdminPostService#getPostDetail)은
+    // 삭제된 글의 이미지를 더 이상 볼 수 없고, 글 복구 기능이 생기더라도 이미지는 되살릴 수 없다.
     @Transactional
     public void delete(Long userId, Long postId) {
         // 삭제할 게시글 조회, 없으면 예외
@@ -379,11 +385,28 @@ public class PostService {
             throw new BusinessException(ErrorCode.ACCESS_DENIED);
         }
 
+        // 첨부 이미지를 전부 떼어낸다. 이미 삭제된 글을 다시 지우면 빈 목록이 나와 아래가 모두 no-op이 된다.
+        List<Image> detachedImages = post.replaceImages(List.of());
+
+        // 실물 파일은 커밋 성공 후에만 지운다. 롤백됐는데 파일을 먼저 지우면 DB에 살아 있는 이미지의
+        // 실물이 사라져 깨진 링크가 된다. 이 경로에서 새로 올리는 파일은 없으므로 롤백 시 지울 목록은 비어 있다.
+        List<String> removedPaths = new ArrayList<>();
+        registerImageCleanup(List.of(), removedPaths);
+
+        // 연결(post_images)만 끊고 두면 images 행이 고아로 쌓이므로 행까지 지운다.
+        // 삭제 순서는 Hibernate가 보장한다 — 같은 flush 안에서 컬렉션 삭제가 엔티티 삭제보다 먼저 나간다.
+        if (!detachedImages.isEmpty()) {
+            imageRepository.deleteAll(detachedImages);
+            detachedImages.stream()
+                    .map(Image::getImageUrl)
+                    .forEach(removedPaths::add);
+        }
+
         // 변경 감지로 status = DELETED 로 UPDATE 반영
         post.delete();
     }
 
-     // 게시글 신고: 로그인 회원이 대상 게시글을 신고하고 접수된 신고 정보를 반환한다. (쓰기 트랜잭션)
+    // 게시글 신고: 로그인 회원이 대상 게시글을 신고하고 접수된 신고 정보를 반환한다. (쓰기 트랜잭션)
     // reporterId는 컨트롤러에서 토큰(AuthUser)으로부터 넘어온 값이라 신뢰할 수 있다.
     @Transactional
     public PostReportResponse report(Long reporterId, Long postId, PostReportRequest request) {
