@@ -10,12 +10,6 @@ package com.basecamp.backend.domain.payment.entity;
 public enum PaymentMethod {
     CARD,              // 카드(신용/체크) 결제
     KAKAO_PAY,         // 카카오페이
-    NAVER_PAY,         // 네이버페이
+    // NAVER_PAY,         // 네이버페이 : 테스트 인증 키를 받기에 절차가 너무 까다로워서 미구현
     TOSS_PAY,          // 토스페이
-    /*EASY_PAY,          // 그 외 간편결제
-    ACCOUNT_TRANSFER,  // 계좌이체
-    VIRTUAL_ACCOUNT,   // 가상계좌(무통장 입금)
-    MOBILE,            // 휴대폰 소액결제
-    GIFT_CERTIFICATE,  // 상품권
-    ETC                // 위에 해당하지 않는 수단*/
 }

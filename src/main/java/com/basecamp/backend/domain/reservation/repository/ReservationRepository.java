@@ -76,9 +76,12 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
             @Param("checkOutDate") LocalDate checkOutDate);
 
 
-    @Query("select r.id from Reservation r where r.status = :status and r.expiredAt < :now")
+    @Query("select r.id from Reservation r " +
+            "where r.status = :status and r.expiredAt < :now " +
+            "order by r.expiredAt asc")
     List<Long> findExpiredPendingIds(@Param("status") ReservationStatus status,
-                                     @Param("now") LocalDateTime now);
+                                     @Param("now") LocalDateTime now,
+                                     Pageable pageable);
 
     // 체크인 D-1 알림 대상: 주어진 날짜에 체크인하는 확정 예약. user/camp 를 함께 fetch 해
     // 스케줄러가 트랜잭션 밖에서 알림 메시지를 만들 때 지연 로딩 예외가 나지 않게 한다.

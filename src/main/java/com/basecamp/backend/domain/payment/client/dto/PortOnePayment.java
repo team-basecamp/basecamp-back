@@ -60,7 +60,8 @@ public record PortOnePayment(
     public record Failure(
             String message,
             String pgCode,
-            String pgMessage
+            String pgMessage,
+            String reason
     ) {
     }
 

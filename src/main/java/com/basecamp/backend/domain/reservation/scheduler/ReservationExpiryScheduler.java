@@ -5,6 +5,7 @@ import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import com.basecamp.backend.domain.reservation.service.ReservationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -29,13 +30,15 @@ public class ReservationExpiryScheduler {
     private final ReservationRepository reservationRepository;
     private final ReservationService reservationService;
 
+    private static final int BATCH_SIZE = 100;
     private static final String AUTO_REJECT_REASON = "업체 미응답 자동 반려";
 
     // 5분마다: 응답 기한 지난 PENDING → REJECTED + 환불
     @Scheduled(fixedDelay = 300_000)
     public void expireUnansweredReservations() {
         List<Long> expiredIds = reservationRepository.findExpiredPendingIds(
-                ReservationStatus.PENDING, LocalDateTime.now());
+                ReservationStatus.PENDING, LocalDateTime.now(),
+                PageRequest.of(0, BATCH_SIZE));
         if (expiredIds.isEmpty()) {
             return;
         }

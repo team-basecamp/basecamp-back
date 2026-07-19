@@ -46,7 +46,7 @@ public final class PortOneMethodMapper {
 
         return switch (provider) {
             case "KAKAOPAY" -> PaymentMethod.KAKAO_PAY;
-            case "NAVERPAY" -> PaymentMethod.NAVER_PAY;
+            //case "NAVERPAY" -> PaymentMethod.NAVER_PAY;
             case "TOSSPAY" -> PaymentMethod.TOSS_PAY;
             default -> {
                 log.warn("지원하지 않는 간편결제 제공사 - provider: {} - 수단 미기록으로 진행", provider);

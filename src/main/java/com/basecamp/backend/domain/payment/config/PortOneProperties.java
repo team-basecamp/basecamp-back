@@ -71,6 +71,7 @@ public record PortOneProperties(
         return key;
     }
 
+    // 미구현
     public boolean webhookConfigured() {
         return webhookSecret != null && !webhookSecret.isBlank();
     }

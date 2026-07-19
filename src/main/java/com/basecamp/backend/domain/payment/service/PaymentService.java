@@ -151,15 +151,12 @@ public class PaymentService {
             throw new BusinessException(ErrorCode.ACCESS_DENIED);
         }
 
-        syncFromPortOne(payment);
-
-        if (!payment.isPaid()) {
-            // 조회 결과가 READY/PENDING(가상계좌 입금 대기 등)이거나 FAILED 인 경우.
-            throw new BusinessException(ErrorCode.PAYMENT_NOT_COMPLETED,
-                    payment.getFailureReason() != null
-                            ? payment.getFailureReason()
-                            : ErrorCode.PAYMENT_NOT_COMPLETED.getMessage());
+        // 확정된 것은 멱등처리
+        if (payment.isPaid()){
+            return PaymentResponse.from(payment);
         }
+
+        syncFromPortOne(payment);
 
         return PaymentResponse.from(payment);
     }
