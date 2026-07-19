@@ -1,5 +1,7 @@
 package com.basecamp.backend.domain.payment.client;
 
+import com.basecamp.backend.common.exception.BusinessException;
+import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.payment.client.dto.PortOnePayment;
 import com.basecamp.backend.domain.payment.entity.PaymentMethod;
 import lombok.extern.slf4j.Slf4j;
@@ -48,10 +50,7 @@ public final class PortOneMethodMapper {
             case "KAKAOPAY" -> PaymentMethod.KAKAO_PAY;
             //case "NAVERPAY" -> PaymentMethod.NAVER_PAY;
             case "TOSSPAY" -> PaymentMethod.TOSS_PAY;
-            default -> {
-                log.warn("지원하지 않는 간편결제 제공사 - provider: {} - 수단 미기록으로 진행", provider);
-                yield null;
-            }
+            default -> throw new BusinessException(ErrorCode.UNSUPPORTED_PAYMENT_METHOD);
         };
     }
 }

@@ -72,6 +72,7 @@ public enum ErrorCode {
 	PAYMENT_NOT_COMPLETED(HttpStatus.BAD_REQUEST, "P010", "아직 결제가 완료되지 않았습니다."),
 	PG_REFUND_FAILED(HttpStatus.BAD_GATEWAY, "P011", "결제 취소 요청에 실패했습니다."),
 	WEBHOOK_SIGNATURE_INVALID(HttpStatus.UNAUTHORIZED, "P012", "웹훅 서명 검증에 실패했습니다."),
+	UNSUPPORTED_PAYMENT_METHOD(HttpStatus.BAD_REQUEST, "P012", "유효하지 않는 결제 방식입니다."),
 
 	// Post (게시글) — Payment가 P001~P004를 이미 쓰고 있어 접두어를 PO로 분리한다.
 	POST_NOT_FOUND(HttpStatus.NOT_FOUND, "PO001", "게시글을 찾을 수 없습니다."),
