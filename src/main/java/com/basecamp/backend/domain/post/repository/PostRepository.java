@@ -6,6 +6,7 @@ import com.basecamp.backend.domain.post.entity.PostStatus;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -37,6 +38,21 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             where p.postId = :postId
             """)
     Optional<Post> findWithUserByPostId(@Param("postId") Long postId);
+
+    // 조회수 1 증가. 상세 조회에서 호출한다.
+    //
+    // 엔티티를 읽어 필드를 +1 하는 방식(read-modify-write)을 쓰지 않은 이유는 두 가지다.
+    //   1. Post에는 @Version 낙관적 락이 걸려 있다. 엔티티를 더럽히면 조회 한 번마다 version이 올라가,
+    //      같은 글을 수정 중이던 요청이 ObjectOptimisticLockingFailureException으로 튕긴다.
+    //      JPQL 벌크 update는 version을 건드리지 않아 이 충돌이 생기지 않는다.
+    //   2. 읽은 값에 +1 해서 쓰면 동시 조회 시 둘 다 같은 값을 읽고 같은 값을 써서 한 번만 증가한다.
+    //      DB에서 view_count = view_count + 1로 계산하면 행 잠금이 직렬화해 주므로 유실이 없다.
+    //
+    // clearAutomatically를 켜지 않는다. 켜면 영속성 컨텍스트가 비워져 호출자가 들고 있던 Post가 준영속이 된다.
+    // 이 쿼리는 DB만 바꾸고 메모리의 엔티티는 그대로 두므로, 증가분은 호출자가 응답에 직접 반영한다.
+    @Modifying
+    @Query("update Post p set p.viewCount = p.viewCount + 1 where p.postId = :postId")
+    void increaseViewCount(@Param("postId") Long postId);
 
 
     // -------w--------------------------------------------------------------

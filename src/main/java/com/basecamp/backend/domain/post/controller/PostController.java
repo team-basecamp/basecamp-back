@@ -87,12 +87,19 @@ public class PostController {
         return ResponseEntity.ok(postService.getList(category, cursor, size));
     }
 
-    // 게시글 상세 조회: 경로의 게시글 id로 단건을 조회한다.
-    @Operation(summary = "게시글 상세 조회", description = "게시글 id로 단건 상세를 조회한다. 회원용 상세 조회에서는 삭제된 글은 404, 블라인드된 글은 403 으로 가려진다.")
+    // 게시글 상세 조회: 경로의 게시글 id로 단건을 조회하고 조회수를 1 올린다.
+    // 조회한 회원이 작성자 본인이면 조회수를 올리지 않는다 — 수정 폼도 이 API로 초기값을 채우기 때문이다.
+    @Operation(
+            summary = "게시글 상세 조회",
+            description = "게시글 id로 단건 상세를 조회한다. 회원용 상세 조회에서는 삭제된 글은 404, 블라인드된 글은 403 으로 가려진다. "
+                    + "조회에 성공하면 조회수가 1 오르고, 응답의 viewCount 는 증가가 반영된 값이다. "
+                    + "단 작성자 본인의 조회는 조회수에 반영되지 않는다."
+    )
     @GetMapping("/api/v1/posts/{postId}")
     public ResponseEntity<PostDetailResponse> getPostDetail(
+            @AuthenticationPrincipal AuthUser user,  // 조회한 회원 (인증 필수 경로라 항상 존재한다)
             @PathVariable("postId") Long postId) {   // 조회할 게시글 id
-        return ResponseEntity.ok(postService.getDetail(postId));
+        return ResponseEntity.ok(postService.getDetail(postId, user.id()));
     }
 
     // 게시글 수정: 경로의 게시글 id를 대상으로 작성자 본인이 내용과 첨부 이미지를 수정한다.
