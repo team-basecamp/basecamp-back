@@ -93,16 +93,9 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
 
 
 
-    @Modifying
-    @Query("""
-        update Reservation r
-        set r.status = :next, r.rejectReason = :reason, r.version = r.version + 1
-        where r.id in :ids and r.status = :current
-        """)
-    int bulkReject(@Param("ids") List<Long> ids,
-                   @Param("current") ReservationStatus current,
-                   @Param("next") ReservationStatus next,
-                   @Param("reason") String reason);
+    // 참고: 만료 예약을 한 방에 반려하던 bulkReject 는 제거했다.
+    // 반려와 환불(=포트원 취소 API 호출)이 한 건씩 같은 트랜잭션에 묶여야 하기 때문이다.
+    // 자세한 이유는 ReservationService.autoRejectExpired 주석 참고.
 
     // 비관적 락을 통한 동일예약에 대한 동시 결제 요청을 직렬화
     @Lock(LockModeType.PESSIMISTIC_WRITE)

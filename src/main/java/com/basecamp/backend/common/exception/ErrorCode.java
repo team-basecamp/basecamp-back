@@ -62,6 +62,16 @@ public enum ErrorCode {
 	RESERVATION_NOT_PENDING_PAYMENT(HttpStatus.BAD_REQUEST, "P002", "결제 대기 상태의 예약만 결제할 수 있습니다."),
 	ALREADY_PAID(HttpStatus.CONFLICT, "P003", "이미 결제가 완료된 예약입니다."),
 	PAYMENT_NOT_REFUNDABLE(HttpStatus.NOT_FOUND, "P004", "결제 내역이 존재하지 않아 환불할 수 없습니다."),
+	PAYMENT_ALREADY_REFUNDED(HttpStatus.CONFLICT, "P005", "이미 환불된 결제입니다."),
+	// 포트원(PG) 연동
+	PG_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "P006", "결제 연동 설정이 완료되지 않았습니다."),
+	PG_COMMUNICATION_FAILED(HttpStatus.BAD_GATEWAY, "P007", "결제 서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요."),
+	PG_PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "P008", "결제 서버에서 해당 결제 건을 찾을 수 없습니다."),
+	// 결제창에 표시된 금액과 실제 승인 금액이 다르면 위·변조를 의심해야 하므로 결제를 확정하지 않는다.
+	PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "P009", "결제 금액이 예약 금액과 일치하지 않습니다."),
+	PAYMENT_NOT_COMPLETED(HttpStatus.BAD_REQUEST, "P010", "아직 결제가 완료되지 않았습니다."),
+	PG_REFUND_FAILED(HttpStatus.BAD_GATEWAY, "P011", "결제 취소 요청에 실패했습니다."),
+	WEBHOOK_SIGNATURE_INVALID(HttpStatus.UNAUTHORIZED, "P012", "웹훅 서명 검증에 실패했습니다."),
 
 	// Post (게시글) — Payment가 P001~P004를 이미 쓰고 있어 접두어를 PO로 분리한다.
 	POST_NOT_FOUND(HttpStatus.NOT_FOUND, "PO001", "게시글을 찾을 수 없습니다."),

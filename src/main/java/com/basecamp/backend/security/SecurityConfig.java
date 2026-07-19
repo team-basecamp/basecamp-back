@@ -48,7 +48,10 @@ public class SecurityConfig {
 
 	private static final String[] PUBLIC_ENDPOINTS = {
 			"/api/v1/auth/login/**",
-			"/api/v1/auth/token/refresh"
+			"/api/v1/auth/token/refresh",
+			// 포트원 결제 웹훅. 포트원 서버가 호출하므로 우리 access 토큰을 붙일 수 없다.
+			// 인증 대신 PortOneWebhookVerifier 의 HMAC 서명 검증이 이 엔드포인트를 지킨다.
+			"/api/v1/payments/webhook"
 	};
 
 	private static final String[] SWAGGER_ENDPOINTS = {
