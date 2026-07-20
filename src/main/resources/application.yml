@@ -103,6 +103,11 @@ camp:
     min: ${CAMP_DEFAULT_PRICE_MIN:50000}
     max: ${CAMP_DEFAULT_PRICE_MAX:100000}
     unit: ${CAMP_DEFAULT_PRICE_UNIT:1000}
+  # 앱 기동 시 고캠핑 API 자동 동기화(CampDataInitializer). false 면 빈 자체가 등록되지 않는다.
+  # 필요할 때는 POST /api/v1/camps/fetch 로 수동 동기화. ( 설정을 안하면 , camps 테이블에 아무것도 없다면 , 앱 실행시 자동으로 들어오도록 설정이 되어 있음 )
+  data:
+    init:
+      enabled: ${CAMP_DATA_INIT_ENABLED:false}
 
 cors:
   # credentials 허용 CORS 오리진 화이트리스트. 배포 오리진은 환경변수로 주입 (콤마 구분).

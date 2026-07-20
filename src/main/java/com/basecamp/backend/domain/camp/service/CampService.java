@@ -26,6 +26,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -92,6 +93,7 @@ public class CampService {
         // 새로운 데이터만 필터링 하고 Entity로 변환 하기
         List<Camp> newCamps = apiCamps.stream()
                 .filter(dto -> !existingContentIds.contains(dto.getContentId()))
+                .filter(dto -> StringUtils.hasText(dto.getFirstImageUrl()))
                 .map(dto -> Camp.fromGocampingApi(dto, generateRandomPrice()))
                 .collect(Collectors.toList());
         // 새로운 데이터 DB 저장 로직
