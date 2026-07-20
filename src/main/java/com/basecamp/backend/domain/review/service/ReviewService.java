@@ -2,8 +2,10 @@ package com.basecamp.backend.domain.review.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.common.storage.FileStorageProperties;
 import com.basecamp.backend.common.storage.FileStorageService;
+import com.basecamp.backend.common.storage.ImageCategory;
+import com.basecamp.backend.common.storage.MinioProperties;
+import com.basecamp.backend.common.storage.StoredObject;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
@@ -39,12 +41,12 @@ public class ReviewService {
   private final ReviewRepository reviewRepository;
   private final ReservationRepository reservationRepository;
   private final CampRepository campRepository;
-  // 첨부 이미지를 로컬 저장소에 올리고 상대경로를 돌려주는 저장 서비스 (로컬/원격 구현 교체 가능)
+  // 첨부 이미지를 저장소(MinIO)에 올리고 공개 URL을 돌려주는 저장 서비스
   private final FileStorageService fileStorageService;
   // 리뷰에서 떨어져 나간 이미지 행을 정리하기 위한 리포지토리
   private final ImageRepository imageRepository;
   // 첨부 개수 상한 등 업로드 정책 (수정은 기존+신규 합계로 상한을 봐야 한다)
-  private final FileStorageProperties fileStorageProperties;
+  private final MinioProperties minioProperties;
 
   // 리뷰 작성: 예약 소유자가 체크아웃을 마친 예약에 한해 리뷰를 남길 수 있다. (쓰기 트랜잭션)
   // images는 선택 사항(null/빈 목록 가능)이며, 있으면 로컬 저장소에 올린 상대경로로 Image를 만들어 함께 저장한다.
@@ -80,12 +82,15 @@ public class ReviewService {
             .build();
 
     // 리뷰 이미지 추가
-    List<String> storedPaths = fileStorageService.storeAll(images);
+    List<String> storedUrls =
+        fileStorageService.storeAll(images, ImageCategory.REVIEW).stream()
+            .map(StoredObject::url)
+            .toList();
 
-    // 커밋 실패로 롤백되면 파일만 고아로 남으므로, 커밋이 성공하지 못한 모든 경우에 저장했던 파일을 되돌린다.
-    registerImageCleanup(storedPaths, List.of());
+    // 커밋 실패로 롤백되면 객체만 고아로 남으므로, 커밋이 성공하지 못한 모든 경우에 저장했던 객체를 되돌린다.
+    registerImageCleanup(storedUrls, List.of());
 
-    review.attachImages(storedPaths.stream().map(Image::of).toList());
+    review.attachImages(storedUrls.stream().map(Image::of).toList());
 
     try {
       // cascade=PERSIST 로 Image 행과 review_images 연결이 함께 저장된다.
@@ -118,16 +123,19 @@ public class ReviewService {
     List<Image> keptImages = resolveKeptImages(review, request.keepImageUrls());
 
     // 새 이미지를 저장소에 올린다. 형식·크기 검증과 실패 시 되돌림은 storeAll이 담당한다.
-    List<String> storedPaths = fileStorageService.storeAll(images);
+    List<String> storedUrls =
+        fileStorageService.storeAll(images, ImageCategory.REVIEW).stream()
+            .map(StoredObject::url)
+            .toList();
 
-    // DB 커밋 결과에 맞춰야 하므로, 새 파일 되돌림 훅을 storeAll 직후 걸어 롤백 시 고아 파일을, 커밋 시 옛 파일을 정리한다.
-    List<String> removedPaths = new ArrayList<>(); // 삭제할 이미지 저장
-    registerImageCleanup(storedPaths, removedPaths);
+    // DB 커밋 결과에 맞춰야 하므로, 새 객체 되돌림 훅을 storeAll 직후 걸어 롤백 시 고아 객체를, 커밋 시 옛 객체를 정리한다.
+    List<String> removedUrls = new ArrayList<>(); // 삭제할 이미지 저장
+    registerImageCleanup(storedUrls, removedUrls);
 
-    List<Image> newImages = storedPaths.stream().map(Image::of).toList();
+    List<Image> newImages = storedUrls.stream().map(Image::of).toList();
 
     // 최종 개수 상한은 체크
-    if (keptImages.size() + newImages.size() > fileStorageProperties.getMaxCount()) {
+    if (keptImages.size() + newImages.size() > minioProperties.getMaxCount()) {
       throw new BusinessException(ErrorCode.IMAGE_COUNT_EXCEEDED);
     }
 
@@ -141,8 +149,8 @@ public class ReviewService {
 
     if (!detachedImages.isEmpty()) {
       imageRepository.deleteAll(detachedImages);
-      // 실물 파일 삭제는 커밋 성공 후에. 위에서 건 훅이 이 목록을 보고 지운다.
-      detachedImages.stream().map(Image::getImageUrl).forEach(removedPaths::add);
+      // 저장소 객체 삭제는 커밋 성공 후에. 위에서 건 훅이 이 목록을 보고 지운다.
+      detachedImages.stream().map(Image::getImageUrl).forEach(removedUrls::add);
     }
 
     refreshCampAverageRating(review.getCamp().getCampId());
@@ -169,13 +177,13 @@ public class ReviewService {
     // 첨부 이미지를 전부 떼어낸다. 리뷰는 하드 삭제라 review_images 는 FK ON DELETE CASCADE 로도 정리되지만,
     List<Image> detachedImages = review.replaceImages(List.of());
 
-    // 실물이 사라져 깨진 링크가 된다. 이 경로에서 새로 올리는 파일은 없으므로 롤백 시 지울 목록은 비어 있다.
-    List<String> removedPaths = new ArrayList<>();
-    registerImageCleanup(List.of(), removedPaths);
+    // 실물이 사라져 깨진 링크가 된다. 이 경로에서 새로 올리는 객체는 없으므로 롤백 시 지울 목록은 비어 있다.
+    List<String> removedUrls = new ArrayList<>();
+    registerImageCleanup(List.of(), removedUrls);
 
     if (!detachedImages.isEmpty()) {
       imageRepository.deleteAll(detachedImages);
-      detachedImages.stream().map(Image::getImageUrl).forEach(removedPaths::add);
+      detachedImages.stream().map(Image::getImageUrl).forEach(removedUrls::add);
     }
 
     reviewRepository.delete(review);
@@ -242,19 +250,19 @@ public class ReviewService {
     return kept;
   }
 
-  // 커밋과 롤백에 따라서 DB와 디스크를 일치시키는 훅.
-  private void registerImageCleanup(List<String> storedPaths, List<String> removedPaths) {
+  // 커밋과 롤백에 따라서 DB와 저장소를 일치시키는 훅.
+  private void registerImageCleanup(List<String> storedUrls, List<String> removedUrls) {
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {
           @Override
           public void afterCompletion(int status) {
-            List<String> targets = (status == STATUS_COMMITTED) ? removedPaths : storedPaths;
-            for (String path : targets) {
+            List<String> targets = (status == STATUS_COMMITTED) ? removedUrls : storedUrls;
+            for (String url : targets) {
               try {
-                fileStorageService.delete(path);
+                fileStorageService.delete(url);
               } catch (RuntimeException e) {
-                // 정리 실패로 요청 자체를 실패시키지는 않는다. 파일이 남는 것보다 나쁜 게 없으므로 로그만 남긴다.
-                log.warn("리뷰 이미지 정리 실패: {}", path, e);
+                // 정리 실패로 요청 자체를 실패시키지는 않는다. 객체가 남는 것보다 나쁜 게 없으므로 로그만 남긴다.
+                log.warn("리뷰 이미지 정리 실패: {}", url, e);
               }
             }
           }

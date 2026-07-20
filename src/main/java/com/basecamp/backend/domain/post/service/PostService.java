@@ -2,8 +2,10 @@ package com.basecamp.backend.domain.post.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
-import com.basecamp.backend.common.storage.FileStorageProperties;
 import com.basecamp.backend.common.storage.FileStorageService;
+import com.basecamp.backend.common.storage.ImageCategory;
+import com.basecamp.backend.common.storage.MinioProperties;
+import com.basecamp.backend.common.storage.StoredObject;
 import com.basecamp.backend.domain.comment.dto.PostCommentCount;
 import com.basecamp.backend.domain.comment.repository.CommentRepository;
 import com.basecamp.backend.domain.post.dto.request.PostCreateRequest;
@@ -61,12 +63,12 @@ public class PostService {
   private final PostReportRepository postReportRepository;
   // 목록의 댓글 수 집계용 리포지토리 (post_id 단위 GROUP BY COUNT)
   private final CommentRepository commentRepository;
-  // 첨부 이미지를 로컬 저장소에 올리고 상대경로를 돌려주는 저장 서비스 (로컬/원격 구현 교체 가능)
+  // 첨부 이미지를 저장소(MinIO)에 올리고 공개 URL을 돌려주는 저장 서비스
   private final FileStorageService fileStorageService;
   // 게시글에서 떨어져 나간 이미지 행을 정리하기 위한 리포지토리
   private final ImageRepository imageRepository;
   // 첨부 개수 상한 등 업로드 정책 (수정은 기존+신규 합계로 상한을 봐야 한다)
-  private final FileStorageProperties fileStorageProperties;
+  private final MinioProperties minioProperties;
 
   // 게시글 목록 조회: 카테고리로 걸러 최신순 한 페이지를 반환한다. (클래스 기본 readOnly 트랜잭션)
   // category가 없거나 ALL이면 3개 카테고리 전부, 즉 카테고리 조건을 걸지 않은 결과를 준다.
@@ -245,16 +247,19 @@ public class PostService {
     Post post =
         new Post(user, PostCategory.from(request.category()), request.title(), request.content());
 
-    // 첨부 이미지를 저장소에 올려 상대경로(/images/xxx.jpg)를 받고, 그 경로로 Image를 만들어 게시글에 붙인다.
-    // storeAll이 null/빈 목록·형식·개수 검증을 담당하므로 여기서는 반환된 경로만 매핑한다.
-    List<String> storedPaths = fileStorageService.storeAll(images);
-    List<Image> attachedImages = storedPaths.stream().map(Image::of).toList();
+    // 첨부 이미지를 저장소에 올려 공개 URL을 받고, 그 URL로 Image를 만들어 게시글에 붙인다.
+    // storeAll이 null/빈 목록·형식·개수 검증을 담당하므로 여기서는 반환된 URL만 매핑한다.
+    List<String> storedUrls =
+        fileStorageService.storeAll(images, ImageCategory.POST).stream()
+            .map(StoredObject::url)
+            .toList();
+    List<Image> attachedImages = storedUrls.stream().map(Image::of).toList();
     post.attachImages(attachedImages);
 
-    // 파일은 이미 디스크에 쓰였지만 DB 트랜잭션은 아직 커밋 전이다. save() 이후의 flush/커밋 실패로
-    // 트랜잭션이 롤백되면 파일만 고아로 남으므로, 커밋이 성공하지 못한 경우(afterCompletion status가
-    // COMMITTED가 아닌 모든 경우 = 롤백·커밋 실패)에 한해 저장했던 파일을 되돌린다.
-    if (!storedPaths.isEmpty()) {
+    // 객체는 이미 저장소에 올라갔지만 DB 트랜잭션은 아직 커밋 전이다. save() 이후의 flush/커밋 실패로
+    // 트랜잭션이 롤백되면 객체만 고아로 남으므로, 커밋이 성공하지 못한 경우(afterCompletion status가
+    // COMMITTED가 아닌 모든 경우 = 롤백·커밋 실패)에 한해 저장했던 객체를 되돌린다.
+    if (!storedUrls.isEmpty()) {
       TransactionSynchronizationManager.registerSynchronization(
           new TransactionSynchronization() {
             @Override
@@ -262,12 +267,12 @@ public class PostService {
               if (status == STATUS_COMMITTED) {
                 return;
               }
-              for (String path : storedPaths) {
+              for (String url : storedUrls) {
                 try {
-                  fileStorageService.delete(path);
+                  fileStorageService.delete(url);
                 } catch (RuntimeException e) {
                   // 보상 삭제 실패가 원래 실패 원인을 덮지 않도록 로그만 남긴다.
-                  log.warn("게시글 작성 롤백 중 이미지 삭제 실패: {}", path, e);
+                  log.warn("게시글 작성 롤백 중 이미지 삭제 실패: {}", url, e);
                 }
               }
             }
@@ -314,20 +319,23 @@ public class PostService {
     List<Image> keptImages = resolveKeptImages(post, request.keepImageUrls());
 
     // 새 이미지를 저장소에 올린다. 형식·크기 검증과 실패 시 롤백은 storeAll이 담당한다.
-    List<String> storedPaths = fileStorageService.storeAll(images);
+    List<String> storedUrls =
+        fileStorageService.storeAll(images, ImageCategory.POST).stream()
+            .map(StoredObject::url)
+            .toList();
 
-    // 파일은 이미 디스크에 쓰였지만 DB는 아직 커밋 전이다. 이 아래 어디서든 실패해 롤백되면
-    // 방금 올린 파일만 고아로 남으므로, storeAll 직후 곧바로 되돌림 훅을 건다.
-    // 동시에, 커밋에 성공한 경우에만 떨어져 나간 옛 파일을 지운다 — 롤백됐는데 파일을 먼저 지워버리면
+    // 객체는 이미 저장소에 올라갔지만 DB는 아직 커밋 전이다. 이 아래 어디서든 실패해 롤백되면
+    // 방금 올린 객체만 고아로 남으므로, storeAll 직후 곧바로 되돌림 훅을 건다.
+    // 동시에, 커밋에 성공한 경우에만 떨어져 나간 옛 객체를 지운다 — 롤백됐는데 객체를 먼저 지워버리면
     // DB에는 살아 있는 이미지의 실물이 사라져 깨진 링크가 된다.
-    List<String> removedPaths = new ArrayList<>();
-    registerImageCleanup(storedPaths, removedPaths);
+    List<String> removedUrls = new ArrayList<>();
+    registerImageCleanup(storedUrls, removedUrls);
 
-    List<Image> newImages = storedPaths.stream().map(Image::of).toList();
+    List<Image> newImages = storedUrls.stream().map(Image::of).toList();
 
     // 최종 개수 상한은 여기서 본다. storeAll은 이번에 올린 파일 수만 세므로,
     // 기존 3장을 남긴 채 새로 3장을 올리는 식으로 상한을 넘기는 것을 잡지 못한다.
-    if (keptImages.size() + newImages.size() > fileStorageProperties.getMaxCount()) {
+    if (keptImages.size() + newImages.size() > minioProperties.getMaxCount()) {
       throw new BusinessException(ErrorCode.IMAGE_COUNT_EXCEEDED);
     }
 
@@ -344,8 +352,8 @@ public class PostService {
     // 삭제 순서는 Hibernate가 보장한다 — 같은 flush 안에서 컬렉션 삭제(post_images)가 엔티티 삭제(images)보다 먼저 나간다.
     if (!detachedImages.isEmpty()) {
       imageRepository.deleteAll(detachedImages);
-      // 실물 파일 삭제는 커밋 성공 후에. 위에서 건 훅이 이 목록을 보고 지운다.
-      detachedImages.stream().map(Image::getImageUrl).forEach(removedPaths::add);
+      // 저장소 객체 삭제는 커밋 성공 후에. 위에서 건 훅이 이 목록을 보고 지운다.
+      detachedImages.stream().map(Image::getImageUrl).forEach(removedUrls::add);
     }
 
     return PostDetailResponse.from(post);
@@ -380,23 +388,23 @@ public class PostService {
     return kept;
   }
 
-  // 수정·삭제 트랜잭션의 파일 정리 훅. 디스크는 트랜잭션에 참여하지 않으므로 커밋 결과를 보고 한쪽만 정리한다.
-  //   커밋 성공 : 게시글에서 떨어져 나간 옛 파일(removedPaths)을 지운다. 새 파일은 DB가 참조하므로 남긴다.
-  //   롤백/실패 : 방금 올린 새 파일(storedPaths)을 지운다. 옛 파일은 DB에 그대로 살아 있으므로 건드리지 않는다.
-  // 삭제 경로처럼 새로 올리는 파일이 없으면 storedPaths는 빈 목록으로 넘어와 롤백 시 아무것도 지우지 않는다.
-  // removedPaths는 호출 후에 채워지는 것을 전제로 참조를 넘긴다. 훅은 커밋 시점에야 읽으므로 그때는 다 차 있다.
-  private void registerImageCleanup(List<String> storedPaths, List<String> removedPaths) {
+  // 수정·삭제 트랜잭션의 객체 정리 훅. 저장소는 트랜잭션에 참여하지 않으므로 커밋 결과를 보고 한쪽만 정리한다.
+  //   커밋 성공 : 게시글에서 떨어져 나간 옛 객체(removedUrls)를 지운다. 새 객체는 DB가 참조하므로 남긴다.
+  //   롤백/실패 : 방금 올린 새 객체(storedUrls)를 지운다. 옛 객체는 DB에 그대로 살아 있으므로 건드리지 않는다.
+  // 삭제 경로처럼 새로 올리는 객체가 없으면 storedUrls는 빈 목록으로 넘어와 롤백 시 아무것도 지우지 않는다.
+  // removedUrls는 호출 후에 채워지는 것을 전제로 참조를 넘긴다. 훅은 커밋 시점에야 읽으므로 그때는 다 차 있다.
+  private void registerImageCleanup(List<String> storedUrls, List<String> removedUrls) {
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {
           @Override
           public void afterCompletion(int status) {
-            List<String> targets = (status == STATUS_COMMITTED) ? removedPaths : storedPaths;
-            for (String path : targets) {
+            List<String> targets = (status == STATUS_COMMITTED) ? removedUrls : storedUrls;
+            for (String url : targets) {
               try {
-                fileStorageService.delete(path);
+                fileStorageService.delete(url);
               } catch (RuntimeException e) {
-                // 정리 실패로 요청 자체를 실패시키지는 않는다. 파일이 남는 것보다 나쁜 게 없으므로 로그만 남긴다.
-                log.warn("게시글 수정 후 이미지 삭제 실패: {}", path, e);
+                // 정리 실패로 요청 자체를 실패시키지는 않는다. 객체가 남는 것보다 나쁜 게 없으므로 로그만 남긴다.
+                log.warn("게시글 수정 후 이미지 삭제 실패: {}", url, e);
               }
             }
           }
@@ -426,16 +434,16 @@ public class PostService {
     // 첨부 이미지를 전부 떼어낸다. 이미 삭제된 글을 다시 지우면 빈 목록이 나와 아래가 모두 no-op이 된다.
     List<Image> detachedImages = post.replaceImages(List.of());
 
-    // 실물 파일은 커밋 성공 후에만 지운다. 롤백됐는데 파일을 먼저 지우면 DB에 살아 있는 이미지의
-    // 실물이 사라져 깨진 링크가 된다. 이 경로에서 새로 올리는 파일은 없으므로 롤백 시 지울 목록은 비어 있다.
-    List<String> removedPaths = new ArrayList<>();
-    registerImageCleanup(List.of(), removedPaths);
+    // 저장소 객체는 커밋 성공 후에만 지운다. 롤백됐는데 객체를 먼저 지우면 DB에 살아 있는 이미지의
+    // 실물이 사라져 깨진 링크가 된다. 이 경로에서 새로 올리는 객체는 없으므로 롤백 시 지울 목록은 비어 있다.
+    List<String> removedUrls = new ArrayList<>();
+    registerImageCleanup(List.of(), removedUrls);
 
     // 연결(post_images)만 끊고 두면 images 행이 고아로 쌓이므로 행까지 지운다.
     // 삭제 순서는 Hibernate가 보장한다 — 같은 flush 안에서 컬렉션 삭제가 엔티티 삭제보다 먼저 나간다.
     if (!detachedImages.isEmpty()) {
       imageRepository.deleteAll(detachedImages);
-      detachedImages.stream().map(Image::getImageUrl).forEach(removedPaths::add);
+      detachedImages.stream().map(Image::getImageUrl).forEach(removedUrls::add);
     }
 
     // 변경 감지로 status = DELETED 로 UPDATE 반영
