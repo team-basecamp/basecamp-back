@@ -79,11 +79,13 @@ public class CampService {
     }
 
     // 고캠핑 API 에서 받은 캠핑장 데이터 DB 저장
+    // 반환값은 "실제로 새로 저장한 건수". 받은 개수(apiCamps.size())와 다르다 —
+    // 이미 있는 contentId 와 대표 이미지가 없는 항목은 걸러지기 때문.
     @Transactional
-    public void saveCampsFromApi(List<GocampingApiResponseDto> apiCamps){
+    public int saveCampsFromApi(List<GocampingApiResponseDto> apiCamps){
         // API 에서 받은 데이터가 없다면 ? 메서드 종료
         if (apiCamps == null || apiCamps.isEmpty()){
-            return;
+            return 0;
         }
         // DB 에 이미 저장이 된 contentId를 모두 가져오기
         Set<Long> existingContentIds = campRepository.findAllContentIds()
@@ -100,6 +102,7 @@ public class CampService {
         if(!newCamps.isEmpty()){
             campRepository.saveAll(newCamps);
         }
+        return newCamps.size();
     }
 
     // 고캠핑 API 가격 설정
@@ -123,6 +126,7 @@ public class CampService {
             int pageNo = 1;
             int numOfRows = 100;
             boolean hasMoreData = true;
+            int totalReceived = 0;
             int totalSaved = 0;
 
             while (hasMoreData) {
@@ -153,13 +157,17 @@ public class CampService {
                         log.info("모든 페이지를 받았습니다");
                         hasMoreData = false;
                     } else {
-                        int savedCount = camps.size();
-                        saveCampsFromApi(camps);
+                        // receivedCount(API 응답 개수)와 savedCount(실제 저장 건수)는 다르다.
+                        // 페이지네이션 종료 판단은 반드시 receivedCount 로 해야 한다 —
+                        // savedCount 로 하면 전부 중복인 페이지에서 0건이 나와 조기 종료된다.
+                        int receivedCount = camps.size();
+                        int savedCount = saveCampsFromApi(camps);
 
+                        totalReceived += receivedCount;
                         totalSaved += savedCount;
-                        log.info("페이지 {}: {}개 저장됨", pageNo, savedCount);
+                        log.info("페이지 {}: {}건 수신, {}건 신규 저장", pageNo, receivedCount, savedCount);
 
-                        if (savedCount < numOfRows) {
+                        if (receivedCount < numOfRows) {
                             log.info("마지막 페이지입니다");
                             hasMoreData = false;
                         }
@@ -171,7 +179,8 @@ public class CampService {
                 }
             }
 
-            log.info("총 {}개의 캠핑장이 저장되었습니다", totalSaved);
+            log.info("총 {}건 수신, {}개의 캠핑장이 새로 저장되었습니다 (중복/대표이미지 없음 {}건 제외)",
+                    totalReceived, totalSaved, totalReceived - totalSaved);
 
         } catch (BusinessException e) {
             throw e;
