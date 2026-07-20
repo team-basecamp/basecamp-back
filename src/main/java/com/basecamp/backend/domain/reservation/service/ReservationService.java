@@ -170,6 +170,35 @@ public class ReservationService {
         return ReservationResponse.from(reservation);
     }
 
+    /**
+     * 업체 미응답으로 기한이 지난 예약 <b>1건</b>을 자동 반려하고 환불한다. (ReservationExpiryScheduler 전용)
+     *
+     * <p><b>왜 건별 트랜잭션인가:</b> 환불은 포트원 취소 API 호출을 동반하는데, 외부 호출은 롤백되지 않는다.
+     * 여러 건을 한 트랜잭션에 묶으면 5번째 건에서 PG 오류가 났을 때 앞선 4건의 취소는 이미 나갔는데
+     * DB 는 전부 되돌아가, 돈은 돌려주고 기록은 없는 상태가 된다. 건별로 끊으면 실패한 한 건만 남는다.</p>
+     *
+     * <p><b>반려를 먼저 하고 환불하는 이유:</b> 같은 트랜잭션이라 환불이 실패하면 반려도 함께 롤백되고,
+     * 예약은 PENDING 으로 남아 다음 실행 때 다시 시도된다. 반대로 환불부터 하면 중간에 실패했을 때
+     * 결제만 취소된 PENDING 예약이 남아 업체가 승인해버릴 수 있다.</p>
+     *
+     * <p>재시도가 안전한 이유는 포트원이 이미 취소된 건에 주는 오류를 클라이언트가 성공으로 처리하기 때문이다
+     * ({@code PortOneClient.cancelPayment}).</p>
+     */
+    @Transactional
+    public void autoRejectExpired(Long reservationId, String reason) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        // 대상 목록을 뽑은 뒤 이 건을 처리하기까지 사이에 업체가 수락·거절했을 수 있다.
+        // 그 경우 조용히 건너뛴다(이미 사람이 처리한 건을 스케줄러가 덮어쓰면 안 된다).
+        if (reservation.getStatus() != ReservationStatus.PENDING) {
+            return;
+        }
+
+        reservation.reject(reason);
+        paymentService.refund(reservationId); // 포트원 취소 API 호출 포함
+    }
+
     // 해당 유저 아이디의 예약목록 보여주기
     public Page<ReservationListResponse> findAllReservations(Long userId, Pageable pageable){
         return reservationRepository.findAllByUserId(userId, pageable)
