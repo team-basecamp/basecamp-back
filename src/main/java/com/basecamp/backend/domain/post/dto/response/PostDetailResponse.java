@@ -29,6 +29,13 @@ public record PostDetailResponse(
     // post.getImages()도 LAZY라 같은 트랜잭션 안에서 초기화해 상대경로만 뽑아 담는다.
     // (상세 조회 경로에서는 findWithUserByPostId가 이미 fetch join으로 채워둬 여기서 추가 쿼리가 나가지 않는다.)
     public static PostDetailResponse from(Post post) {
+        return from(post, post.getViewCount());
+    }
+
+    // 조회수만 따로 받는 변환. 상세 조회에서 쓴다.
+    // 조회수 증가는 JPQL 벌크 update(increaseViewCount)로 DB에서만 이뤄지고 메모리의 Post는 옛 값을 그대로 들고 있어,
+    // post.getViewCount()를 쓰면 방금 올린 1이 빠진 값이 내려간다. 증가 후 값을 호출자가 넘겨 그 차이를 메운다.
+    public static PostDetailResponse from(Post post, Integer viewCount) {
         User user = post.getUser();
         List<String> imageUrls = post.getImages().stream()
                 .map(Image::getImageUrl)
@@ -40,7 +47,7 @@ public record PostDetailResponse(
                 post.getCategory().name(),
                 post.getTitle(),
                 post.getContent(),
-                post.getViewCount(),
+                viewCount,
                 post.getStatus().name(),
                 imageUrls,
                 post.getCreatedAt(),

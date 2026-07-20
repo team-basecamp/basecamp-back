@@ -171,13 +171,21 @@ public class PostService {
         return PostCategory.from(category);
     }
 
-    // 게시글 상세 조회: 단건을 조회해 상세 응답으로 반환한다. (클래스 기본 readOnly 트랜잭션)
+    // 게시글 상세 조회: 단건을 조회해 조회수를 1 올리고 상세 응답으로 반환한다. (쓰기 트랜잭션)
+    //
+    // 조회인데 @Transactional(readOnly = false)인 이유: 조회수 증가가 쓰기다.
+    // 클래스 기본값인 readOnly 트랜잭션 안에서 update를 실행하면 Hibernate가 FlushMode.MANUAL이라
+    // 예외도 없이 조용히 반영되지 않는다. 반드시 메서드에서 readOnly를 덮어써야 한다.
+    //
+    // viewerId는 조회한 회원 id다. 작성자 본인의 조회는 조회수에 넣지 않는다(아래 shouldCountView 참고).
+    // 상세 조회는 SecurityConfig의 anyRequest().authenticated()에 걸리는 인증 필수 경로라 항상 값이 있다.
     //
     // 노출 정책 — posts.status에 따라 갈린다.
     //   ACTIVE  : 정상 반환
     //   DELETED : 소프트 삭제된 글. 없는 글과 구분되면 "삭제된 글이 여기 있었다"는 사실이 새므로 404로 통일.
     //   BLINDED : 관리자가 가린 글. 삭제와 달리 존재 자체는 감출 필요가 없어 사유를 알 수 있는 403으로 구분.
-    public PostDetailResponse getDetail(Long postId) {
+    @Transactional
+    public PostDetailResponse getDetail(Long postId, Long viewerId) {
         // 응답에 nickname과 첨부 이미지가 필요하므로 작성자·이미지까지 fetch join으로 함께 로딩한다.
         Post post = postRepository.findWithUserByPostId(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -190,7 +198,35 @@ public class PostService {
             throw new BusinessException(ErrorCode.POST_BLINDED);
         }
 
-        return PostDetailResponse.from(post);
+        // 노출 정책을 통과한 뒤에 올린다. 위 두 분기는 예외로 빠져나가므로
+        // 404·403으로 가려진 글의 조회수는 오르지 않는다.
+        if (!shouldCountView(post, viewerId)) {
+            return PostDetailResponse.from(post);
+        }
+
+        postRepository.increaseViewCount(postId);
+
+        // 벌크 update는 DB만 바꾸고 영속성 컨텍스트의 post는 옛 값을 그대로 들고 있어 +1을 직접 얹어 응답한다.
+        return PostDetailResponse.from(post, post.getViewCount() + 1);
+    }
+
+    // 이 조회를 조회수에 반영할지 판단한다. 작성자 본인의 조회는 반영하지 않는다.
+    //
+    // 본인 조회를 빼는 이유는 두 가지다.
+    //   1. 프런트가 수정 폼 초기값을 채우려고 상세 조회를 그대로 재사용한다. 이걸 세지 않으면
+    //      글쓴이가 수정 화면에 들어갈 때마다 자기 글 조회수가 오른다.
+    //      (서버가 판단하므로 프런트가 "수정 진입일 때는 다른 API" 같은 규칙을 기억할 필요가 없다.)
+    //   2. 본인 새로고침으로 조회수가 부풀지 않는다.
+    //
+    // 다만 이것은 정책이지 어뷰징 방어가 아니다. 다른 계정으로 열면 그대로 오른다.
+    // 같은 사람의 반복 조회까지 막으려면 조회 이력을 따로 저장해야 하는데, 지금은 그 저장소를 두지 않는다.
+    private boolean shouldCountView(Post post, Long viewerId) {
+        // viewerId는 인증 필수 경로라 null이 아니지만, 비로그인 허용으로 정책이 바뀌면 null이 들어올 수 있다.
+        // 그때 NPE로 상세 조회 전체가 깨지는 대신 "익명은 카운트한다"로 안전하게 떨어지도록 먼저 걸러둔다.
+        if (viewerId == null) {
+            return true;
+        }
+        return !viewerId.equals(post.getUser().getId());
     }
 
     // 게시글 작성: 작성자를 검증하고 첨부 이미지를 저장한 뒤 새 글을 저장하고 상세 응답으로 반환한다. (쓰기 트랜잭션)
