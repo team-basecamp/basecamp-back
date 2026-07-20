@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -34,6 +35,20 @@ public interface CampRepository extends JpaRepository<Camp, Long>, JpaSpecificat
 
   // contentId로 캠핑장 찾기
   Optional<Camp> findByContentId(Long contentId);
+
+  // 상세 조회 전용. 이미지까지 함께 로딩한다.
+  //
+  // 캠핑장은 서비스가 엔티티를 그대로 반환하고 컨트롤러에서 DTO 로 바꾸는데, open-in-view: false 라
+  // 그 시점에는 트랜잭션이 닫혀 있다. 지연 로딩 그대로 두면 갤러리를 읽는 순간 예외가 난다.
+  // 그래서 상세 경로에서만 EntityGraph 로 미리 초기화해 둔다.
+  //
+  // 목록 경로에는 쓰지 않는다 — 캠핑장마다 이미지를 끌고 오면 N+1 이 되고, 목록은 대표 이미지
+  // (camps.first_image_url) 한 장만 있으면 되기 때문이다.
+  @EntityGraph(attributePaths = "images")
+  Optional<Camp> findWithImagesByCampId(Long campId);
+
+  @EntityGraph(attributePaths = "images")
+  Optional<Camp> findWithImagesByContentId(Long contentId);
 
   // 소유자(owner_id) 기준으로 등록한 캠핑장 조회, 최근 등록순
   List<Camp> findByOwnerIdOrderByCreatedAtDesc(Long ownerId);

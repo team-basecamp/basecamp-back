@@ -200,6 +200,7 @@ public class CampService {
   }
 
   // 특정 캠핑장 ID 조회 (Read). 없으면 CAMP_NOT_FOUND.
+  // 수정·삭제 등 내부 재사용 경로가 쓴다. 이미지는 로딩하지 않는다 — 필요 없는 곳에서 끌고 올 이유가 없다.
   @Transactional(readOnly = true)
   public Camp getCampId(Long campId) {
     return campRepository
@@ -212,6 +213,22 @@ public class CampService {
   public Camp getCampByContentId(Long contentId) {
     return campRepository
         .findByContentId(contentId)
+        .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다"));
+  }
+
+  // 상세 조회 전용. 갤러리를 함께 내려주므로 이미지까지 초기화해서 반환한다.
+  // 컨트롤러에서 DTO 로 바꾸는 시점에는 open-in-view: false 라 트랜잭션이 닫혀 있어, 여기서 미리 로딩해야 한다.
+  @Transactional(readOnly = true)
+  public Camp getCampDetail(Long campId) {
+    return campRepository
+        .findWithImagesByCampId(campId)
+        .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다"));
+  }
+
+  @Transactional(readOnly = true)
+  public Camp getCampDetailByContentId(Long contentId) {
+    return campRepository
+        .findWithImagesByContentId(contentId)
         .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다"));
   }
 

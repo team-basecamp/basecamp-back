@@ -63,8 +63,8 @@ public class CampController {
       description = "PK(campId)로 캠핑장 상세 정보를 조회합니다. 자체 등록 캠핑장처럼 contentId가 없는 경우에도 사용합니다.")
   @GetMapping("/{campId}")
   public ResponseEntity<CampDetailResponseDto> getCampById(@PathVariable Long campId) {
-    Camp camp = campService.getCampId(campId);
-    return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
+    Camp camp = campService.getCampDetail(campId);
+    return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.withImages(camp)));
   }
 
   // 고캠핑 contentId로 캠핑장 조회 (상세페이지용)
@@ -73,13 +73,13 @@ public class CampController {
       description = "고캠핑 API의 contentId로 캠핑장 상세 정보를 조회합니다.")
   @GetMapping("/content/{contentId}")
   public ResponseEntity<CampDetailResponseDto> getCampByContentId(@PathVariable Long contentId) {
-    Camp camp = campService.getCampByContentId(contentId);
+    Camp camp = campService.getCampDetailByContentId(contentId);
 
     if (camp == null) {
       throw new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
     }
 
-    return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
+    return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.withImages(camp)));
   }
 
   // 캠핑장 검색 (키워드/지역/유형/최대금액 필터 + 정렬 + 페이징 조합)

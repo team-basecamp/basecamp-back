@@ -4,12 +4,16 @@ import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.client.kakao.GeoPoint;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
+import com.basecamp.backend.domain.user.entity.Image;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
+import org.springframework.util.StringUtils;
 
 // 생성 경로를 builder()/정적 팩토리(fromGocampingApi 등)로만 제한한다.
 // no-args 생성자는 JPA가 리플렉션으로 엔티티를 로딩할 때만 필요해 protected로 좁혔다.
@@ -65,8 +69,36 @@ public class Camp {
   @Column(name = "glamp_site_co")
   private Integer glampSiteCo;
 
+  /**
+   * 대표 이미지 URL. 출처를 가리지 않는다 — 고캠핑 API 로 들여온 캠핑장은 제공자의 외부 URL 이, 직접 등록한 캠핑장은 {@link #images} 첫 장의
+   * 저장소 URL 이 들어온다.
+   *
+   * <p>{@link #images} 와 값이 겹치는 비정규화다. 목록 조회는 캠핑장을 엔티티로 반환해 컨트롤러에서 DTO 로 바꾸는데, {@code open-in-view:
+   * false} 라 그 시점에는 이미 트랜잭션이 닫혀 있어 지연 로딩된 컬렉션을 만질 수 없다. 목록마다 이미지를 함께 로딩하면 N+1 도 따라온다. 대표 한 장을 여기
+   * 복사해 두면 목록 경로는 컬렉션을 건드릴 일이 없다.
+   *
+   * <p>대신 쓰기 시점에 동기화 책임이 생긴다. {@link #attachImages}/{@link #replaceImages} 가 함께 갱신한다.
+   */
   @Column(name = "first_image_url", columnDefinition = "TEXT")
   private String firstImageUrl;
+
+  /**
+   * 캠핑장 이미지 (1 캠핑장 : N 이미지). 직접 등록한 캠핑장에만 쓴다.
+   *
+   * <p>고캠핑 API 로 들여온 캠핑장은 이미지가 제공자 서버에 있어 우리 저장소에 올릴 것이 없다. 그런 캠핑장은 이 컬렉션이 비어 있고 {@link
+   * #firstImageUrl} 만 채워진다.
+   *
+   * <p>게시글/리뷰와 같은 구조다 — 공용 저장소(images)와 중간 테이블(camp_images)을 {@code @OrderColumn} 으로 이어 첨부 순서를
+   * 보존한다.
+   */
+  @Builder.Default
+  @ManyToMany(cascade = CascadeType.PERSIST)
+  @JoinTable(
+      name = "camp_images",
+      joinColumns = @JoinColumn(name = "camp_id"),
+      inverseJoinColumns = @JoinColumn(name = "image_id"))
+  @OrderColumn(name = "sort_order")
+  private List<Image> images = new ArrayList<>();
 
   @Column(name = "manage_sttus", length = 20, nullable = false)
   private CampManageStatus manageSttus;
@@ -178,6 +210,42 @@ public class Camp {
     }
     // 수정 시각 갱신
     this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+  }
+
+  /**
+   * 이미지를 첨부한다. 전달 순서가 곧 노출 순서다. 비어 있으면 아무것도 하지 않는다.
+   *
+   * <p>대표 이미지({@link #firstImageUrl})가 비어 있으면 첫 장으로 채운다. 이미 있으면 건드리지 않는다 — 고캠핑에서 받은 대표 이미지를 덮어쓰지 않기
+   * 위해서다.
+   */
+  public void attachImages(List<Image> images) {
+    if (images == null || images.isEmpty()) {
+      return;
+    }
+    this.images.addAll(images);
+    if (!StringUtils.hasText(this.firstImageUrl)) {
+      this.firstImageUrl = this.images.get(0).getImageUrl();
+    }
+  }
+
+  /**
+   * 이미지를 전달받은 목록으로 통째로 교체하고, 이번 교체로 떨어져 나간 이미지들을 돌려준다. 반환된 이미지는 이 캠핑장에서 완전히 빠진 것들이라, 호출측이 images 행과
+   * 저장소 객체를 정리하는 근거로 쓴다.
+   *
+   * <p>비교는 Image 인스턴스 동일성 기준이다. 남기는 이미지는 이미 이 컬렉션에 로딩된 바로 그 객체를 다시 넘겨야 한다.
+   *
+   * <p>대표 이미지는 새 첫 장으로 다시 맞춘다. 목록이 비면 대표도 비운다 — 지운 이미지의 URL 이 대표로 남아 깨진 링크가 되는 것을 막는다.
+   */
+  public List<Image> replaceImages(List<Image> newImages) {
+    List<Image> detached = new ArrayList<>(this.images);
+    detached.removeAll(newImages);
+
+    this.images.clear();
+    this.images.addAll(newImages);
+    this.firstImageUrl = this.images.isEmpty() ? null : this.images.get(0).getImageUrl();
+    this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+
+    return detached;
   }
 
   // average_rating은 엔티티에서 직접 바꾸지 않는다. 동시 갱신 시 마지막 커밋이 옛 평균으로 덮어쓰는 걸 막으려고
