@@ -247,19 +247,18 @@ public class PostService {
     Post post =
         new Post(user, PostCategory.from(request.category()), request.title(), request.content());
 
-    // 첨부 이미지를 저장소에 올려 공개 URL을 받고, 그 URL로 Image를 만들어 게시글에 붙인다.
-    // storeAll이 null/빈 목록·형식·개수 검증을 담당하므로 여기서는 반환된 URL만 매핑한다.
-    List<String> storedUrls =
-        fileStorageService.storeAll(images, ImageCategory.POST).stream()
-            .map(StoredObject::url)
-            .toList();
-    List<Image> attachedImages = storedUrls.stream().map(Image::of).toList();
+    // 첨부 이미지를 저장소에 올려 공개 URL과 객체 키를 받고, 그것으로 Image를 만들어 게시글에 붙인다.
+    // storeAll이 null/빈 목록·형식·개수 검증을 담당하므로 여기서는 반환값만 매핑한다.
+    List<StoredObject> storedObjects = fileStorageService.storeAll(images, ImageCategory.POST);
+    List<String> storedKeys = storedObjects.stream().map(StoredObject::objectKey).toList();
+    List<Image> attachedImages =
+        storedObjects.stream().map(o -> Image.ofMinio(o.url(), o.objectKey())).toList();
     post.attachImages(attachedImages);
 
     // 객체는 이미 저장소에 올라갔지만 DB 트랜잭션은 아직 커밋 전이다. save() 이후의 flush/커밋 실패로
     // 트랜잭션이 롤백되면 객체만 고아로 남으므로, 커밋이 성공하지 못한 경우(afterCompletion status가
     // COMMITTED가 아닌 모든 경우 = 롤백·커밋 실패)에 한해 저장했던 객체를 되돌린다.
-    if (!storedUrls.isEmpty()) {
+    if (!storedKeys.isEmpty()) {
       TransactionSynchronizationManager.registerSynchronization(
           new TransactionSynchronization() {
             @Override
@@ -267,12 +266,12 @@ public class PostService {
               if (status == STATUS_COMMITTED) {
                 return;
               }
-              for (String url : storedUrls) {
+              for (String key : storedKeys) {
                 try {
-                  fileStorageService.delete(url);
+                  fileStorageService.deleteByKey(key);
                 } catch (RuntimeException e) {
                   // 보상 삭제 실패가 원래 실패 원인을 덮지 않도록 로그만 남긴다.
-                  log.warn("게시글 작성 롤백 중 이미지 삭제 실패: {}", url, e);
+                  log.warn("게시글 작성 롤백 중 이미지 삭제 실패. objectKey={}", key, e);
                 }
               }
             }
@@ -319,19 +318,18 @@ public class PostService {
     List<Image> keptImages = resolveKeptImages(post, request.keepImageUrls());
 
     // 새 이미지를 저장소에 올린다. 형식·크기 검증과 실패 시 롤백은 storeAll이 담당한다.
-    List<String> storedUrls =
-        fileStorageService.storeAll(images, ImageCategory.POST).stream()
-            .map(StoredObject::url)
-            .toList();
+    List<StoredObject> storedObjects = fileStorageService.storeAll(images, ImageCategory.POST);
+    List<String> storedKeys = storedObjects.stream().map(StoredObject::objectKey).toList();
 
     // 객체는 이미 저장소에 올라갔지만 DB는 아직 커밋 전이다. 이 아래 어디서든 실패해 롤백되면
     // 방금 올린 객체만 고아로 남으므로, storeAll 직후 곧바로 되돌림 훅을 건다.
     // 동시에, 커밋에 성공한 경우에만 떨어져 나간 옛 객체를 지운다 — 롤백됐는데 객체를 먼저 지워버리면
     // DB에는 살아 있는 이미지의 실물이 사라져 깨진 링크가 된다.
-    List<String> removedUrls = new ArrayList<>();
-    registerImageCleanup(storedUrls, removedUrls);
+    List<String> removedKeys = new ArrayList<>();
+    registerImageCleanup(storedKeys, removedKeys);
 
-    List<Image> newImages = storedUrls.stream().map(Image::of).toList();
+    List<Image> newImages =
+        storedObjects.stream().map(o -> Image.ofMinio(o.url(), o.objectKey())).toList();
 
     // 최종 개수 상한은 여기서 본다. storeAll은 이번에 올린 파일 수만 세므로,
     // 기존 3장을 남긴 채 새로 3장을 올리는 식으로 상한을 넘기는 것을 잡지 못한다.
@@ -353,7 +351,11 @@ public class PostService {
     if (!detachedImages.isEmpty()) {
       imageRepository.deleteAll(detachedImages);
       // 저장소 객체 삭제는 커밋 성공 후에. 위에서 건 훅이 이 목록을 보고 지운다.
-      detachedImages.stream().map(Image::getImageUrl).forEach(removedUrls::add);
+      // 외부 URL 이미지는 키가 없어 걸러진다 — 남의 이미지를 지우려 시도하지 않는다.
+      detachedImages.stream()
+          .filter(Image::isStoredByUs)
+          .map(Image::getObjectKey)
+          .forEach(removedKeys::add);
     }
 
     return PostDetailResponse.from(post);
@@ -389,22 +391,22 @@ public class PostService {
   }
 
   // 수정·삭제 트랜잭션의 객체 정리 훅. 저장소는 트랜잭션에 참여하지 않으므로 커밋 결과를 보고 한쪽만 정리한다.
-  //   커밋 성공 : 게시글에서 떨어져 나간 옛 객체(removedUrls)를 지운다. 새 객체는 DB가 참조하므로 남긴다.
-  //   롤백/실패 : 방금 올린 새 객체(storedUrls)를 지운다. 옛 객체는 DB에 그대로 살아 있으므로 건드리지 않는다.
-  // 삭제 경로처럼 새로 올리는 객체가 없으면 storedUrls는 빈 목록으로 넘어와 롤백 시 아무것도 지우지 않는다.
-  // removedUrls는 호출 후에 채워지는 것을 전제로 참조를 넘긴다. 훅은 커밋 시점에야 읽으므로 그때는 다 차 있다.
-  private void registerImageCleanup(List<String> storedUrls, List<String> removedUrls) {
+  //   커밋 성공 : 게시글에서 떨어져 나간 옛 객체(removedKeys)를 지운다. 새 객체는 DB가 참조하므로 남긴다.
+  //   롤백/실패 : 방금 올린 새 객체(storedKeys)를 지운다. 옛 객체는 DB에 그대로 살아 있으므로 건드리지 않는다.
+  // 삭제 경로처럼 새로 올리는 객체가 없으면 storedKeys는 빈 목록으로 넘어와 롤백 시 아무것도 지우지 않는다.
+  // removedKeys는 호출 후에 채워지는 것을 전제로 참조를 넘긴다. 훅은 커밋 시점에야 읽으므로 그때는 다 차 있다.
+  private void registerImageCleanup(List<String> storedKeys, List<String> removedKeys) {
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {
           @Override
           public void afterCompletion(int status) {
-            List<String> targets = (status == STATUS_COMMITTED) ? removedUrls : storedUrls;
-            for (String url : targets) {
+            List<String> targets = (status == STATUS_COMMITTED) ? removedKeys : storedKeys;
+            for (String key : targets) {
               try {
-                fileStorageService.delete(url);
+                fileStorageService.deleteByKey(key);
               } catch (RuntimeException e) {
                 // 정리 실패로 요청 자체를 실패시키지는 않는다. 객체가 남는 것보다 나쁜 게 없으므로 로그만 남긴다.
-                log.warn("게시글 수정 후 이미지 삭제 실패: {}", url, e);
+                log.warn("게시글 수정 후 이미지 삭제 실패. objectKey={}", key, e);
               }
             }
           }
@@ -436,14 +438,17 @@ public class PostService {
 
     // 저장소 객체는 커밋 성공 후에만 지운다. 롤백됐는데 객체를 먼저 지우면 DB에 살아 있는 이미지의
     // 실물이 사라져 깨진 링크가 된다. 이 경로에서 새로 올리는 객체는 없으므로 롤백 시 지울 목록은 비어 있다.
-    List<String> removedUrls = new ArrayList<>();
-    registerImageCleanup(List.of(), removedUrls);
+    List<String> removedKeys = new ArrayList<>();
+    registerImageCleanup(List.of(), removedKeys);
 
     // 연결(post_images)만 끊고 두면 images 행이 고아로 쌓이므로 행까지 지운다.
     // 삭제 순서는 Hibernate가 보장한다 — 같은 flush 안에서 컬렉션 삭제가 엔티티 삭제보다 먼저 나간다.
     if (!detachedImages.isEmpty()) {
       imageRepository.deleteAll(detachedImages);
-      detachedImages.stream().map(Image::getImageUrl).forEach(removedUrls::add);
+      detachedImages.stream()
+          .filter(Image::isStoredByUs)
+          .map(Image::getObjectKey)
+          .forEach(removedKeys::add);
     }
 
     // 변경 감지로 status = DELETED 로 UPDATE 반영

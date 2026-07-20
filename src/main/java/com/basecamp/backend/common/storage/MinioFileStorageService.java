@@ -94,23 +94,11 @@ public class MinioFileStorageService implements FileStorageService {
   }
 
   @Override
-  public void delete(String imageUrl) {
-    if (imageUrl == null || imageUrl.isBlank()) {
+  public void deleteByKey(String objectKey) {
+    // 외부 URL 만 참조하는 이미지는 키가 없다. 우리 소유가 아니므로 지울 것도 없다.
+    if (objectKey == null || objectKey.isBlank()) {
       return;
     }
-
-    // 우리가 발급한 URL 이 아니면 삭제 대상이 아니다.
-    // 소셜 로그인이 준 외부 프로필 이미지 URL 이 같은 컬럼에 섞여 있어 이 검사가 필요하다.
-    String base = properties.publicBaseUrl();
-    if (!imageUrl.startsWith(base)) {
-      return;
-    }
-
-    String objectKey = imageUrl.substring(base.length());
-    if (objectKey.isBlank()) {
-      return;
-    }
-
     removeObject(objectKey);
   }
 

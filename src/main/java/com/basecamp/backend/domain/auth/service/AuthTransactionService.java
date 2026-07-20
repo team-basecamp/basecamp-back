@@ -199,8 +199,9 @@ public class AuthTransactionService {
     return user;
   }
 
+  // 소셜 로그인이 준 프로필 이미지는 제공자 서버의 URL 이다. 우리가 올린 파일이 아니므로 EXTERNAL 로 남긴다.
   private Image createImageOrNull(String imageUrl) {
-    return StringUtils.hasText(imageUrl) ? imageRepository.save(Image.of(imageUrl)) : null;
+    return StringUtils.hasText(imageUrl) ? imageRepository.save(Image.ofExternal(imageUrl)) : null;
   }
 
   private Image syncImage(Image current, String imageUrl) {
@@ -208,9 +209,9 @@ public class AuthTransactionService {
       return null;
     }
     if (current != null) {
-      current.updateUrl(imageUrl);
+      current.updateExternal(imageUrl);
       return current;
     }
-    return imageRepository.save(Image.of(imageUrl));
+    return imageRepository.save(Image.ofExternal(imageUrl));
   }
 }

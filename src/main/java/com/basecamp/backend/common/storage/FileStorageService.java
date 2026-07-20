@@ -27,10 +27,10 @@ public interface FileStorageService {
   List<StoredObject> storeAll(List<MultipartFile> files, ImageCategory category);
 
   /**
-   * 공개 URL로 저장 객체를 삭제한다.
+   * 객체 키로 저장 객체를 삭제한다. 키가 비어 있으면 조용히 무시한다.
    *
-   * <p>이 저장소가 발급하지 않은 URL(소셜 로그인이 준 외부 프로필 이미지 등)이거나 값이 비어 있으면 조용히 무시한다. 같은 컬럼에 외부 URL과 저장소 URL이 섞여
-   * 있어도 안전하게 호출할 수 있도록 한 계약이다.
+   * <p>외부 URL만 참조하는 이미지({@code ImageStorageType.EXTERNAL})는 키가 {@code null}이므로 그대로 넘겨도 안전하다. 우리가
+   * 소유하지 않은 이미지를 지우려 시도하는 일이 없도록, 호출자가 종류를 가리지 않고 넘길 수 있게 한 계약이다.
    */
-  void delete(String imageUrl);
+  void deleteByKey(String objectKey);
 }

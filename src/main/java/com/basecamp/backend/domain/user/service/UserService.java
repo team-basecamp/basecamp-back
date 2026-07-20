@@ -51,10 +51,10 @@ public class UserService {
     }
     Image current = user.getProfileImage();
     if (current != null) {
-      current.updateUrl(imageUrl); // 기존 행 재사용(고아 행을 남기지 않는다)
+      current.updateExternal(imageUrl); // 기존 행 재사용(고아 행을 남기지 않는다)
       return current;
     }
-    return imageRepository.save(Image.of(imageUrl));
+    return imageRepository.save(Image.ofExternal(imageUrl));
   }
 
   private User findUser(Long userId) {

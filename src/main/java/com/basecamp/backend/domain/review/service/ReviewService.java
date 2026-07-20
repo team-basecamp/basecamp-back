@@ -82,15 +82,13 @@ public class ReviewService {
             .build();
 
     // 리뷰 이미지 추가
-    List<String> storedUrls =
-        fileStorageService.storeAll(images, ImageCategory.REVIEW).stream()
-            .map(StoredObject::url)
-            .toList();
+    List<StoredObject> storedObjects = fileStorageService.storeAll(images, ImageCategory.REVIEW);
 
     // 커밋 실패로 롤백되면 객체만 고아로 남으므로, 커밋이 성공하지 못한 모든 경우에 저장했던 객체를 되돌린다.
-    registerImageCleanup(storedUrls, List.of());
+    registerImageCleanup(storedObjects.stream().map(StoredObject::objectKey).toList(), List.of());
 
-    review.attachImages(storedUrls.stream().map(Image::of).toList());
+    review.attachImages(
+        storedObjects.stream().map(o -> Image.ofMinio(o.url(), o.objectKey())).toList());
 
     try {
       // cascade=PERSIST 로 Image 행과 review_images 연결이 함께 저장된다.
@@ -123,16 +121,15 @@ public class ReviewService {
     List<Image> keptImages = resolveKeptImages(review, request.keepImageUrls());
 
     // 새 이미지를 저장소에 올린다. 형식·크기 검증과 실패 시 되돌림은 storeAll이 담당한다.
-    List<String> storedUrls =
-        fileStorageService.storeAll(images, ImageCategory.REVIEW).stream()
-            .map(StoredObject::url)
-            .toList();
+    List<StoredObject> storedObjects = fileStorageService.storeAll(images, ImageCategory.REVIEW);
+    List<String> storedKeys = storedObjects.stream().map(StoredObject::objectKey).toList();
 
     // DB 커밋 결과에 맞춰야 하므로, 새 객체 되돌림 훅을 storeAll 직후 걸어 롤백 시 고아 객체를, 커밋 시 옛 객체를 정리한다.
-    List<String> removedUrls = new ArrayList<>(); // 삭제할 이미지 저장
-    registerImageCleanup(storedUrls, removedUrls);
+    List<String> removedKeys = new ArrayList<>(); // 삭제할 이미지 저장
+    registerImageCleanup(storedKeys, removedKeys);
 
-    List<Image> newImages = storedUrls.stream().map(Image::of).toList();
+    List<Image> newImages =
+        storedObjects.stream().map(o -> Image.ofMinio(o.url(), o.objectKey())).toList();
 
     // 최종 개수 상한은 체크
     if (keptImages.size() + newImages.size() > minioProperties.getMaxCount()) {
@@ -150,7 +147,11 @@ public class ReviewService {
     if (!detachedImages.isEmpty()) {
       imageRepository.deleteAll(detachedImages);
       // 저장소 객체 삭제는 커밋 성공 후에. 위에서 건 훅이 이 목록을 보고 지운다.
-      detachedImages.stream().map(Image::getImageUrl).forEach(removedUrls::add);
+      // 외부 URL 이미지는 키가 없어 걸러진다 — 남의 이미지를 지우려 시도하지 않는다.
+      detachedImages.stream()
+          .filter(Image::isStoredByUs)
+          .map(Image::getObjectKey)
+          .forEach(removedKeys::add);
     }
 
     refreshCampAverageRating(review.getCamp().getCampId());
@@ -178,12 +179,15 @@ public class ReviewService {
     List<Image> detachedImages = review.replaceImages(List.of());
 
     // 실물이 사라져 깨진 링크가 된다. 이 경로에서 새로 올리는 객체는 없으므로 롤백 시 지울 목록은 비어 있다.
-    List<String> removedUrls = new ArrayList<>();
-    registerImageCleanup(List.of(), removedUrls);
+    List<String> removedKeys = new ArrayList<>();
+    registerImageCleanup(List.of(), removedKeys);
 
     if (!detachedImages.isEmpty()) {
       imageRepository.deleteAll(detachedImages);
-      detachedImages.stream().map(Image::getImageUrl).forEach(removedUrls::add);
+      detachedImages.stream()
+          .filter(Image::isStoredByUs)
+          .map(Image::getObjectKey)
+          .forEach(removedKeys::add);
     }
 
     reviewRepository.delete(review);
@@ -251,18 +255,18 @@ public class ReviewService {
   }
 
   // 커밋과 롤백에 따라서 DB와 저장소를 일치시키는 훅.
-  private void registerImageCleanup(List<String> storedUrls, List<String> removedUrls) {
+  private void registerImageCleanup(List<String> storedKeys, List<String> removedKeys) {
     TransactionSynchronizationManager.registerSynchronization(
         new TransactionSynchronization() {
           @Override
           public void afterCompletion(int status) {
-            List<String> targets = (status == STATUS_COMMITTED) ? removedUrls : storedUrls;
-            for (String url : targets) {
+            List<String> targets = (status == STATUS_COMMITTED) ? removedKeys : storedKeys;
+            for (String key : targets) {
               try {
-                fileStorageService.delete(url);
+                fileStorageService.deleteByKey(key);
               } catch (RuntimeException e) {
                 // 정리 실패로 요청 자체를 실패시키지는 않는다. 객체가 남는 것보다 나쁜 게 없으므로 로그만 남긴다.
-                log.warn("리뷰 이미지 정리 실패: {}", url, e);
+                log.warn("리뷰 이미지 정리 실패. objectKey={}", key, e);
               }
             }
           }
