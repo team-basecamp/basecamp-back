@@ -2,12 +2,11 @@ package com.basecamp.backend.common.storage;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -18,21 +17,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 로컬 디스크에 이미지를 저장하는 {@link FileStorageService} 구현.
+ * MinIO에 이미지를 저장하는 {@link FileStorageService} 구현.
  *
- * <p>파일명은 원본을 신뢰하지 않고 UUID로 새로 만들어 경로 조작·한글/공백·중복 충돌을 원천 차단한다. 저장 위치는 {@link
- * FileStorageProperties#getDir()}(작업 디렉터리 기준 상대경로)이며, DB/응답에는 {@link
- * FileStorageProperties#getUrlPrefix()} 로 시작하는 상대경로만 돌려준다.
+ * <p>파일명은 원본을 신뢰하지 않고 UUID로 새로 만든다. 한글·공백·중복 충돌과 키 조작을 원천 차단하기 위해서다. 객체 키는 {@link ImageCategory}
+ * 접두어 아래에 놓이고, DB/응답에는 그 키에 대응하는 공개 URL을 돌려준다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class LocalFileStorageService implements FileStorageService {
+public class MinioFileStorageService implements FileStorageService {
 
-  private final FileStorageProperties properties;
+  private final MinioClient minioClient;
+  private final MinioProperties properties;
 
   @Override
-  public String store(MultipartFile file) {
+  public StoredObject store(MultipartFile file, ImageCategory category) {
     if (file == null || file.isEmpty()) {
       // 빈 파트가 넘어오면 저장할 것이 없으므로 잘못된 입력으로 막는다.
       throw new BusinessException(ErrorCode.INVALID_IMAGE_TYPE);
@@ -40,30 +39,25 @@ public class LocalFileStorageService implements FileStorageService {
 
     String extension = resolveExtension(file);
     String storedName = UUID.randomUUID().toString().replace("-", "") + "." + extension;
+    String objectKey = category.objectKey(storedName);
 
-    Path baseDir = baseDir();
-    Path target = baseDir.resolve(storedName).normalize();
-    // UUID 파일명이라 정상 경로지만, 저장 루트를 벗어나지 않는지 방어적으로 한 번 더 확인한다.
-    if (!target.startsWith(baseDir)) {
+    try (InputStream in = file.getInputStream()) {
+      minioClient.putObject(
+          PutObjectArgs.builder().bucket(properties.getBucket()).object(objectKey).stream(
+                  in, file.getSize(), -1)
+              // 브라우저가 다운로드가 아니라 이미지로 렌더링하도록 지정한다.
+              .contentType(file.getContentType())
+              .build());
+    } catch (Exception e) {
+      log.error("이미지 업로드 실패. objectKey={}", objectKey, e);
       throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
     }
 
-    try {
-      Files.createDirectories(baseDir);
-      try (InputStream in = file.getInputStream()) {
-        Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
-      }
-    } catch (IOException e) {
-      log.error("이미지 저장 실패: {}", target, e);
-      throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
-    }
-
-    // DB에는 절대경로가 아닌 상대경로만 남긴다. (예: /images/abc123.jpg)
-    return properties.getUrlPrefixPath() + storedName;
+    return new StoredObject(properties.publicUrl(objectKey), objectKey);
   }
 
   @Override
-  public List<String> storeAll(List<MultipartFile> files) {
+  public List<StoredObject> storeAll(List<MultipartFile> files, ImageCategory category) {
     if (files == null || files.isEmpty()) {
       return List.of();
     }
@@ -78,20 +72,20 @@ public class LocalFileStorageService implements FileStorageService {
       throw new BusinessException(ErrorCode.IMAGE_COUNT_EXCEEDED);
     }
 
-    // 여러 파일을 하나라도 실패하면 전부 실패로 본다. 도중에 실패하면 이미 저장한 파일을
-    // 그대로 두지 않고 되돌려(delete), 고아 파일이 디스크에 남지 않게 한다.
-    List<String> stored = new ArrayList<>(nonEmpty.size());
+    // 여러 파일 중 하나라도 실패하면 전부 실패로 본다. 도중에 실패하면 이미 올린 객체를
+    // 그대로 두지 않고 되돌려, 저장소에 고아 객체가 남지 않게 한다.
+    List<StoredObject> stored = new ArrayList<>(nonEmpty.size());
     try {
       for (MultipartFile file : nonEmpty) {
-        stored.add(store(file));
+        stored.add(store(file, category));
       }
     } catch (RuntimeException e) {
       // 정리 실패가 원래 실패 원인을 가리지 않도록 best-effort 로 되돌린다.
-      for (String path : stored) {
+      for (StoredObject object : stored) {
         try {
-          delete(path);
+          removeObject(object.objectKey());
         } catch (RuntimeException cleanupError) {
-          log.warn("업로드 롤백 중 이미지 삭제 실패: {}", path, cleanupError);
+          log.warn("업로드 롤백 중 이미지 삭제 실패. objectKey={}", object.objectKey(), cleanupError);
         }
       }
       throw e;
@@ -100,45 +94,34 @@ public class LocalFileStorageService implements FileStorageService {
   }
 
   @Override
-  public void delete(String relativePath) {
-    if (relativePath == null || relativePath.isBlank()) {
-      return;
-    }
-    String prefix = properties.getUrlPrefixPath();
-    if (!relativePath.startsWith(prefix)) {
-      // 우리가 저장한 형식의 경로가 아니면(더미 이미지 등) 삭제 대상이 아니다.
+  public void delete(String imageUrl) {
+    if (imageUrl == null || imageUrl.isBlank()) {
       return;
     }
 
-    // prefix 뒤에는 store()가 만든 UUID 파일명 하나만 와야 한다.
-    // 빈 값이면 저장 루트 자체를, 경로 구분자나 .. 가 섞이면 다른 디렉터리를 가리키게 된다.
-    String fileName = relativePath.substring(prefix.length());
-    if (fileName.isBlank()
-        || ".".equals(fileName)
-        || "..".equals(fileName)
-        || fileName.contains("/")
-        || fileName.contains("\\")) {
+    // 우리가 발급한 URL 이 아니면 삭제 대상이 아니다.
+    // 소셜 로그인이 준 외부 프로필 이미지 URL 이 같은 컬럼에 섞여 있어 이 검사가 필요하다.
+    String base = properties.publicBaseUrl();
+    if (!imageUrl.startsWith(base)) {
       return;
     }
 
-    Path baseDir = baseDir();
-    Path target = baseDir.resolve(fileName).normalize();
-    if (!target.startsWith(baseDir)) {
-      // 경로 조작 방어: 저장 루트 밖은 건드리지 않는다.
+    String objectKey = imageUrl.substring(base.length());
+    if (objectKey.isBlank()) {
       return;
     }
 
-    try {
-      Files.deleteIfExists(target);
-    } catch (IOException e) {
-      log.error("이미지 삭제 실패: {}", target, e);
-      throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
-    }
+    removeObject(objectKey);
   }
 
-  // 저장 루트를 절대경로로 정규화한다. 경로 조작 검사(startsWith)의 기준이 된다.
-  private Path baseDir() {
-    return Paths.get(properties.getDir()).toAbsolutePath().normalize();
+  private void removeObject(String objectKey) {
+    try {
+      minioClient.removeObject(
+          RemoveObjectArgs.builder().bucket(properties.getBucket()).object(objectKey).build());
+    } catch (Exception e) {
+      log.error("이미지 삭제 실패. objectKey={}", objectKey, e);
+      throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+    }
   }
 
   // 원본 파일명의 확장자와 content-type을 함께 검사해 허용 목록 안일 때만 통과시킨다.
