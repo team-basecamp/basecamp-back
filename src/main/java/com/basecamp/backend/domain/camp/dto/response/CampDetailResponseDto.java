@@ -8,15 +8,11 @@ import lombok.Getter;
 @Builder
 public class CampDetailResponseDto {
 
-    private String resultCode;
-    private String resultMsg;
-    private CampResponseDto data;
+  private String resultCode;
+  private String resultMsg;
+  private CampResponseDto data;
 
-    public static CampDetailResponseDto ok(CampResponseDto data) {
-        return CampDetailResponseDto.builder()
-                .resultCode("0000")
-                .resultMsg("OK")
-                .data(data)
-                .build();
-    }
+  public static CampDetailResponseDto ok(CampResponseDto data) {
+    return CampDetailResponseDto.builder().resultCode("0000").resultMsg("OK").data(data).build();
+  }
 }

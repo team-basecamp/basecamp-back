@@ -5,12 +5,11 @@ import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.client.kakao.GeoPoint;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.SQLRestriction;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
+import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 // 생성 경로를 builder()/정적 팩토리(fromGocampingApi 등)로만 제한한다.
 // no-args 생성자는 JPA가 리플렉션으로 엔티티를 로딩할 때만 필요해 protected로 좁혔다.
@@ -25,212 +24,210 @@ import java.util.Objects;
 @Builder
 public class Camp {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "camp_id")
-    private Long campId;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "camp_id")
+  private Long campId;
 
-    @Column(name = "content_id", unique = true)
-    private Long contentId;
+  @Column(name = "content_id", unique = true)
+  private Long contentId;
 
-    @Column(name = "owner_id")
-    private Long ownerId;
+  @Column(name = "owner_id")
+  private Long ownerId;
 
-    @Column(name = "faclt_nm", length = 100)
-    private String facltNm;
+  @Column(name = "faclt_nm", length = 100)
+  private String facltNm;
 
-    @Column(name = "addr1", length = 200)
-    private String addr1;
+  @Column(name = "addr1", length = 200)
+  private String addr1;
 
-    @Column(name = "addr2", length = 200)
-    private String addr2;
+  @Column(name = "addr2", length = 200)
+  private String addr2;
 
-    @Column(name = "map_x")
-    private BigDecimal mapX;
+  @Column(name = "map_x")
+  private BigDecimal mapX;
 
-    @Column(name = "map_y")
-    private BigDecimal mapY;
+  @Column(name = "map_y")
+  private BigDecimal mapY;
 
-    @Column(name = "tel", length = 20)
-    private String tel;
+  @Column(name = "tel", length = 20)
+  private String tel;
 
-    @Column(name = "induty", length = 100)
-    private String induty;
+  @Column(name = "induty", length = 100)
+  private String induty;
 
-    @Column(name = "gnrl_site_co")
-    private Integer gnrlSiteCo;
+  @Column(name = "gnrl_site_co")
+  private Integer gnrlSiteCo;
 
-    @Column(name = "auto_site_co")
-    private Integer autoSiteCo;
+  @Column(name = "auto_site_co")
+  private Integer autoSiteCo;
 
-    @Column(name = "glamp_site_co")
-    private Integer glampSiteCo;
+  @Column(name = "glamp_site_co")
+  private Integer glampSiteCo;
 
-    @Column(name = "first_image_url", columnDefinition = "TEXT")
-    private String firstImageUrl;
+  @Column(name = "first_image_url", columnDefinition = "TEXT")
+  private String firstImageUrl;
 
-    @Column(name = "manage_sttus", length = 20, nullable = false)
-    private CampManageStatus manageSttus;
+  @Column(name = "manage_sttus", length = 20, nullable = false)
+  private CampManageStatus manageSttus;
 
-    @Column(name = "lineIntro", length = 500)
-    private String lineIntro;
+  @Column(name = "lineIntro", length = 500)
+  private String lineIntro;
 
-    @Column(name = "homepage", length = 255)
-    private String homepage;
+  @Column(name = "homepage", length = 255)
+  private String homepage;
 
-    @Column(name = "doNm", length = 50)
-    private String doNm;
+  @Column(name = "doNm", length = 50)
+  private String doNm;
 
-    @Column(name = "sbrsCl", length = 500)
-    private String sbrsCl;
+  @Column(name = "sbrsCl", length = 500)
+  private String sbrsCl;
 
-    @Column(name = "toiletCo")
-    private Integer toiletCo;
+  @Column(name = "toiletCo")
+  private Integer toiletCo;
 
-    @Column(name = "swrmCo")
-    private Integer swrmCo;
+  @Column(name = "swrmCo")
+  private Integer swrmCo;
 
-    @Column(name = "wtrplCo")
-    private Integer wtrplCo;
+  @Column(name = "wtrplCo")
+  private Integer wtrplCo;
 
-    @Column(name = "extshrCo")
-    private Integer extshrCo;
+  @Column(name = "extshrCo")
+  private Integer extshrCo;
 
-    @Column(name = "glampInnerFclty", length = 500)
-    private String glampInnerFclty;
+  @Column(name = "glampInnerFclty", length = 500)
+  private String glampInnerFclty;
 
-    @Column(name = "caravInnerFclty", length = 500)
-    private String caravInnerFclty;
+  @Column(name = "caravInnerFclty", length = 500)
+  private String caravInnerFclty;
 
-    @Column(name = "operDeCl", length = 50)
-    private String operDeCl;
+  @Column(name = "operDeCl", length = 50)
+  private String operDeCl;
 
-    @Column(name = "price", nullable = false)
-    private Integer price;
+  @Column(name = "price", nullable = false)
+  private Integer price;
 
-    @Column(name = "average_rating", columnDefinition = "DECIMAL(3,2)")
-    private BigDecimal averageRating;
+  @Column(name = "average_rating", columnDefinition = "DECIMAL(3,2)")
+  private BigDecimal averageRating;
 
-    @Column(name = "reservation_count", nullable = false)
-    private Integer reservationCount;
+  @Column(name = "reservation_count", nullable = false)
+  private Integer reservationCount;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+  @Column(name = "updated_at")
+  private LocalDateTime updatedAt;
 
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+  @Column(name = "deleted_at")
+  private LocalDateTime deletedAt;
 
-    public void softDelete(){
-        if(this.deletedAt != null){
-            throw new BusinessException(ErrorCode.ALREADY_DELETED_CAMP);
-        }
-        this.deletedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+  public void softDelete() {
+    if (this.deletedAt != null) {
+      throw new BusinessException(ErrorCode.ALREADY_DELETED_CAMP);
     }
+    this.deletedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+  }
 
-    // 캠핑장 정보 수정
-    public void updateInfo(CampUpdateRequest request) {
-        // 이름
-        if (request.getFacltNm() != null) {
-            this.facltNm = request.getFacltNm();
-        }
-        // 주소
-        if (request.getAddr1() != null) {
-            this.addr1 = request.getAddr1();
-        }
-        if (request.getAddr2() != null) {
-            this.addr2 = request.getAddr2();
-        }
-        // 전화번호
-        if (request.getTel() != null) {
-            this.tel = request.getTel();
-        }
-        // 캠핑장 유형
-        if (request.getInduty() != null) {
-            this.induty = request.getInduty();
-        }
-        // 가격
-        if (request.getPrice() != null) {
-            this.price = request.getPrice();
-        }
-        // 사이트 개수들
-        if (request.getGnrlSiteCo() != null) {
-            this.gnrlSiteCo = request.getGnrlSiteCo();
-        }
-        if (request.getAutoSiteCo() != null) {
-            this.autoSiteCo = request.getAutoSiteCo();
-        }
-        if (request.getGlampSiteCo() != null) {
-            this.glampSiteCo = request.getGlampSiteCo();
-        }
-        // 한줄 소개
-        if (request.getLineIntro() != null) {
-            this.lineIntro = request.getLineIntro();
-        }
-        // 대표 이미지 URL
-        if (request.getFirstImageUrl() != null) {
-            this.firstImageUrl = request.getFirstImageUrl();
-        }
-        // 웹사이트
-        if (request.getHomepage() != null) {
-            this.homepage = request.getHomepage();
-        }
-        // 수정 시각 갱신
-        this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+  // 캠핑장 정보 수정
+  public void updateInfo(CampUpdateRequest request) {
+    // 이름
+    if (request.getFacltNm() != null) {
+      this.facltNm = request.getFacltNm();
     }
-
-    // average_rating은 엔티티에서 직접 바꾸지 않는다. 동시 갱신 시 마지막 커밋이 옛 평균으로 덮어쓰는 걸 막으려고
-    // CampRepository.refreshAverageRating(campId)의 UPDATE 한 문장으로만 갱신한다.
-
-    // 주소 변경에 따른 좌표 갱신. 지오코딩 실패(geoPoint == null) 시 좌표를 비워서
-    // 새 주소와 옛 좌표가 어긋난 채로 저장되지 않도록 한다.
-    public void updateLocation(GeoPoint geoPoint) {
-        this.mapX = geoPoint != null ? geoPoint.mapX() : null;
-        this.mapY = geoPoint != null ? geoPoint.mapY() : null;
+    // 주소
+    if (request.getAddr1() != null) {
+      this.addr1 = request.getAddr1();
     }
-
-
-
-    // price: 고캠핑 API가 가격 정보를 제공하지 않아, 서비스 계층에서 정책에 따라 결정한 값을 받아 조립만 한다.
-    public static Camp fromGocampingApi(com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto dto, int price) {
-        return Camp.builder()
-                .contentId(dto.getContentId())
-                .facltNm(dto.getFacltNm())
-                .addr1(dto.getAddr1())
-                .mapX(dto.getMapX() != null ? new BigDecimal(dto.getMapX().toString()) : null)
-                .mapY(dto.getMapY() != null ? new BigDecimal(dto.getMapY().toString()) : null)
-                .tel(dto.getTel())
-                .induty(dto.getInduty())
-                .gnrlSiteCo(dto.getGnrlSiteCo())
-                .autoSiteCo(dto.getAutoSiteCo())
-                .glampSiteCo(dto.getGlampSiteCo())
-                .firstImageUrl(dto.getFirstImageUrl())
-                .manageSttus(CampManageStatus.fromLabel(dto.getManageSttus()))
-                .lineIntro(truncate(dto.getIntro(), 500))
-                .homepage(truncate(dto.getHomepage(), 255))
-                .sbrsCl(truncate(dto.getSbrsCl(), 500))
-                .price(price)
-                .averageRating(new BigDecimal("0.0"))
-                .reservationCount(0)
-                .createdAt(LocalDateTime.now())
-                .build();
+    if (request.getAddr2() != null) {
+      this.addr2 = request.getAddr2();
     }
-
-
-    // 고캠핑 API 원본 데이터가 컬럼 길이 제한을 넘는 경우가 있어 저장 전 자른다 (예: intro가 500자 초과).
-    private static String truncate(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, maxLength);
+    // 전화번호
+    if (request.getTel() != null) {
+      this.tel = request.getTel();
     }
-
-    // 캠핑장 소유권 검증 메서드
-    public void validateOwner(Long userId) {
-        if (!Objects.equals(this.ownerId, userId)) {
-            throw new BusinessException(ErrorCode.ACCESS_DENIED);
-        }
+    // 캠핑장 유형
+    if (request.getInduty() != null) {
+      this.induty = request.getInduty();
     }
+    // 가격
+    if (request.getPrice() != null) {
+      this.price = request.getPrice();
+    }
+    // 사이트 개수들
+    if (request.getGnrlSiteCo() != null) {
+      this.gnrlSiteCo = request.getGnrlSiteCo();
+    }
+    if (request.getAutoSiteCo() != null) {
+      this.autoSiteCo = request.getAutoSiteCo();
+    }
+    if (request.getGlampSiteCo() != null) {
+      this.glampSiteCo = request.getGlampSiteCo();
+    }
+    // 한줄 소개
+    if (request.getLineIntro() != null) {
+      this.lineIntro = request.getLineIntro();
+    }
+    // 대표 이미지 URL
+    if (request.getFirstImageUrl() != null) {
+      this.firstImageUrl = request.getFirstImageUrl();
+    }
+    // 웹사이트
+    if (request.getHomepage() != null) {
+      this.homepage = request.getHomepage();
+    }
+    // 수정 시각 갱신
+    this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+  }
+
+  // average_rating은 엔티티에서 직접 바꾸지 않는다. 동시 갱신 시 마지막 커밋이 옛 평균으로 덮어쓰는 걸 막으려고
+  // CampRepository.refreshAverageRating(campId)의 UPDATE 한 문장으로만 갱신한다.
+
+  // 주소 변경에 따른 좌표 갱신. 지오코딩 실패(geoPoint == null) 시 좌표를 비워서
+  // 새 주소와 옛 좌표가 어긋난 채로 저장되지 않도록 한다.
+  public void updateLocation(GeoPoint geoPoint) {
+    this.mapX = geoPoint != null ? geoPoint.mapX() : null;
+    this.mapY = geoPoint != null ? geoPoint.mapY() : null;
+  }
+
+  // price: 고캠핑 API가 가격 정보를 제공하지 않아, 서비스 계층에서 정책에 따라 결정한 값을 받아 조립만 한다.
+  public static Camp fromGocampingApi(
+      com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto dto, int price) {
+    return Camp.builder()
+        .contentId(dto.getContentId())
+        .facltNm(dto.getFacltNm())
+        .addr1(dto.getAddr1())
+        .mapX(dto.getMapX() != null ? new BigDecimal(dto.getMapX().toString()) : null)
+        .mapY(dto.getMapY() != null ? new BigDecimal(dto.getMapY().toString()) : null)
+        .tel(dto.getTel())
+        .induty(dto.getInduty())
+        .gnrlSiteCo(dto.getGnrlSiteCo())
+        .autoSiteCo(dto.getAutoSiteCo())
+        .glampSiteCo(dto.getGlampSiteCo())
+        .firstImageUrl(dto.getFirstImageUrl())
+        .manageSttus(CampManageStatus.fromLabel(dto.getManageSttus()))
+        .lineIntro(truncate(dto.getIntro(), 500))
+        .homepage(truncate(dto.getHomepage(), 255))
+        .sbrsCl(truncate(dto.getSbrsCl(), 500))
+        .price(price)
+        .averageRating(new BigDecimal("0.0"))
+        .reservationCount(0)
+        .createdAt(LocalDateTime.now())
+        .build();
+  }
+
+  // 고캠핑 API 원본 데이터가 컬럼 길이 제한을 넘는 경우가 있어 저장 전 자른다 (예: intro가 500자 초과).
+  private static String truncate(String value, int maxLength) {
+    if (value == null || value.length() <= maxLength) {
+      return value;
+    }
+    return value.substring(0, maxLength);
+  }
+
+  // 캠핑장 소유권 검증 메서드
+  public void validateOwner(Long userId) {
+    if (!Objects.equals(this.ownerId, userId)) {
+      throw new BusinessException(ErrorCode.ACCESS_DENIED);
+    }
+  }
 }

@@ -11,8 +11,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class CampNamingStrategyConfig {
 
-    @Bean
-    public PhysicalNamingStrategy physicalNamingStrategy() {
-        return PhysicalNamingStrategyStandardImpl.INSTANCE;
-    }
+  @Bean
+  public PhysicalNamingStrategy physicalNamingStrategy() {
+    return PhysicalNamingStrategyStandardImpl.INSTANCE;
+  }
 }
