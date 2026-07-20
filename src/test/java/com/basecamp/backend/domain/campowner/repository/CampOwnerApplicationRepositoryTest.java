@@ -15,6 +15,7 @@ import jakarta.persistence.PersistenceException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -132,17 +133,21 @@ class CampOwnerApplicationRepositoryTest {
     Long applicationId = null;
     try {
       // given: 신청이 하나 있고, 관리자 A 와 B 가 각자 그것을 읽어둔다(둘 다 version = 0 인 스냅샷).
+      // 이 테스트만 롤백되지 않으므로(NOT_SUPPORTED) 이전 실행이 finally 전에 죽으면 행이 남는다.
+      // 고정값을 쓰면 다음 실행이 유니크 제약에 걸리므로, 회원과 사업자번호를 실행마다 새로 만든다.
+      //   - users.email          회원 유니크
+      //   - uq_coa_biznum_approved  승인된 신청의 사업자번호 유니크 (이 테스트는 승인까지 진행한다)
+      String email = "owner4+" + UUID.randomUUID() + "@example.com";
+      String bizNumber = String.format("%010d", System.nanoTime() % 10_000_000_000L);
       userId =
           tx.execute(
               status ->
                   userRepository
-                      .saveAndFlush(
-                          User.register("camper", "owner4@example.com", null, Provider.KAKAO))
+                      .saveAndFlush(User.register("camper", email, null, Provider.KAKAO))
                       .getId());
       final Long uid = userId;
       applicationId =
-          tx.execute(
-              status -> applicationRepository.saveAndFlush(pending(uid, BIZ_NUMBER)).getId());
+          tx.execute(status -> applicationRepository.saveAndFlush(pending(uid, bizNumber)).getId());
       final Long aid = applicationId;
 
       CampOwnerApplication readByAdminA =

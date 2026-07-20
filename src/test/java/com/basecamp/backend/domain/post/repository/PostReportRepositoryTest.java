@@ -10,6 +10,7 @@ import com.basecamp.backend.domain.post.entity.PostReport;
 import com.basecamp.backend.domain.post.entity.ReportStatus;
 import com.basecamp.backend.domain.user.entity.Provider;
 import com.basecamp.backend.domain.user.entity.User;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +41,19 @@ class PostReportRepositoryTest {
   @Autowired private PostReportRepository postReportRepository;
 
   @Autowired private TestEntityManager em;
+
+  /**
+   * 아래 검증은 "PENDING 이 총 몇 건인가" 같은 전역 카운트로 조회 결과를 확인한다. 임베디드 DB 가 아니라 로컬 MySQL 을 그대로 쓰므로(위 {@code
+   * Replace.NONE}) 개발하며 쌓인 기존 신고 행이 함께 잡혀 카운트가 어긋난다.
+   *
+   * <p>그래서 테스트 시작 시 신고 테이블을 비운다. {@code @DataJpaTest} 의 트랜잭션 안에서 지우는 것이라 테스트가 끝나면 롤백되어 실제 개발 데이터는
+   * 그대로 남는다.
+   */
+  @BeforeEach
+  void clearExistingReports() {
+    em.getEntityManager().createQuery("DELETE FROM PostReport").executeUpdate();
+    em.clear();
+  }
 
   private User persistUser(String nickname, String email) {
     return em.persistFlushFind(User.register(nickname, email, null, Provider.KAKAO));
