@@ -50,6 +50,7 @@ public enum ErrorCode {
 	CAMP_NOT_ACCESSED(HttpStatus.FORBIDDEN, "CP003","접근 권한이 없습니다"),
 	GOCAMPING_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "CP004", " 고캠핑 서버 내부 오류가 발생했습니다."),
 	INVALID_PAGE_SIZE(HttpStatus.BAD_REQUEST, "CP005", "페이지당 조회 개수는 1 이상이어야 합니다."),
+	WISHLIST_ALREADY_EXISTS(HttpStatus.CONFLICT, "CP006", "이미 찜한 캠핑장입니다."),
 
 	// CampOwner (캠핑업체 권한 승격 신청)
 	CAMP_OWNER_APPLICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "CO001", "업체 전환 신청을 찾을 수 없습니다."),
