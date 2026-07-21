@@ -2,17 +2,20 @@ package com.basecamp.backend.domain.camp.service;
 
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
+import com.basecamp.backend.common.storage.FileStorageService;
+import com.basecamp.backend.common.storage.ImageCategory;
+import com.basecamp.backend.common.storage.StoredObject;
 import com.basecamp.backend.domain.camp.client.kakao.GeoPoint;
 import com.basecamp.backend.domain.camp.client.kakao.KakaoGeocodingClient;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
-import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.entity.CampManageStatus;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.camp.repository.CampSpecs;
+import com.basecamp.backend.domain.reservation.service.ReservationService;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -26,8 +29,10 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -45,9 +50,14 @@ public class CampService {
     // campRepository 를 자동으로 주입 받기
     private final CampRepository campRepository;
     private final RestTemplate restTemplate;
+
     // 사용자가 입력한 주소(addr1)를 좌표(mapX/mapY)로 바꿔주는 지오코딩 클라이언트.
     // registerCamp()/updateCamp() 에서 사용한다.
     private final KakaoGeocodingClient kakaoGeocodingClient;
+    // 캠핑장 이미지를 저장소(MinIO)에 올리고 공개 URL·객체 키를 돌려주는 저장 서비스
+    private final FileStorageService fileStorageService;
+    // 외부 호출(지오코딩·업로드)을 끝낸 뒤 DB 반영만 짧은 트랜잭션으로 처리하는 협력 빈
+    private final CampTransactionService campTransactionService;
 
     @Value("${gocamping.api.key}")
     private String gocampingApiKey;
@@ -78,11 +88,13 @@ public class CampService {
     }
 
     // 고캠핑 API 에서 받은 캠핑장 데이터 DB 저장
+    // 반환값은 "실제로 새로 저장한 건수". 받은 개수(apiCamps.size())와 다르다 —
+    // 이미 있는 contentId 와 대표 이미지가 없는 항목은 걸러지기 때문.
     @Transactional
-    public void saveCampsFromApi(List<GocampingApiResponseDto> apiCamps){
+    public int saveCampsFromApi(List<GocampingApiResponseDto> apiCamps){
         // API 에서 받은 데이터가 없다면 ? 메서드 종료
         if (apiCamps == null || apiCamps.isEmpty()){
-            return;
+            return 0;
         }
         // DB 에 이미 저장이 된 contentId를 모두 가져오기
         Set<Long> existingContentIds = campRepository.findAllContentIds()
@@ -92,12 +104,14 @@ public class CampService {
         // 새로운 데이터만 필터링 하고 Entity로 변환 하기
         List<Camp> newCamps = apiCamps.stream()
                 .filter(dto -> !existingContentIds.contains(dto.getContentId()))
+                .filter(dto -> StringUtils.hasText(dto.getFirstImageUrl()))
                 .map(dto -> Camp.fromGocampingApi(dto, generateRandomPrice()))
                 .collect(Collectors.toList());
         // 새로운 데이터 DB 저장 로직
         if(!newCamps.isEmpty()){
             campRepository.saveAll(newCamps);
         }
+        return newCamps.size();
     }
 
     // 고캠핑 API 가격 설정
@@ -121,6 +135,7 @@ public class CampService {
             int pageNo = 1;
             int numOfRows = 100;
             boolean hasMoreData = true;
+            int totalReceived = 0;
             int totalSaved = 0;
 
             while (hasMoreData) {
@@ -151,13 +166,17 @@ public class CampService {
                         log.info("모든 페이지를 받았습니다");
                         hasMoreData = false;
                     } else {
-                        int savedCount = camps.size();
-                        saveCampsFromApi(camps);
+                        // receivedCount(API 응답 개수)와 savedCount(실제 저장 건수)는 다르다.
+                        // 페이지네이션 종료 판단은 반드시 receivedCount 로 해야 한다 —
+                        // savedCount 로 하면 전부 중복인 페이지에서 0건이 나와 조기 종료된다.
+                        int receivedCount = camps.size();
+                        int savedCount = saveCampsFromApi(camps);
 
+                        totalReceived += receivedCount;
                         totalSaved += savedCount;
-                        log.info("페이지 {}: {}개 저장됨", pageNo, savedCount);
+                        log.info("페이지 {}: {}건 수신, {}건 신규 저장", pageNo, receivedCount, savedCount);
 
-                        if (savedCount < numOfRows) {
+                        if (receivedCount < numOfRows) {
                             log.info("마지막 페이지입니다");
                             hasMoreData = false;
                         }
@@ -169,7 +188,8 @@ public class CampService {
                 }
             }
 
-            log.info("총 {}개의 캠핑장이 저장되었습니다", totalSaved);
+            log.info("총 {}건 수신, {}개의 캠핑장이 새로 저장되었습니다 (중복/대표이미지 없음 {}건 제외)",
+                    totalReceived, totalSaved, totalReceived - totalSaved);
 
         } catch (BusinessException e) {
             throw e;
@@ -190,6 +210,20 @@ public class CampService {
     @Transactional(readOnly = true)
     public Camp getCampByContentId(Long contentId){
         return campRepository.findByContentId(contentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다"));
+    }
+
+    // 상세 조회 전용. 갤러리를 함께 내려주므로 이미지까지 초기화해서 반환한다.
+    // 컨트롤러에서 DTO 로 바꾸는 시점에는 open-in-view: false 라 트랜잭션이 닫혀 있어, 여기서 미리 로딩해야 한다.
+    @Transactional(readOnly = true)
+    public Camp getCampDetail(Long campId) {
+        return campRepository.findWithImagesByCampId(campId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다"));
+    }
+
+    @Transactional(readOnly = true)
+    public Camp getCampDetailByContentId(Long contentId) {
+        return campRepository.findWithImagesByContentId(contentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다"));
     }
 
@@ -214,7 +248,7 @@ public class CampService {
     // 키워드/지역/유형/최대금액 필터 + 정렬 + 페이징을 조합한 캠핑장 목록/상세검색 조회
     // sort: recommended(기본, 평점->예약건수순) / rating(평점순) / reviewCount(리뷰많은순) / priceAsc(가격낮은순) / recent(최근등록순)
     @Transactional(readOnly = true)
-    public CampListResponseDto searchCamps(String keyword, String region, String induty,
+    public Page<CampResponseDto> searchCamps(String keyword, String region, String induty,
                                             Integer priceMax, String sort, int pageNo, int numOfRows) {
         if (numOfRows <= 0) {
             throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE, "numOfRows는 1이상이어야 합니다");
@@ -235,15 +269,15 @@ public class CampService {
             result = campRepository.findAll(spec, pageable);
         }
 
-        List<CampResponseDto> dtos = result.getContent().stream().map(CampResponseDto::from).toList();
-        return CampListResponseDto.ok(dtos, result.getTotalElements());
+        // Page<Camp> → Page<CampResponseDto> (봉투는 전역 래퍼에 맡김, 프론트는 data.content/data.totalElements 사용)
+        return result.map(CampResponseDto::from);
     }
 
     // HOT 캠핑장 조회 (평점순 / 예약건수순)
     @Transactional(readOnly = true)
 // 예약건수순: reservations 실시간 COUNT (PENDING+RESERVED만, 결제 완료된 예약만 유효하게 카운트)
 // 평점순: 캐싱된 average_rating 컬럼 기준, 동점이면 예약건수로 2차 정렬
-    public CampListResponseDto getHotCamps(String sortBy, int pageNo, int numOfRows) {
+    public Page<CampResponseDto> getHotCamps(String sortBy, int pageNo, int numOfRows) {
         if (numOfRows <= 0) {
             throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE,"numOfRows는 1이상이어야 합니다");
         }
@@ -260,14 +294,8 @@ public class CampService {
             Pageable pageable = PageRequest.of(page, numOfRows, sort);
             result = campRepository.findAll(CampSpecs.isOperating(), pageable);
         }
-        List<CampResponseDto> dtos = result.getContent().stream().map(CampResponseDto::from).toList();
-        return CampListResponseDto.ok(dtos, result.getTotalElements());
-    }
-
-    // 최근 등록된 캠핑장 조회
-    @Transactional(readOnly = true)
-    public CampListResponseDto getRecentCamps(int numOfRows) {
-        return searchCamps(null, null, null, null, "recent", 1, numOfRows);
+        // Page<Camp> → Page<CampResponseDto> (봉투는 전역 래퍼에 맡김, 프론트는 data.content/data.totalElements 사용)
+        return result.map(CampResponseDto::from);
     }
 
     private Sort resolveSort(String sort) {
@@ -329,9 +357,10 @@ public class CampService {
     */
 
     // 캠핑장 등록 비지니스 로직
-    // 지오코딩(외부 HTTP 호출)이 끝난 뒤 campRepository.save()가 자체 트랜잭션으로 저장하므로,
-    // 이 메서드 자체는 @Transactional을 걸지 않는다 — 카카오 API 지연이 DB 커넥션을 점유하지 않도록.
-    public Camp registerCamp(CampRegistrationRequest request,Long ownerId){
+    // 지오코딩(외부 HTTP)과 이미지 업로드(저장소 IO)를 트랜잭션 밖에서 먼저 끝내고,
+    // DB 반영만 CampTransactionService 의 짧은 쓰기 트랜잭션에 맡긴다.
+    // 이 메서드 자체에 @Transactional을 걸지 않는 이유 — 외부 호출 지연이 DB 커넥션을 점유하지 않도록.
+    public Camp registerCamp(CampRegistrationRequest request, Long ownerId, List<MultipartFile> images){
         // 권한 검증 : ownerId가 없다면 등록이 불가하도록 설정
         // ownerId == null : 인증 정보 자체가 없는 것 ( 로그인을 안함, 토큰이 없음 )
         // ownerId <= 0 : 이상한 값 ( 있을 수 없는 ID )
@@ -366,14 +395,21 @@ public class CampService {
                 .createdAt(LocalDateTime.now(ZoneId.of("Asia/Seoul")))
                 .build();
 
-        // DB에  camping 장 저장
-        return campRepository.save(camp);
+        // 이미지를 저장소에 올린다. 형식·개수 검증과 부분 실패 되돌림은 storeAll이 담당한다.
+        List<StoredObject> storedImages = fileStorageService.storeAll(images, ImageCategory.CAMP);
 
+        try {
+            return campTransactionService.register(camp, storedImages);
+        } catch (RuntimeException e) {
+            // DB 저장이 실패하면 방금 올린 객체가 저장소에 고아로 남는다. 되돌린다.
+            deleteQuietly(storedImages.stream().map(StoredObject::objectKey).toList());
+            throw e;
+        }
     }
 
     // 로그인한 회원(ownerId)이 등록한 캠핑장 목록 조회
     @Transactional(readOnly = true)
-    public CampListResponseDto getMyCamps(Long ownerId) {
+    public List<CampResponseDto> getMyCamps(Long ownerId) {
         if (ownerId == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "로그인이 필요합니다.");
             // "너 누군지 모르겠다" → 인증 자체가 없는 상황 → 401
@@ -385,25 +421,15 @@ public class CampService {
         }
 
         List<Camp> camps = campRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId);
-        List<CampResponseDto> dtos = camps.stream()
+        // 비페이징 목록 — camp 도메인의 getAllCamps/searchByName 과 동일하게 순수 List 반환
+        return camps.stream()
                 .map(CampResponseDto::from)
                 .toList();
-
-        return CampListResponseDto.ok(dtos, dtos.size());
     }
 
     // 캠핑장 정보 수정 ( 본인이 등록한 캠핑장만 가능하도록 )
-    // 지오코딩(외부 HTTP 호출)을 DB 트랜잭션 밖에서 먼저 끝낸 뒤, 짧은 쓰기 트랜잭션에서 저장한다.
-    // 더티 체킹에 기대는 대신 명시적으로 save()를 호출한다.
-    public Camp updateCamp(Long campId, CampUpdateRequest request, Long ownerId){
-
-        // campId 로 DB에서 조회를 시도하기 ( 기존의 getCampId)메서드를 재사용하여, 없으면 CAMP_NOT_FOUND
-        Camp camp = getCampId(campId);
-
-        // 권한 검증 : camp와 로그인 한 사람이 맞는지?
-        if (!java.util.Objects.equals(camp.getOwnerId(), ownerId)) {
-            throw new BusinessException(ErrorCode.CAMP_NOT_ACCESSED,"본인이 등록한 캠핑장 수정만 가능");
-        }
+    // 지오코딩과 이미지 업로드를 DB 트랜잭션 밖에서 먼저 끝낸 뒤, 짧은 쓰기 트랜잭션에서 반영한다.
+    public Camp updateCamp(Long campId, CampUpdateRequest request, Long ownerId, List<MultipartFile> images){
 
         // 주소가 바뀌면 좌표도 다시 조회한다. DB 트랜잭션을 시작하기 전에 호출해서
         // 카카오 API 지연이 DB 커넥션을 점유하지 않도록 한다.
@@ -411,31 +437,39 @@ public class CampService {
                 ? kakaoGeocodingClient.geocode(request.getAddr1())
                 : null;
 
-        // 엔티티 메서드 호출해서 반영하기
-        camp.updateInfo(request);
+        // 새 이미지를 저장소에 올린다. 소유권 검증보다 앞서지만, 남의 캠핑장이면 아래에서 예외가 나고
+        // catch 에서 방금 올린 객체를 지우므로 고아로 남지 않는다.
+        List<StoredObject> storedImages = fileStorageService.storeAll(images, ImageCategory.CAMP);
 
-        // 지오코딩 실패 시 좌표는 비운다 (새 주소와 옛 좌표가 어긋난 채로 남지 않도록)
-        if (request.getAddr1() != null) {
-            camp.updateLocation(geoPoint);
+        CampTransactionService.UpdateResult result;
+        try {
+            result = campTransactionService.update(campId, request, geoPoint, storedImages, ownerId);
+        } catch (RuntimeException e) {
+            deleteQuietly(storedImages.stream().map(StoredObject::objectKey).toList());
+            throw e;
         }
 
-        // 트랜잭션 밖에서 조회한 뒤라 더티 체킹에 기댈 수 없으므로 명시적으로 저장한다
-        return campRepository.save(camp);
-
+        // 커밋이 끝난 뒤에야 옛 객체를 지운다. 커밋 전에 지우면 롤백 시 DB 에 살아 있는 이미지의
+        // 실물이 사라져 깨진 링크가 된다.
+        deleteQuietly(result.removedObjectKeys());
+        return result.camp();
     }
 
-    // 캠핑장 삭제 기능 구현
-    @Transactional
+    // 캠핑장 삭제 기능 구현 (소프트 삭제). 첨부 이미지는 완전히 지운다.
     public void deleteCamp(Long campId, Long ownerId){
-        // campId 로 캠핑장을 조회하기, 없으면 CAMP_NOT_FOUND (예외)
-        Camp camp = getCampId(campId);
-        // 소유자 권한 검증 (ACCESS_DENIED)
-        if(!java.util.Objects.equals(camp.getOwnerId(),ownerId)){
-            throw new BusinessException(ErrorCode.CAMP_NOT_ACCESSED,"본인이 등록한 캠핑장이 아닙니다");
-        }
-        // softDelete() 호출하기
-        camp.softDelete();
+        List<String> removedObjectKeys = campTransactionService.softDelete(campId, ownerId);
+        deleteQuietly(removedObjectKeys);
+    }
 
+    // 저장소 정리는 실패해도 요청 자체를 실패시키지 않는다. 객체가 남는 것보다 나쁜 게 없으므로 로그만 남긴다.
+    private void deleteQuietly(List<String> objectKeys) {
+        for (String key : objectKeys) {
+            try {
+                fileStorageService.deleteByKey(key);
+            } catch (RuntimeException e) {
+                log.warn("캠핑장 이미지 정리 실패. objectKey={}", key, e);
+            }
+        }
     }
 
 }

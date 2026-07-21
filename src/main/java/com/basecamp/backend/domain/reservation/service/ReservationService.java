@@ -35,6 +35,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -44,11 +45,11 @@ import java.util.stream.IntStream;
 public class ReservationService {
 
     private final ReservationRepository reservationRepository;
-    private final ReviewRepository reviewRepository;
     private final CampRepository campRepository;
     private final PaymentService paymentService;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ReviewRepository reviewRepository;
 
     @Value("${payment.waiting-expiry-minutes}")
     private long paymentWaitingExpiryMinutes;
@@ -132,7 +133,43 @@ public class ReservationService {
             paymentService.refund(reservationId); // PENDING/RESERVED = 결제 완료 상태였으므로 환불
         }
 
+        // 커밋 이후 캠핑업체에 취소 알림 (AFTER_COMMIT 리스너가 저장·push). 소유자가 없는 캠핑장은 건너뛴다.
+        Long ownerId = cancelled.getCamp().getOwnerId();
+        if (ownerId != null && wasPaid) {
+            eventPublisher.publishEvent(NotificationEvent.of(
+                    ownerId, NotificationType.RESERVATION_CANCELLED,
+                    cancelled.getId(), cancelled.getCamp().getFacltNm()));
+        }
+
+        // 취소한 사용자에게도 취소 알림
+        eventPublisher.publishEvent(NotificationEvent.of(
+                userId, NotificationType.RESERVATION_CANCELLED,
+                cancelled.getId(), cancelled.getCamp().getFacltNm()));
+
         return ReservationResponse.from(cancelled);
+    }
+
+    // 캠핑장이 삭제될 때 진행 중인 예약(결제대기/승인대기)을 전부 취소·환불 처리한다.
+    @Transactional
+    public void cancelAllForDeletedCamp(Long campId) {
+        List<ReservationStatus> activeStatuses = List.of(
+                ReservationStatus.PENDING_PAYMENT, ReservationStatus.PENDING);
+
+        List<Reservation> reservations = reservationRepository.findAllByCamp_CampIdAndStatusIn(campId, activeStatuses);
+
+        for (Reservation reservation : reservations) {
+            ReservationStatus prev = reservation.getStatus();
+
+            reservation.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
+            if (prev == ReservationStatus.PENDING) {
+                paymentService.refund(reservation.getId()); // PENDING/RESERVED = 결제 완료 상태였으므로 환불
+            }
+
+            // 커밋 이후 예약자에게 취소 알림. 캠핑장을 지운 업체 본인에게는 보내지 않는다.
+            eventPublisher.publishEvent(NotificationEvent.of(
+                    reservation.getUser().getId(), NotificationType.RESERVATION_CANCELLED,
+                    reservation.getId(), reservation.getCamp().getFacltNm()));
+        }
     }
 
     // 업체가 대기중인 예약을 수락
@@ -170,10 +207,41 @@ public class ReservationService {
         return ReservationResponse.from(reservation);
     }
 
+    // 자동 반려시에 환불
+    @Transactional
+    public void autoRejectExpired(Long reservationId, String reason) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        // 대상 목록을 뽑은 뒤 이 건을 처리하기까지 사이에 업체가 수락·거절했을 수 있다.
+        // 그 경우 조용히 건너뛴다(이미 사람이 처리한 건을 스케줄러가 덮어쓰면 안 된다).
+        if (reservation.getStatus() != ReservationStatus.PENDING) {
+            return;
+        }
+
+        reservation.reject(reason);
+        paymentService.refund(reservationId); // 포트원 취소 API 호출 포함
+
+        // 커밋 이후 예약자에게 거절 알림. 사람이 거절한 경우와 같은 알림 종류를 쓴다(#92 규약과 동일).
+        eventPublisher.publishEvent(NotificationEvent.of(
+                reservation.getUser().getId(), NotificationType.RESERVATION_REJECTED,
+                reservation.getId(), reservation.getCamp().getFacltNm()));
+    }
+
     // 해당 유저 아이디의 예약목록 보여주기
     public Page<ReservationListResponse> findAllReservations(Long userId, Pageable pageable){
-        return reservationRepository.findAllByUserId(userId, pageable)
-                .map(ReservationListResponse::from);
+        Page<Reservation> reservations = reservationRepository.findAllByUserId(userId, pageable);
+
+        // 이 페이지에 있는 예약들 중 이미 리뷰가 달린 예약 id만 한 번에 조회해 hasReview를 채운다.
+        List<Long> reservationIds = reservations.getContent().stream()
+                .map(Reservation::getId)
+                .toList();
+        Set<Long> reviewedReservationIds = reservationIds.isEmpty()
+                ? Set.of()
+                : Set.copyOf(reviewRepository.findReservationIdsWithReview(reservationIds));
+
+        return reservations.map(reservation ->
+                ReservationListResponse.from(reservation, reviewedReservationIds.contains(reservation.getId())));
     }
 
     // 해당 캠핑장의 예약목록 보여주기
@@ -208,13 +276,13 @@ public class ReservationService {
         long pendingCount = reservationRepository.countByOwnerAndStatuses(
                 ownerId, List.of(ReservationStatus.PENDING));
 
-        // 평점은 기간 조건 없이 보유 캠핑장의 리뷰 전체를 집계한다. (매출·건수와 달리 이번달/올해로 자르지 않는다)
+        // 평점은 기간 조건 없이 보유 캠핑장 전체를 집계한다. (매출·건수와 달리 이번달/올해로 자르지 않는다)
         return new ReservationStatsResponse(
                 monthlyRevenue,
                 monthlyReservations,
                 yearlyReservations,
                 pendingCount,
-                roundToFirstDecimal(reviewRepository.findAverageRatingByOwnerId(ownerId))
+                roundToFirstDecimal(campRepository.findAverageRatingAcrossOwnedCamps(ownerId))
         );
     }
 

@@ -23,6 +23,17 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
     // campId와 파라미터로 넣은 예약상태를 제외한 조건으로 해당 캠핑장의 모든 예약 조회
     Page<Reservation> findAllByCamp_CampIdAndStatusNot(Long campId, ReservationStatus status, Pageable pageable);
 
+    // 캠핑장 삭제 시 진행 중인 예약을 일괄 취소하기 위한 조회 (user/camp 를 함께 fetch 해서 취소·환불·알림 처리 중 지연 로딩 예외가 나지 않게 한다)
+    @Query("""
+        select r from Reservation r
+        join fetch r.user
+        join fetch r.camp
+        where r.camp.campId = :campId
+          and r.status in :statuses
+        """)
+    List<Reservation> findAllByCamp_CampIdAndStatusIn(@Param("campId") Long campId,
+                                                       @Param("statuses") List<ReservationStatus> statuses);
+
     // 중복예약 방지 쿼리(pending, reserved 상태에서 다시 예약 걸지 못하도록 막기)
     @Query("""
         select count(r) > 0 from Reservation r
@@ -76,9 +87,12 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
             @Param("checkOutDate") LocalDate checkOutDate);
 
 
-    @Query("select r.id from Reservation r where r.status = :status and r.expiredAt < :now")
+    @Query("select r.id from Reservation r " +
+            "where r.status = :status and r.expiredAt < :now " +
+            "order by r.expiredAt asc")
     List<Long> findExpiredPendingIds(@Param("status") ReservationStatus status,
-                                     @Param("now") LocalDateTime now);
+                                     @Param("now") LocalDateTime now,
+                                     Pageable pageable);
 
     // 체크인 D-1 알림 대상: 주어진 날짜에 체크인하는 확정 예약. user/camp 를 함께 fetch 해
     // 스케줄러가 트랜잭션 밖에서 알림 메시지를 만들 때 지연 로딩 예외가 나지 않게 한다.
@@ -91,18 +105,6 @@ public interface ReservationRepository extends JpaRepository <Reservation, Long>
     List<Reservation> findAllForCheckInReminder(@Param("checkInDate") LocalDate checkInDate,
                                                  @Param("status") ReservationStatus status);
 
-
-
-    @Modifying
-    @Query("""
-        update Reservation r
-        set r.status = :next, r.rejectReason = :reason, r.version = r.version + 1
-        where r.id in :ids and r.status = :current
-        """)
-    int bulkReject(@Param("ids") List<Long> ids,
-                   @Param("current") ReservationStatus current,
-                   @Param("next") ReservationStatus next,
-                   @Param("reason") String reason);
 
     // 비관적 락을 통한 동일예약에 대한 동시 결제 요청을 직렬화
     @Lock(LockModeType.PESSIMISTIC_WRITE)

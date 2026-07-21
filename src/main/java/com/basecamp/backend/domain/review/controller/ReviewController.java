@@ -26,7 +26,6 @@ public class ReviewController {
     private final ReviewService reviewService;
 
     // 리뷰 작성: 인증 회원이 본인의 예약(reservationId)에 리뷰를 등록하고 생성된 리뷰를 반환한다.
-    // 게시글 작성과 같은 multipart/form-data 형식 — 본문 필드는 application/json 파트 "request", 이미지는 파일 파트 "images"(선택).
     @Operation(
             summary = "리뷰 작성",
             description = "예약자 본인이 체크아웃을 마친 예약에 대해 리뷰를 작성한다. multipart/form-data 로 전송하며, "

@@ -20,6 +20,7 @@ import com.basecamp.backend.domain.weather.client.ForecastResponse;
 import com.basecamp.backend.domain.weather.client.WeatherCache;
 import com.basecamp.backend.domain.weather.client.WeatherClient;
 import com.basecamp.backend.domain.weather.entity.Region;
+import com.basecamp.backend.domain.weather.entity.WeatherStatus;
 import org.springframework.stereotype.Service;
 
 import com.basecamp.backend.domain.weather.dto.response.RegionWeatherResponseDto;
@@ -96,8 +97,29 @@ public class WeatherService {
         List<CampWeatherResponseDto.WeatherDay> filtered = forecast.stream()
                 .filter(day -> !day.getDate().isBefore(checkInDate) && !day.getDate().isAfter(checkOutDate))
                 .toList();
+        WeatherStatus status = resolveStatus(forecast, filtered);
 
-        return CampWeatherResponseDto.of(campId, filtered);
+        return CampWeatherResponseDto.of(campId, filtered,status);
+    }
+    /**
+     * 예보 조회 결과로 날씨 상태를 판단한다.
+     * <ul>
+     *     <li>예보 자체를 못 받음(외부 실패 or 좌표 없음) → FETCH_FAILED</li>
+     *     <li>예보는 받았으나 요청 기간에 걸치는 날이 없음(먼 미래 등) → NO_DATA</li>
+     *     <li>요청 기간에 예보가 있음 → OK</li>
+     * </ul>
+     */
+    private WeatherStatus resolveStatus(
+            List<CampWeatherResponseDto.WeatherDay> forecast,
+            List<CampWeatherResponseDto.WeatherDay> filtered) {
+
+        if (forecast.isEmpty()) {
+            return WeatherStatus.FETCH_FAILED;
+        }
+        if (filtered.isEmpty()) {
+            return WeatherStatus.NO_DATA;
+        }
+        return WeatherStatus.OK;
     }
 
     /** 캠핑장의 5일 예보를 얻는다(캐시 우선). 조회 불가 시 빈 리스트. */
