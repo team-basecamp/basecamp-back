@@ -274,12 +274,6 @@ public class CampService {
         return result.map(CampResponseDto::from);
     }
 
-    // 최근 등록된 캠핑장 조회
-    @Transactional(readOnly = true)
-    public Page<CampResponseDto> getRecentCamps(int numOfRows) {
-        return searchCamps(null, null, null, null, "recent", 1, numOfRows);
-    }
-
     private Sort resolveSort(String sort) {
         if ("rating".equals(sort)) return Sort.by(Sort.Direction.DESC, "averageRating");
         if ("priceAsc".equals(sort)) return Sort.by(Sort.Direction.ASC, "price");
