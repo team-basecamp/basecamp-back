@@ -1,6 +1,7 @@
 package com.basecamp.backend.domain.camp.dto.request;
 
 import jakarta.validation.constraints.*;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -62,4 +63,16 @@ public class CampUpdateRequest {
   @URL(regexp = "^https?://.*", message = "웹사이트 URL은 http 또는 https로 시작해야 합니다")
   @Size(max = 255, message = "웹사이트 URL은 최대 255글자")
   private String homepage;
+
+  /**
+   * 남길 기존 이미지의 URL 목록. 새로 올리는 파일과 합쳐 최종 이미지 목록이 된다.
+   *
+   * <ul>
+   *   <li>{@code null} — 필드를 안 보낸 것. 이미지는 건드리지 않는다(기존 전부 유지).
+   *   <li>빈 목록 — 기존 이미지를 전부 지우겠다는 뜻.
+   * </ul>
+   *
+   * <p>여기 담긴 URL 은 반드시 이 캠핑장에 현재 붙어 있는 것이어야 한다. 남의 캠핑장 이미지 URL 을 실어 가져오는 것을 막기 위해 서버에서 되짚어 검증한다.
+   */
+  private List<String> keepImageUrls;
 }
