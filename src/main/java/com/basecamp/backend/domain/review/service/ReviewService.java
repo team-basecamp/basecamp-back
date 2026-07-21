@@ -48,7 +48,6 @@ public class ReviewService {
     private final FileStorageProperties fileStorageProperties;
 
     // 리뷰 작성: 예약 소유자가 체크아웃을 마친 예약에 한해 리뷰를 남길 수 있다. (쓰기 트랜잭션)
-    // images는 선택 사항(null/빈 목록 가능)이며, 있으면 로컬 저장소에 올린 상대경로로 Image를 만들어 함께 저장한다.
     @Transactional
     public ReviewResponse createReview(Long userId, Long reservationId, ReviewRequest request, List<MultipartFile> images) {
         // 리뷰를 달 예약을 먼저 조회한다.
@@ -201,9 +200,6 @@ public class ReviewService {
     }
 
     // camps.average_rating 재계산: 리뷰가 바뀔 때마다 해당 캠핑장의 평균을 다시 집계해 캐싱 컬럼에 반영한다.
-    // 집계·반영을 UPDATE 한 문장으로 처리해 같은 캠핑장에 대한 동시 갱신을 직렬화한다. (CampRepository 주석 참고)
-    // 방금의 수정(변경 감지)·삭제는 아직 DB에 반영되지 않은 상태라, flushAutomatically로 UPDATE 전에 밀어넣는다.
-    // campId는 프록시를 초기화하지 않고 읽히므로 삭제된 캠핑장의 리뷰를 건드려도 프록시 초기화로 터지지 않는다.
     private void refreshCampAverageRating(Long campId) {
         campRepository.refreshAverageRating(campId);
     }
