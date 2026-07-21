@@ -133,6 +133,19 @@ public class ReservationService {
             paymentService.refund(reservationId); // PENDING/RESERVED = 결제 완료 상태였으므로 환불
         }
 
+        // 커밋 이후 캠핑업체에 취소 알림 (AFTER_COMMIT 리스너가 저장·push). 소유자가 없는 캠핑장은 건너뛴다.
+        Long ownerId = cancelled.getCamp().getOwnerId();
+        if (ownerId != null && wasPaid) {
+            eventPublisher.publishEvent(NotificationEvent.of(
+                    ownerId, NotificationType.RESERVATION_CANCELLED,
+                    cancelled.getId(), cancelled.getCamp().getFacltNm()));
+        }
+
+        // 취소한 사용자에게도 취소 알림
+        eventPublisher.publishEvent(NotificationEvent.of(
+                userId, NotificationType.RESERVATION_CANCELLED,
+                cancelled.getId(), cancelled.getCamp().getFacltNm()));
+
         return ReservationResponse.from(cancelled);
     }
 
@@ -185,6 +198,11 @@ public class ReservationService {
 
         reservation.reject(reason);
         paymentService.refund(reservationId); // 포트원 취소 API 호출 포함
+
+        // 커밋 이후 예약자에게 거절 알림. 사람이 거절한 경우와 같은 알림 종류를 쓴다(#92 규약과 동일).
+        eventPublisher.publishEvent(NotificationEvent.of(
+                reservation.getUser().getId(), NotificationType.RESERVATION_REJECTED,
+                reservation.getId(), reservation.getCamp().getFacltNm()));
     }
 
     // 해당 유저 아이디의 예약목록 보여주기
