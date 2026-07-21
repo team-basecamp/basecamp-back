@@ -7,6 +7,8 @@ import com.basecamp.backend.domain.weather.client.CurrentWeatherResponse;
 import com.basecamp.backend.domain.weather.client.ForecastResponse;
 import com.basecamp.backend.domain.weather.entity.WeatherCondition;
 
+import com.basecamp.backend.domain.weather.entity.WeatherStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.jackson.Jacksonized;
@@ -21,15 +23,17 @@ import lombok.extern.jackson.Jacksonized;
 @Jacksonized
 public class CampWeatherResponseDto {
 
+    @Schema(description = "날씨 조회 상태. OK=정상, NO_DATA=예보 범위 밖(정상), FETCH_FAILED=외부 조회 실패",
+            example = "OK")
+    private WeatherStatus status;
     private Long campId;
-
-    /** 요청한 기간 중 예보가 있는 날만 담긴다. 전부 예보 범위 밖이면 빈 리스트다. */
     private List<WeatherDay> weather;
 
-    public static CampWeatherResponseDto of(Long campId, List<WeatherDay> weather) {
+    public static CampWeatherResponseDto of(Long campId, List<WeatherDay> weather, WeatherStatus status) {
         return CampWeatherResponseDto.builder()
                 .campId(campId)
                 .weather(weather)
+                .status(status)
                 .build();
     }
 

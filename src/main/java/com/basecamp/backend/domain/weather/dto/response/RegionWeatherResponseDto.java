@@ -6,6 +6,8 @@ import com.basecamp.backend.domain.weather.client.CurrentWeatherResponse;
 import com.basecamp.backend.domain.weather.entity.Region;
 import com.basecamp.backend.domain.weather.entity.WeatherCondition;
 
+import com.basecamp.backend.domain.weather.entity.WeatherStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.jackson.Jacksonized;
@@ -25,18 +27,18 @@ import lombok.extern.jackson.Jacksonized;
 @Jacksonized
 public class RegionWeatherResponseDto {
 
+    @Schema(description = "날씨 조회 상태. OK=정상, NO_DATA=예보 범위 밖(정상), FETCH_FAILED=외부 조회 실패",
+            example = "OK")
+    private WeatherStatus status;
+
     /** 시/도 표시명 (예: "전남광주통합특별시") */
     private String regionName;
-
     /** 기온(섭씨). units=metric 로 요청하므로 켈빈이 아니다. */
     private Double temp;
-
     /** 날씨 상태 (예: "흐림"). API 번역문이 아니라 {@link WeatherCondition} 이 코드로부터 결정한 문구다. */
     private String condition;
-
     /** 습도(%) */
     private Integer humidity;
-
     /** 날씨 아이콘 코드 (예: "04d"). 프론트가 이 코드로 아이콘 이미지를 매핑한다. */
     private String icon;
 
@@ -51,6 +53,7 @@ public class RegionWeatherResponseDto {
         if (response == null) {
             return RegionWeatherResponseDto.builder()
                     .regionName(region.getDisplayName())
+                    .status(WeatherStatus.FETCH_FAILED)
                     .build();
         }
 
@@ -63,6 +66,7 @@ public class RegionWeatherResponseDto {
                 .humidity(main != null ? main.getHumidity() : null)
                 .condition(describeCondition(weather))
                 .icon(weather != null ? weather.getIcon() : null)
+                .status(WeatherStatus.OK)
                 .build();
     }
 
