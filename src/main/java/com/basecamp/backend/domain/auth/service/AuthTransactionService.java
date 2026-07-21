@@ -187,6 +187,14 @@ public class AuthTransactionService {
 
     // 재로그인 시 소셜 프로필(닉네임 + 이미지)을 동기화한다.
     Image current = user.getProfileImage();
+
+    // 사용자가 직접 올린 프로필(MINIO)은 소셜 로그인이 건드리지 않는다. 소셜 URL 로 덮으면
+    // 사용자가 고른 이미지가 사라지고, 저장소에 올린 실물이 참조를 잃어 고아로 남는다. 닉네임만 동기화한다.
+    if (current != null && current.isStoredByUs()) {
+      user.updateProfile(userInfo.nickname(), current);
+      return user;
+    }
+
     Image profileImage = syncImage(current, userInfo.profileImageUrl());
     user.updateProfile(userInfo.nickname(), profileImage);
 
