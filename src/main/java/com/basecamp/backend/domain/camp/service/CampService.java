@@ -7,7 +7,6 @@ import com.basecamp.backend.domain.camp.client.kakao.KakaoGeocodingClient;
 import com.basecamp.backend.domain.camp.dto.request.CampRegistrationRequest;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.dto.request.GocampingApiResponseDto;
-import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.dto.response.CampResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.entity.CampManageStatus;
@@ -228,7 +227,7 @@ public class CampService {
     // 키워드/지역/유형/최대금액 필터 + 정렬 + 페이징을 조합한 캠핑장 목록/상세검색 조회
     // sort: recommended(기본, 평점->예약건수순) / rating(평점순) / reviewCount(리뷰많은순) / priceAsc(가격낮은순) / recent(최근등록순)
     @Transactional(readOnly = true)
-    public CampListResponseDto searchCamps(String keyword, String region, String induty,
+    public Page<CampResponseDto> searchCamps(String keyword, String region, String induty,
                                             Integer priceMax, String sort, int pageNo, int numOfRows) {
         if (numOfRows <= 0) {
             throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE, "numOfRows는 1이상이어야 합니다");
@@ -249,15 +248,15 @@ public class CampService {
             result = campRepository.findAll(spec, pageable);
         }
 
-        List<CampResponseDto> dtos = result.getContent().stream().map(CampResponseDto::from).toList();
-        return CampListResponseDto.ok(dtos, result.getTotalElements());
+        // Page<Camp> → Page<CampResponseDto> (봉투는 전역 래퍼에 맡김, 프론트는 data.content/data.totalElements 사용)
+        return result.map(CampResponseDto::from);
     }
 
     // HOT 캠핑장 조회 (평점순 / 예약건수순)
     @Transactional(readOnly = true)
 // 예약건수순: reservations 실시간 COUNT (PENDING+RESERVED만, 결제 완료된 예약만 유효하게 카운트)
 // 평점순: 캐싱된 average_rating 컬럼 기준, 동점이면 예약건수로 2차 정렬
-    public CampListResponseDto getHotCamps(String sortBy, int pageNo, int numOfRows) {
+    public Page<CampResponseDto> getHotCamps(String sortBy, int pageNo, int numOfRows) {
         if (numOfRows <= 0) {
             throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE,"numOfRows는 1이상이어야 합니다");
         }
@@ -274,14 +273,8 @@ public class CampService {
             Pageable pageable = PageRequest.of(page, numOfRows, sort);
             result = campRepository.findAll(CampSpecs.isOperating(), pageable);
         }
-        List<CampResponseDto> dtos = result.getContent().stream().map(CampResponseDto::from).toList();
-        return CampListResponseDto.ok(dtos, result.getTotalElements());
-    }
-
-    // 최근 등록된 캠핑장 조회
-    @Transactional(readOnly = true)
-    public CampListResponseDto getRecentCamps(int numOfRows) {
-        return searchCamps(null, null, null, null, "recent", 1, numOfRows);
+        // Page<Camp> → Page<CampResponseDto> (봉투는 전역 래퍼에 맡김, 프론트는 data.content/data.totalElements 사용)
+        return result.map(CampResponseDto::from);
     }
 
     private Sort resolveSort(String sort) {
@@ -387,7 +380,7 @@ public class CampService {
 
     // 로그인한 회원(ownerId)이 등록한 캠핑장 목록 조회
     @Transactional(readOnly = true)
-    public CampListResponseDto getMyCamps(Long ownerId) {
+    public List<CampResponseDto> getMyCamps(Long ownerId) {
         if (ownerId == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "로그인이 필요합니다.");
             // "너 누군지 모르겠다" → 인증 자체가 없는 상황 → 401
@@ -399,11 +392,10 @@ public class CampService {
         }
 
         List<Camp> camps = campRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId);
-        List<CampResponseDto> dtos = camps.stream()
+        // 비페이징 목록 — camp 도메인의 getAllCamps/searchByName 과 동일하게 순수 List 반환
+        return camps.stream()
                 .map(CampResponseDto::from)
                 .toList();
-
-        return CampListResponseDto.ok(dtos, dtos.size());
     }
 
     // 캠핑장 정보 수정 ( 본인이 등록한 캠핑장만 가능하도록 )
