@@ -124,7 +124,8 @@ class CampServiceTest {
     campService.updateCamp(100L, request, OWNER_ID, null);
 
     // then: 조회한 좌표가 그대로 전달된다
-    verify(campTransactionService).update(eq(100L), eq(request), eq(newGeoPoint), any(), eq(OWNER_ID));
+    verify(campTransactionService)
+        .update(eq(100L), eq(request), eq(newGeoPoint), any(), eq(OWNER_ID));
   }
 
   @Test

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,6 +18,7 @@ import com.basecamp.backend.common.model.AuthUser;
 import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -183,6 +186,18 @@ class CampControllerSecurityTest {
 			""";
 
   /**
+   * 등록은 multipart/form-data 다. 캠핑장 정보는 {@code request} 라는 JSON 파트로 실린다(컨트롤러의
+   * {@code @RequestPart("request")}). 이미지 파트는 선택이라 여기선 붙이지 않는다.
+   */
+  private MockMultipartFile validRequestPart() {
+    return new MockMultipartFile(
+        "request",
+        "",
+        MediaType.APPLICATION_JSON_VALUE,
+        VALID_CAMP_JSON.getBytes(StandardCharsets.UTF_8));
+  }
+
+  /**
    * {@code @WithMockUser} 는 principal 로 스프링의 {@code User} 를 넣는다. 그러면 컨트롤러의
    * {@code @AuthenticationPrincipal AuthUser} 가 조용히 {@code null} 이 되어 NPE 로 실패한다. 인가 통과 경로를 검증하려면
    * 실제 principal 타입({@link AuthUser})을 넣어야 한다.
@@ -200,10 +215,7 @@ class CampControllerSecurityTest {
   void register_비로그인_401을반환한다() throws Exception {
     // given & when & then
     mockMvc
-        .perform(
-            post("/api/v1/camps/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(VALID_CAMP_JSON))
+        .perform(multipart("/api/v1/camps/register").file(validRequestPart()))
         .andExpect(status().isUnauthorized());
   }
 
@@ -215,14 +227,13 @@ class CampControllerSecurityTest {
     // when & then
     mockMvc
         .perform(
-            post("/api/v1/camps/register")
-                .with(as(OWNER_ID, Role.CUSTOMER))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(VALID_CAMP_JSON))
+            multipart("/api/v1/camps/register")
+                .file(validRequestPart())
+                .with(as(OWNER_ID, Role.CUSTOMER)))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.getCode()));
 
-    verify(campService, never()).registerCamp(any(), any());
+    verify(campService, never()).registerCamp(any(), any(), any());
   }
 
   @Test
@@ -233,33 +244,29 @@ class CampControllerSecurityTest {
     // when & then
     mockMvc
         .perform(
-            post("/api/v1/camps/register")
-                .with(as(9L, Role.ADMIN))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(VALID_CAMP_JSON))
+            multipart("/api/v1/camps/register").file(validRequestPart()).with(as(9L, Role.ADMIN)))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.getCode()));
 
-    verify(campService, never()).registerCamp(any(), any());
+    verify(campService, never()).registerCamp(any(), any(), any());
   }
 
   @Test
   @DisplayName("register_캠핑업체_201과_토큰의회원id를owner로넘긴다")
   void register_캠핑업체_201로통과한다() throws Exception {
     // given
-    given(campService.registerCamp(any(), eq(OWNER_ID)))
+    given(campService.registerCamp(any(), eq(OWNER_ID), any()))
         .willReturn(Camp.builder().facltNm("베이스캠프 오토캠핑장").addr1("강원도 춘천시 어디로 1").build());
 
     // when & then
     mockMvc
         .perform(
-            post("/api/v1/camps/register")
-                .with(as(OWNER_ID, Role.CAMP_OWNER))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(VALID_CAMP_JSON))
+            multipart("/api/v1/camps/register")
+                .file(validRequestPart())
+                .with(as(OWNER_ID, Role.CAMP_OWNER)))
         .andExpect(status().isCreated());
 
     // 소유자는 요청 본문이 아니라 access 토큰에서 꺼낸 회원 id 여야 한다.
-    verify(campService).registerCamp(any(), eq(OWNER_ID));
+    verify(campService).registerCamp(any(), eq(OWNER_ID), any());
   }
 }
