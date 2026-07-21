@@ -7,6 +7,7 @@ import com.basecamp.backend.domain.weather.entity.Region;
 import com.basecamp.backend.domain.weather.entity.WeatherCondition;
 
 import com.basecamp.backend.domain.weather.entity.WeatherStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.jackson.Jacksonized;
@@ -26,6 +27,8 @@ import lombok.extern.jackson.Jacksonized;
 @Jacksonized
 public class RegionWeatherResponseDto {
 
+    @Schema(description = "날씨 조회 상태. OK=정상, NO_DATA=예보 범위 밖(정상), FETCH_FAILED=외부 조회 실패",
+            example = "OK")
     private WeatherStatus status;
 
     /** 시/도 표시명 (예: "전남광주통합특별시") */
