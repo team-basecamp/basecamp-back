@@ -2,6 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.3.5'
 	id 'io.spring.dependency-management' version '1.1.6'
+	id 'com.diffplug.spotless' version '6.25.0'
 }
 
 group = 'com.basecamp'
@@ -26,6 +27,23 @@ repositories {
 ext {
 	set('jjwtVersion', '0.12.6')
 	set('springdocVersion', '2.6.0')
+	set('minioVersion', '8.5.17')
+}
+
+// 코드 포맷은 논쟁 대상이 아니라 도구가 정한다.
+//   ./gradlew spotlessApply   포맷 적용
+//   ./gradlew spotlessCheck   검증 (수동으로만)
+// 임시: 다른 팀원들의 미포맷 PR 이 먼저 머지되어, 전체 포맷은 모든 코드가 합쳐진 뒤 마지막에 한 번에 적용한다.
+// 그때까지 spotlessCheck 가 build 를 깨지 않도록 enforceCheck 를 꺼 둔다. 정리 시 이 한 줄만 지우면 된다.
+spotless {
+	enforceCheck false
+	java {
+		target 'src/*/java/**/*.java'
+		googleJavaFormat('1.22.0')
+		removeUnusedImports()
+		trimTrailingWhitespace()
+		endWithNewline()
+	}
 }
 
 dependencies {
@@ -53,6 +71,9 @@ dependencies {
 
 	// API 문서화 (Swagger)
 	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+	// 오브젝트 스토리지 (MinIO). 프로필/게시글/리뷰/캠핑장 이미지 저장소.
+	implementation "io.minio:minio:${minioVersion}"
 
 	// Lombok
 	compileOnly 'org.projectlombok:lombok'
