@@ -12,8 +12,11 @@ import lombok.Getter;
 @Getter
 public enum NotificationType {
 
+	RESERVATION_APPROVE_WAIT(NotificationTargetType.RESERVATION, "'%s' 예약 신청이 완료되어 승인을 기다리고 있습니다."),
 	RESERVATION_CONFIRMED(NotificationTargetType.RESERVATION, "'%s' 예약이 확정되었습니다."),
 	RESERVATION_REJECTED(NotificationTargetType.RESERVATION, "'%s' 예약이 거절되었습니다."),
+	RESERVATION_REQUESTED(NotificationTargetType.RESERVATION, "'%s' 새 예약 신청이 접수되어 승인 대기 중입니다."),
+	RESERVATION_CANCELLED(NotificationTargetType.RESERVATION, "'%s' 예약이 취소되었습니다."),
 	RESERVATION_D1(NotificationTargetType.RESERVATION, "'%s' 예약 체크인이 하루 남았습니다."),
 	CAMP_OWNER_APPROVED(NotificationTargetType.CAMP_OWNER_APPLICATION, "캠핑업체 전환 신청이 승인되었습니다."),
 	CAMP_OWNER_REJECTED(NotificationTargetType.CAMP_OWNER_APPLICATION, "캠핑업체 전환 신청이 반려되었습니다.");

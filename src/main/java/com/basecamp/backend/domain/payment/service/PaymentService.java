@@ -12,11 +12,14 @@ import com.basecamp.backend.domain.payment.dto.response.PaymentResponse;
 import com.basecamp.backend.domain.payment.entity.Payment;
 import com.basecamp.backend.domain.payment.entity.PaymentMethod;
 import com.basecamp.backend.domain.payment.repository.PaymentRepository;
+import com.basecamp.backend.domain.notification.entity.NotificationType;
+import com.basecamp.backend.domain.notification.event.NotificationEvent;
 import com.basecamp.backend.domain.reservation.entity.Reservation;
 import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,6 +59,7 @@ public class PaymentService {
     private final ReservationRepository reservationRepository;
     private final PortOneClient portOneClient;
     private final PortOneProperties portOneProperties;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ---------------------------------------------------------------------
     // 1) 결제 준비
@@ -250,6 +254,14 @@ public class PaymentService {
             reservation.confirmPayment(); // PENDING_PAYMENT -> PENDING (업체 승인 대기, 24시간 만료 설정)
             log.info("결제 확정 및 예약 전환 - reservationId: {}, pgPaymentId: {}",
                     reservation.getId(), payment.getPgPaymentId());
+
+            // 커밋 이후 캠핑업체에 승인 대기 알림. 소유자가 없는 캠핑장은 건너뛴다.
+            Long ownerId = reservation.getCamp().getOwnerId();
+            if (ownerId != null) {
+                eventPublisher.publishEvent(NotificationEvent.of(
+                        ownerId, NotificationType.RESERVATION_REQUESTED,
+                        reservation.getId(), reservation.getCamp().getFacltNm()));
+            }
             return;
         }
 
