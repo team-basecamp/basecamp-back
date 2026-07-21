@@ -158,8 +158,10 @@ public class ReservationService {
         List<Reservation> reservations = reservationRepository.findAllByCamp_CampIdAndStatusIn(campId, activeStatuses);
 
         for (Reservation reservation : reservations) {
+            ReservationStatus prev = reservation.getStatus();
+
             reservation.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
-            if (reservation.getStatus() == ReservationStatus.PENDING) {
+            if (prev == ReservationStatus.PENDING) {
                 paymentService.refund(reservation.getId()); // PENDING/RESERVED = 결제 완료 상태였으므로 환불
             }
 
