@@ -60,9 +60,6 @@ application-local.yml
 *.log
 logs/
 
-### Uploads (런타임 사용자 업로드 이미지 — Git 제외) ###
-uploads/
-
 ### Claude Code (개인용 — 팀 공유 안 함) ###
 CLAUDE.local.md
 .claude/settings.local.json

@@ -10,7 +10,19 @@ globs:
 
 ## URL / 메서드
 - 리소스 기반 복수형 명사: `/api/v1/reservations`, `/api/v1/camps/{campId}/reviews`.
-- 동사는 URL이 아닌 HTTP 메서드로: 조회 GET, 생성 POST, 전체수정 PUT, 부분수정 PATCH, 삭제 DELETE.
+- **GET / POST 두 가지만 사용한다.** 보안 정책상 PUT / PATCH / DELETE 는 허용되지 않으며, 사용하면 클라이언트 요청이 **405 로 거부**될 수 있다.
+  - 조회 → `GET`
+  - 생성 · 수정 · 삭제 · 상태 전이 → 전부 `POST`
+- 조회가 아닌 동작은 URL 마지막 세그먼트에 동사를 둬서 구분한다: `POST /{resource}/{id}/{action}`.
+
+| 동작 | 쓰지 않음 | 사용 |
+|------|-----------|------|
+| 수정 | `PATCH /camps/{campId}` | `POST /camps/{campId}/update` |
+| 삭제 | `DELETE /camps/{campId}` | `POST /camps/{campId}/delete` |
+| 상태 전이 | `PATCH /reservations/{id}` | `POST /reservations/{id}/cancel` |
+
+- 기존 구현 참고: `ReservationController` 의 `/{id}/cancel` · `/approve` · `/reject`, `AdminCampOwnerController` 의 `/{id}/approve` · `/reject`.
+- 삭제를 POST 로 표현하므로, **의도치 않은 재요청에 대비해 서버에서 멱등하게 처리**한다(이미 삭제된 리소스 재삭제 시 에러 대신 성공 또는 명시적 `ErrorCode`).
 
 ## 요청 / 응답
 - 엔티티를 직접 노출하지 않는다. 항상 `dto/request`, `dto/response`의 DTO 사용.

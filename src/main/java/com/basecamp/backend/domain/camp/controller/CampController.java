@@ -16,11 +16,13 @@ import lombok.RequiredArgsConstructor;
 import org.springdoc.core.service.GenericResponseService;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import com.basecamp.backend.common.model.AuthUser;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 
@@ -66,8 +68,8 @@ public class CampController {
             description = "PK(campId)로 캠핑장 상세 정보를 조회합니다. 자체 등록 캠핑장처럼 contentId가 없는 경우에도 사용합니다.")
     @GetMapping("/{campId}")
     public ResponseEntity<CampResponseDto> getCampById(@PathVariable Long campId) {
-        Camp camp = campService.getCampId(campId);
-        return ResponseEntity.ok(CampResponseDto.from(camp));
+        Camp camp = campService.getCampDetail(campId);
+        return ResponseEntity.ok(CampResponseDto.withImages(camp));
     }
 
 // 고캠핑 contentId로 캠핑장 조회 (상세페이지용)
@@ -75,13 +77,13 @@ public class CampController {
             description = "고캠핑 API의 contentId로 캠핑장 상세 정보를 조회합니다.")
     @GetMapping("/content/{contentId}")
     public ResponseEntity<CampResponseDto> getCampByContentId(@PathVariable Long contentId) {
-        Camp camp = campService.getCampByContentId(contentId);
+        Camp camp = campService.getCampDetailByContentId(contentId);
 
         if (camp == null) {
             throw new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
         }
 
-        return ResponseEntity.ok(CampResponseDto.from(camp));
+        return ResponseEntity.ok(CampResponseDto.withImages(camp));
     }
 
 // 캠핑장 검색 (키워드/지역/유형/최대금액 필터 + 정렬 + 페이징 조합)
@@ -168,46 +170,47 @@ public class CampController {
     // 업체가 직접 등록하는 캠핑장(camps.owner_id). 공공데이터에서 온 캠핑장(content_id)과 배타적이다.
     // CAMP_OWNER 만 등록할 수 있다. 승격 경로는 #53 의 관리자 심사다.
     @Operation(summary = "내 캠핑장 등록 기능",
-            description = "캠핑업체(CAMP_OWNER)가 신규 캠핑장을 등록합니다.")
+            description = "캠핑업체(CAMP_OWNER)가 신규 캠핑장을 등록합니다. "
+                    + "multipart/form-data 로 보내며, 캠핑장 정보는 request(JSON) 파트에, 이미지는 images 파트에 싣습니다.")
     @PreAuthorize("hasRole('CAMP_OWNER')")
-    @PostMapping("/register")
+    @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CampResponseDto> registerCamp(
-            @Valid
-            @RequestBody
-            CampRegistrationRequest request,
+            @RequestPart("request") @Valid CampRegistrationRequest request, // 캠핑장 정보(JSON 파트, 검증 대상)
+            @RequestPart(value = "images", required = false) List<MultipartFile> images, // 첨부 이미지(선택)
             @AuthenticationPrincipal AuthUser owner
     ){
         // Service 호출
-        Camp savedCamp = campService.registerCamp(request, owner.id());
-        // 알맹이(CampResponseDto)만 반환 — 봉투는 전역 래퍼에 맡김 (201 Created)
-        return ResponseEntity.status(201).body(CampResponseDto.from(savedCamp));
+        Camp savedCamp = campService.registerCamp(request, owner.id(), images);
+        // 알맹이(CampResponseDto)만 반환 — 봉투는 전역 래퍼에 맡김. 방금 붙인 이미지가 초기화돼 있어 갤러리까지 내려준다 (201 Created)
+        return ResponseEntity.status(201).body(CampResponseDto.withImages(savedCamp));
     }
 
     // 캠핑장 정보 수정 기능
+    // 보안 정책상 이 프로젝트는 GET/POST 만 쓴다(.claude/rules/api-design.md). PATCH 대신 POST + /update 로 표현한다.
     @Operation(summary = "캠핑장 정보 수정",
-            description = "캠핑업체(CAMP_OWNER)가 본인이 등록한 캠핑장 정보를 수정합니다.")
+            description = "캠핑업체(CAMP_OWNER)가 본인이 등록한 캠핑장 정보를 수정합니다. "
+                    + "multipart/form-data 로 보내며, 남길 기존 이미지는 request.keepImageUrls 에, 새 이미지는 images 파트에 싣습니다. "
+                    + "keepImageUrls 를 생략하면 기존 이미지를 그대로 두고, 빈 배열로 보내면 전부 지웁니다.")
     @PreAuthorize("hasRole('CAMP_OWNER')")
-    @PatchMapping("/{campId}")
+    @PostMapping(value = "/{campId}/update", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CampResponseDto> updateCamp(
-            @PathVariable
-            Long campId,
-            @Valid
-            @RequestBody
-            CampUpdateRequest request,
-            @AuthenticationPrincipal
-            AuthUser owner
+            @PathVariable Long campId,
+            @RequestPart("request") @Valid CampUpdateRequest request,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images,
+            @AuthenticationPrincipal AuthUser owner
     ){
         // Service 호출
-        Camp modifyCamp = campService.updateCamp(campId, request, owner.id());
-        // 알맹이(CampResponseDto)만 반환 — 봉투는 전역 래퍼에 맡김 (200 OK)
-        return ResponseEntity.ok(CampResponseDto.from(modifyCamp));
+        Camp modifyCamp = campService.updateCamp(campId, request, owner.id(), images);
+        // 알맹이(CampResponseDto)만 반환 — 봉투는 전역 래퍼에 맡김. 교체된 이미지가 초기화돼 있어 갤러리까지 내려준다 (200 OK)
+        return ResponseEntity.ok(CampResponseDto.withImages(modifyCamp));
     }
 
     // 캠핑장 삭제 (softDelete) controller
+    // DELETE 대신 POST + /delete 로 표현한다(.claude/rules/api-design.md).
     @Operation(summary = "캠핑장 삭제",
-            description = "캠핑업체(CAMP_OWNER)가 본인이 등록한 캠핑장을 삭제(소프트 삭제) 처리합니다.")
+            description = "캠핑업체(CAMP_OWNER)가 본인이 등록한 캠핑장을 삭제(소프트 삭제) 처리합니다. 첨부 이미지는 저장소에서 완전히 지워집니다.")
     @PreAuthorize("hasRole('CAMP_OWNER')")
-    @DeleteMapping("/{campId}")
+    @PostMapping("/{campId}/delete")
     public ResponseEntity<Void> deleteCamp(
             @PathVariable Long campId,
             @AuthenticationPrincipal AuthUser owner
