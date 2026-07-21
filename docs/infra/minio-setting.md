@@ -1,7 +1,7 @@
 # MinIO 이미지 저장소 로컬 세팅 가이드
 
 > 이미지 업로드/저장이 어떻게 도는지 처음 보는 팀원을 위한 문서입니다. 순서대로 따라 하면 됩니다.
-> Docker 자체가 처음이라면 [docker-setting.md](./infra/docker-setting.md)의 3절(Docker 설치)을 먼저 보세요.
+> Docker 자체가 처음이라면 [docker-setting.md](docker-setting.md)의 3절(Docker 설치)을 먼저 보세요.
 
 ## 목차
 
@@ -244,6 +244,6 @@ docker compose up -d
 
 ## 참고
 
-- [docker-setting.md](./infra/docker-setting.md) — Docker 설치와 기본 사용법
+- [docker-setting.md](docker-setting.md) — Docker 설치와 기본 사용법
 - [이슈 #109](https://github.com/team-basecamp/basecamp-back/issues/109) — 이미지 처리 MinIO 리팩토링
 - MinIO 콘솔: http://localhost:9001 (basecamp / basecamp123)
