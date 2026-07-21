@@ -35,6 +35,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -44,11 +45,11 @@ import java.util.stream.IntStream;
 public class ReservationService {
 
     private final ReservationRepository reservationRepository;
-    private final ReviewRepository reviewRepository;
     private final CampRepository campRepository;
     private final PaymentService paymentService;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ReviewRepository reviewRepository;
 
     @Value("${payment.waiting-expiry-minutes}")
     private long paymentWaitingExpiryMinutes;
@@ -170,20 +171,7 @@ public class ReservationService {
         return ReservationResponse.from(reservation);
     }
 
-    /**
-     * 업체 미응답으로 기한이 지난 예약 <b>1건</b>을 자동 반려하고 환불한다. (ReservationExpiryScheduler 전용)
-     *
-     * <p><b>왜 건별 트랜잭션인가:</b> 환불은 포트원 취소 API 호출을 동반하는데, 외부 호출은 롤백되지 않는다.
-     * 여러 건을 한 트랜잭션에 묶으면 5번째 건에서 PG 오류가 났을 때 앞선 4건의 취소는 이미 나갔는데
-     * DB 는 전부 되돌아가, 돈은 돌려주고 기록은 없는 상태가 된다. 건별로 끊으면 실패한 한 건만 남는다.</p>
-     *
-     * <p><b>반려를 먼저 하고 환불하는 이유:</b> 같은 트랜잭션이라 환불이 실패하면 반려도 함께 롤백되고,
-     * 예약은 PENDING 으로 남아 다음 실행 때 다시 시도된다. 반대로 환불부터 하면 중간에 실패했을 때
-     * 결제만 취소된 PENDING 예약이 남아 업체가 승인해버릴 수 있다.</p>
-     *
-     * <p>재시도가 안전한 이유는 포트원이 이미 취소된 건에 주는 오류를 클라이언트가 성공으로 처리하기 때문이다
-     * ({@code PortOneClient.cancelPayment}).</p>
-     */
+    // 자동 반려시에 환불
     @Transactional
     public void autoRejectExpired(Long reservationId, String reason) {
         Reservation reservation = reservationRepository.findById(reservationId)
@@ -201,8 +189,18 @@ public class ReservationService {
 
     // 해당 유저 아이디의 예약목록 보여주기
     public Page<ReservationListResponse> findAllReservations(Long userId, Pageable pageable){
-        return reservationRepository.findAllByUserId(userId, pageable)
-                .map(ReservationListResponse::from);
+        Page<Reservation> reservations = reservationRepository.findAllByUserId(userId, pageable);
+
+        // 이 페이지에 있는 예약들 중 이미 리뷰가 달린 예약 id만 한 번에 조회해 hasReview를 채운다.
+        List<Long> reservationIds = reservations.getContent().stream()
+                .map(Reservation::getId)
+                .toList();
+        Set<Long> reviewedReservationIds = reservationIds.isEmpty()
+                ? Set.of()
+                : Set.copyOf(reviewRepository.findReservationIdsWithReview(reservationIds));
+
+        return reservations.map(reservation ->
+                ReservationListResponse.from(reservation, reviewedReservationIds.contains(reservation.getId())));
     }
 
     // 해당 캠핑장의 예약목록 보여주기
@@ -237,13 +235,15 @@ public class ReservationService {
         long pendingCount = reservationRepository.countByOwnerAndStatuses(
                 ownerId, List.of(ReservationStatus.PENDING));
 
-        // 평점은 기간 조건 없이 보유 캠핑장의 리뷰 전체를 집계한다. (매출·건수와 달리 이번달/올해로 자르지 않는다)
+        // 평점은 기간 조건 없이 보유 캠핑장 전체를 집계한다. (매출·건수와 달리 이번달/올해로 자르지 않는다)
+        // 리뷰 rating을 직접 평균내면 리뷰가 많은 캠핑장 쪽으로 쏠리므로, 캠핑장마다 캐싱된
+        // average_rating(camps.average_rating)을 캠핑장 단위로 평균내 동일한 가중치를 준다.
         return new ReservationStatsResponse(
                 monthlyRevenue,
                 monthlyReservations,
                 yearlyReservations,
                 pendingCount,
-                roundToFirstDecimal(reviewRepository.findAverageRatingByOwnerId(ownerId))
+                roundToFirstDecimal(campRepository.findAverageRatingAcrossOwnedCamps(ownerId))
         );
     }
 

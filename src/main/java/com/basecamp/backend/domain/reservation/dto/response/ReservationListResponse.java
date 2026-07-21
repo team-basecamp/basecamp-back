@@ -25,10 +25,11 @@ public record ReservationListResponse(
         ReservationStatus status,
         String rejectReason,
         LocalDateTime cancelDate,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        boolean hasReview
 ) {
 
-    public static ReservationListResponse from(Reservation reservation) {
+    public static ReservationListResponse from(Reservation reservation, boolean hasReview) {
         return new ReservationListResponse(
                 reservation.getId(),
                 reservation.getCamp().getCampId(),
@@ -44,7 +45,8 @@ public record ReservationListResponse(
                 reservation.getStatus(),
                 reservation.getRejectReason(),
                 reservation.getCancelAt(),
-                reservation.getCreatedAt()
+                reservation.getCreatedAt(),
+                hasReview
         );
     }
 }
