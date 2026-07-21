@@ -29,7 +29,6 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import com.basecamp.backend.common.enums.Role;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.common.model.AuthUser;
-import com.basecamp.backend.domain.camp.dto.response.CampListResponseDto;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.service.CampService;
 
@@ -167,7 +166,7 @@ class CampControllerSecurityTest {
 	@DisplayName("my_캠핑업체_200과_토큰의회원id로조회한다")
 	void my_캠핑업체_200으로통과한다() throws Exception {
 		// given
-		given(campService.getMyCamps(OWNER_ID)).willReturn(CampListResponseDto.ok(List.of(), 0L));
+		given(campService.getMyCamps(OWNER_ID)).willReturn(List.of());
 
 		// when & then
 		mockMvc.perform(get("/api/v1/camps/my").with(as(OWNER_ID, Role.CAMP_OWNER)))

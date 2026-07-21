@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.service.GenericResponseService;
+import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import com.basecamp.backend.common.model.AuthUser;
@@ -64,30 +65,30 @@ public class CampController {
     @Operation(summary = "캠핑장 상세 조회 (campId)",
             description = "PK(campId)로 캠핑장 상세 정보를 조회합니다. 자체 등록 캠핑장처럼 contentId가 없는 경우에도 사용합니다.")
     @GetMapping("/{campId}")
-    public ResponseEntity<CampDetailResponseDto> getCampById(@PathVariable Long campId) {
+    public ResponseEntity<CampResponseDto> getCampById(@PathVariable Long campId) {
         Camp camp = campService.getCampId(campId);
-        return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
+        return ResponseEntity.ok(CampResponseDto.from(camp));
     }
 
 // 고캠핑 contentId로 캠핑장 조회 (상세페이지용)
     @Operation(summary = "캠핑장 상세 조회 (contentId)",
             description = "고캠핑 API의 contentId로 캠핑장 상세 정보를 조회합니다.")
     @GetMapping("/content/{contentId}")
-    public ResponseEntity<CampDetailResponseDto> getCampByContentId(@PathVariable Long contentId) {
+    public ResponseEntity<CampResponseDto> getCampByContentId(@PathVariable Long contentId) {
         Camp camp = campService.getCampByContentId(contentId);
 
         if (camp == null) {
             throw new BusinessException(ErrorCode.CAMP_NOT_FOUND, "캠핑장을 찾을 수 없습니다");
         }
 
-        return ResponseEntity.ok(CampDetailResponseDto.ok(CampResponseDto.from(camp)));
+        return ResponseEntity.ok(CampResponseDto.from(camp));
     }
 
 // 캠핑장 검색 (키워드/지역/유형/최대금액 필터 + 정렬 + 페이징 조합)
     @Operation(summary = "캠핑장 검색",
             description = "키워드/지역/유형/최대금액 필터와 정렬, 페이징을 조합해 캠핑장을 검색합니다.")
     @GetMapping("/search")
-    public ResponseEntity<CampListResponseDto> searchCamps(
+    public ResponseEntity<Page<CampResponseDto>> searchCamps(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String region,
             @RequestParam(required = false) String induty,
@@ -104,7 +105,7 @@ public class CampController {
     @Operation(summary = "HOT 캠핑장 조회",
             description = "평점순 또는 예약건수순으로 인기 캠핑장을 조회합니다.")
     @GetMapping("/hot")
-    public ResponseEntity<CampListResponseDto> getHotCamps(
+    public ResponseEntity<Page<CampResponseDto>> getHotCamps(
             @RequestParam(required = false, defaultValue = "rating") String sortBy,
             @RequestParam(required = false, defaultValue = "1") int pageNo,
             @RequestParam(required = false, defaultValue = "10") int numOfRows) {
@@ -159,7 +160,7 @@ public class CampController {
             description = "캠핑업체(CAMP_OWNER)가 등록한 캠핑장을 최근 등록순으로 조회합니다.")
     @PreAuthorize("hasRole('CAMP_OWNER')")
     @GetMapping("/my")
-    public ResponseEntity<CampListResponseDto> getMyCamps(@AuthenticationPrincipal AuthUser owner) {
+    public ResponseEntity<List<CampResponseDto>> getMyCamps(@AuthenticationPrincipal AuthUser owner) {
         return ResponseEntity.ok(campService.getMyCamps(owner.id()));
     }
 
@@ -170,20 +171,16 @@ public class CampController {
             description = "캠핑업체(CAMP_OWNER)가 신규 캠핑장을 등록합니다.")
     @PreAuthorize("hasRole('CAMP_OWNER')")
     @PostMapping("/register")
-    public ResponseEntity<CampDetailResponseDto> registerCamp(
-            @Valid // DTO에 붙어있는 검증 애너테이션 체크 하는 기능
-            @RequestBody // 리액트가 준 JSON 형식을 Java가 이해할 수 있도록 연결 해주는 것.
+    public ResponseEntity<CampResponseDto> registerCamp(
+            @Valid
+            @RequestBody
             CampRegistrationRequest request,
             @AuthenticationPrincipal AuthUser owner
     ){
         // Service 호출
         Camp savedCamp = campService.registerCamp(request, owner.id());
-        // Entity -> Response DTO 변환하기
-        CampResponseDto responseDto = CampResponseDto.from(savedCamp);
-        // Envelope로 감싸기
-        CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
-        // 201 Created로 응답 반환
-        return ResponseEntity.status(201).body(response);
+        // 알맹이(CampResponseDto)만 반환 — 봉투는 전역 래퍼에 맡김 (201 Created)
+        return ResponseEntity.status(201).body(CampResponseDto.from(savedCamp));
     }
 
     // 캠핑장 정보 수정 기능
@@ -191,7 +188,7 @@ public class CampController {
             description = "캠핑업체(CAMP_OWNER)가 본인이 등록한 캠핑장 정보를 수정합니다.")
     @PreAuthorize("hasRole('CAMP_OWNER')")
     @PatchMapping("/{campId}")
-    public ResponseEntity<CampDetailResponseDto> updateCamp(
+    public ResponseEntity<CampResponseDto> updateCamp(
             @PathVariable
             Long campId,
             @Valid
@@ -200,14 +197,10 @@ public class CampController {
             @AuthenticationPrincipal
             AuthUser owner
     ){
-        // Service 호출 하기
-        Camp modifyCamp = campService.updateCamp(campId,request,owner.id());
-        // 엔티티 -> ResponseDTO 변환
-        CampResponseDto responseDto = CampResponseDto.from(modifyCamp);
-        // Envelope로 감싸기
-        CampDetailResponseDto response = CampDetailResponseDto.ok(responseDto);
-        // 응답반환
-        return ResponseEntity.ok(response);
+        // Service 호출
+        Camp modifyCamp = campService.updateCamp(campId, request, owner.id());
+        // 알맹이(CampResponseDto)만 반환 — 봉투는 전역 래퍼에 맡김 (200 OK)
+        return ResponseEntity.ok(CampResponseDto.from(modifyCamp));
     }
 
     // 캠핑장 삭제 (softDelete) controller
