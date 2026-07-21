@@ -13,6 +13,7 @@ import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.entity.CampManageStatus;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
 import com.basecamp.backend.domain.camp.repository.CampSpecs;
+import com.basecamp.backend.domain.reservation.service.ReservationService;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,8 @@ public class CampService {
     // campRepository 를 자동으로 주입 받기
     private final CampRepository campRepository;
     private final RestTemplate restTemplate;
+    // 캠핑장 삭제 시 진행 중인 예약을 취소·환불 처리하기 위해 필요
+    private final ReservationService reservationService;
     // 사용자가 입력한 주소(addr1)를 좌표(mapX/mapY)로 바꿔주는 지오코딩 클라이언트.
     // registerCamp()/updateCamp() 에서 사용한다.
     private final KakaoGeocodingClient kakaoGeocodingClient;
@@ -444,6 +447,10 @@ public class CampService {
         if(!java.util.Objects.equals(camp.getOwnerId(),ownerId)){
             throw new BusinessException(ErrorCode.CAMP_NOT_ACCESSED,"본인이 등록한 캠핑장이 아닙니다");
         }
+
+        // 진행 중인 예약을 먼저 취소·환불 처리한다.
+        reservationService.cancelAllForDeletedCamp(campId);
+
         // softDelete() 호출하기
         camp.softDelete();
 
