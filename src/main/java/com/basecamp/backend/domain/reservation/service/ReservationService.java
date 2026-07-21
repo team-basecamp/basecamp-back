@@ -111,12 +111,6 @@ public class ReservationService {
             throw new BusinessException(ErrorCode.DUPLICATE_RESERVATION);
         }
 
-        if (user.getId() != null) {
-            eventPublisher.publishEvent(NotificationEvent.of(
-                    user.getId(), NotificationType.RESERVATION_APPROVE_WAIT,
-                    saved.getId(), saved.getCamp().getFacltNm()));
-        }
-
         return ReservationResponse.from(saved);
     }
 
@@ -141,7 +135,7 @@ public class ReservationService {
 
         // 커밋 이후 캠핑업체에 취소 알림 (AFTER_COMMIT 리스너가 저장·push). 소유자가 없는 캠핑장은 건너뛴다.
         Long ownerId = cancelled.getCamp().getOwnerId();
-        if (ownerId != null) {
+        if (ownerId != null && wasPaid) {
             eventPublisher.publishEvent(NotificationEvent.of(
                     ownerId, NotificationType.RESERVATION_CANCELLED,
                     cancelled.getId(), cancelled.getCamp().getFacltNm()));

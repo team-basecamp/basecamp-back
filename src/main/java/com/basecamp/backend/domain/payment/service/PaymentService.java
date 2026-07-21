@@ -262,6 +262,12 @@ public class PaymentService {
                         ownerId, NotificationType.RESERVATION_REQUESTED,
                         reservation.getId(), reservation.getCamp().getFacltNm()));
             }
+
+            // 결제가 확정되어 PENDING(승인 대기)으로 넘어간 시점에만 예약자에게 알린다.
+            // PENDING_PAYMENT 상태(결제 전)에는 "승인을 기다리는 중"이 아직 사실이 아니므로 보내지 않는다.
+            eventPublisher.publishEvent(NotificationEvent.of(
+                    reservation.getUser().getId(), NotificationType.RESERVATION_APPROVE_WAIT,
+                    reservation.getId(), reservation.getCamp().getFacltNm()));
             return;
         }
 
