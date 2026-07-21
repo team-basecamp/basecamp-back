@@ -8,4 +8,5 @@ import java.math.BigDecimal;
  * @param mapX 경도 (longitude)
  * @param mapY 위도 (latitude)
  */
-public record GeoPoint(BigDecimal mapX, BigDecimal mapY) {}
+public record GeoPoint(BigDecimal mapX, BigDecimal mapY) {
+}

@@ -4,8 +4,6 @@ import com.basecamp.backend.common.exception.BusinessException;
 import com.basecamp.backend.common.exception.ErrorCode;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
-import com.basecamp.backend.domain.notification.entity.NotificationType;
-import com.basecamp.backend.domain.notification.event.NotificationEvent;
 import com.basecamp.backend.domain.payment.service.PaymentService;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationCreateRequest;
 import com.basecamp.backend.domain.reservation.dto.request.ReservationRejectRequest;
@@ -18,16 +16,10 @@ import com.basecamp.backend.domain.reservation.entity.ReservationStatus;
 import com.basecamp.backend.domain.reservation.repository.MonthlyRevenueProjection;
 import com.basecamp.backend.domain.reservation.repository.ReservationRepository;
 import com.basecamp.backend.domain.review.repository.ReviewRepository;
+import com.basecamp.backend.domain.notification.entity.NotificationType;
+import com.basecamp.backend.domain.notification.event.NotificationEvent;
 import com.basecamp.backend.domain.user.entity.User;
 import com.basecamp.backend.domain.user.repository.UserRepository;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -37,271 +29,250 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ReservationService {
 
-  private final ReservationRepository reservationRepository;
-  private final ReviewRepository reviewRepository;
-  private final CampRepository campRepository;
-  private final PaymentService paymentService;
-  private final UserRepository userRepository;
-  private final ApplicationEventPublisher eventPublisher;
+    private final ReservationRepository reservationRepository;
+    private final ReviewRepository reviewRepository;
+    private final CampRepository campRepository;
+    private final PaymentService paymentService;
+    private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-  @Value("${payment.waiting-expiry-minutes}")
-  private long paymentWaitingExpiryMinutes;
+    @Value("${payment.waiting-expiry-minutes}")
+    private long paymentWaitingExpiryMinutes;
 
-  @Transactional
-  public ReservationResponse createReservation(ReservationCreateRequest request, Long userId) {
-    LocalDateTime paymentValidAfter = LocalDateTime.now().minusMinutes(paymentWaitingExpiryMinutes);
+    @Transactional
+    public ReservationResponse createReservation(ReservationCreateRequest request, Long userId) {
+        LocalDateTime paymentValidAfter = LocalDateTime.now().minusMinutes(paymentWaitingExpiryMinutes);
 
-    // 0. 만료된 미결제 이탈 건 정리 → 유니크 키 해제
-    reservationRepository.expireStalePaymentWaiting(
-        userId,
-        request.campId(),
-        ReservationStatus.PENDING_PAYMENT,
-        ReservationStatus.CANCELLED,
-        paymentValidAfter);
+        // 0. 만료된 미결제 이탈 건 정리 → 유니크 키 해제
+        reservationRepository.expireStalePaymentWaiting(
+                userId, request.campId(),
+                ReservationStatus.PENDING_PAYMENT, ReservationStatus.CANCELLED,
+                paymentValidAfter);
 
-    // 1. 활성 예약 기간 겹침 검증 (순차 요청, 기간이 다른 겹침 차단)
-    boolean duplicated =
-        reservationRepository.existsOverbookingReservation(
-            userId,
-            request.campId(),
-            List.of(ReservationStatus.PENDING, ReservationStatus.RESERVED), // PENDING_PAYMENT 제거
-            ReservationStatus.PENDING_PAYMENT, // 별도 파라미터로
-            paymentValidAfter,
-            request.checkInDate(),
-            request.checkOutDate());
+        // 1. 활성 예약 기간 겹침 검증 (순차 요청, 기간이 다른 겹침 차단)
+        boolean duplicated = reservationRepository.existsOverbookingReservation(
+                userId,
+                request.campId(),
+                List.of(ReservationStatus.PENDING, ReservationStatus.RESERVED),  // PENDING_PAYMENT 제거
+                ReservationStatus.PENDING_PAYMENT,                                // 별도 파라미터로
+                paymentValidAfter,
+                request.checkInDate(),
+                request.checkOutDate());
 
-    if (duplicated) {
-      throw new BusinessException(ErrorCode.DUPLICATE_RESERVATION); // 409
+        if (duplicated) {
+            throw new BusinessException(ErrorCode.DUPLICATE_RESERVATION); // 409
+        }
+
+        if (!request.checkOutDate().isAfter(request.checkInDate())) {
+            throw new BusinessException(ErrorCode.INVALID_RESERVATION_PERIOD, "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다.");
+        }
+
+        // 엔티티 조회 (연관관계 매핑용)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        Camp camp = campRepository.findById(request.campId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND));
+
+
+        Reservation reservation = Reservation.builder()
+                .user(user)
+                .camp(camp)
+                .checkInDate(request.checkInDate())
+                .checkOutDate(request.checkOutDate())
+                .guestCount(request.guestCount())
+                .totalPrice(request.totalPrice())
+                .customerName(request.customerName())
+                .customerPhone(request.customerPhone())
+                .specialRequest(request.specialRequest())
+                .status(ReservationStatus.PENDING_PAYMENT)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Reservation saved;
+        try {
+            saved = reservationRepository.saveAndFlush(reservation);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.DUPLICATE_RESERVATION);
+        }
+
+        return ReservationResponse.from(saved);
     }
 
-    if (!request.checkOutDate().isAfter(request.checkInDate())) {
-      throw new BusinessException(
-          ErrorCode.INVALID_RESERVATION_PERIOD, "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다.");
+    // 고객이 예약취소
+    @Transactional
+    public ReservationResponse cancelReservation(Long reservationId, Long userId){
+        Reservation cancelled = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        // 예약 취소시 본인 검증
+        if (!cancelled.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // 환불 조건 확인을 위한 예약 상태 확인
+        boolean wasPaid = cancelled.getStatus() != ReservationStatus.PENDING_PAYMENT;
+
+        cancelled.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
+        if (wasPaid) {
+            paymentService.refund(reservationId); // PENDING/RESERVED = 결제 완료 상태였으므로 환불
+        }
+
+        return ReservationResponse.from(cancelled);
     }
 
-    // 엔티티 조회 (연관관계 매핑용)
-    User user =
-        userRepository
-            .findById(userId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+    // 업체가 대기중인 예약을 수락
+    @Transactional
+    public ReservationResponse approveReservation(Long reservationId, Long ownerId){
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
-    Camp camp =
-        campRepository
-            .findById(request.campId())
-            .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND));
+        reservation.getCamp().validateOwner(ownerId); // 소유권 검증
+        reservation.approve(); // 예약상태변경(RESERVED)
 
-    Reservation reservation =
-        Reservation.builder()
-            .user(user)
-            .camp(camp)
-            .checkInDate(request.checkInDate())
-            .checkOutDate(request.checkOutDate())
-            .guestCount(request.guestCount())
-            .totalPrice(request.totalPrice())
-            .customerName(request.customerName())
-            .customerPhone(request.customerPhone())
-            .specialRequest(request.specialRequest())
-            .status(ReservationStatus.PENDING_PAYMENT)
-            .createdAt(LocalDateTime.now())
-            .build();
+        // 커밋 이후 예약자에게 확정 알림 (AFTER_COMMIT 리스너가 저장·push)
+        eventPublisher.publishEvent(NotificationEvent.of(
+                reservation.getUser().getId(), NotificationType.RESERVATION_CONFIRMED,
+                reservation.getId(), reservation.getCamp().getFacltNm()));
 
-    Reservation saved;
-    try {
-      saved = reservationRepository.saveAndFlush(reservation);
-    } catch (DataIntegrityViolationException e) {
-      throw new BusinessException(ErrorCode.DUPLICATE_RESERVATION);
+        return ReservationResponse.from(reservation);
     }
 
-    return ReservationResponse.from(saved);
-  }
+    // 업체가 대기중인 예약을 거절(사유 필수)
+    @Transactional
+    public ReservationResponse rejectReservation(Long reservationId, ReservationRejectRequest request, Long ownerId){
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
-  // 고객이 예약취소
-  @Transactional
-  public ReservationResponse cancelReservation(Long reservationId, Long userId) {
-    Reservation cancelled =
-        reservationRepository
-            .findById(reservationId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+        reservation.getCamp().validateOwner(ownerId); // 소유권 검증
+        reservation.reject(request.reason()); // 예약상태변경(REJECTED, reject_reason값 할당)
+        paymentService.refund(reservationId); // PENDING = 결제 완료 상태이므로 항상 환불
 
-    // 예약 취소시 본인 검증
-    if (!cancelled.getUser().getId().equals(userId)) {
-      throw new BusinessException(ErrorCode.ACCESS_DENIED);
+        // 커밋 이후 예약자에게 거절 알림 (AFTER_COMMIT 리스너가 저장·push)
+        eventPublisher.publishEvent(NotificationEvent.of(
+                reservation.getUser().getId(), NotificationType.RESERVATION_REJECTED,
+                reservation.getId(), reservation.getCamp().getFacltNm()));
+
+        return ReservationResponse.from(reservation);
     }
 
-    // 환불 조건 확인을 위한 예약 상태 확인
-    boolean wasPaid = cancelled.getStatus() != ReservationStatus.PENDING_PAYMENT;
+    /**
+     * 업체 미응답으로 기한이 지난 예약 <b>1건</b>을 자동 반려하고 환불한다. (ReservationExpiryScheduler 전용)
+     *
+     * <p><b>왜 건별 트랜잭션인가:</b> 환불은 포트원 취소 API 호출을 동반하는데, 외부 호출은 롤백되지 않는다.
+     * 여러 건을 한 트랜잭션에 묶으면 5번째 건에서 PG 오류가 났을 때 앞선 4건의 취소는 이미 나갔는데
+     * DB 는 전부 되돌아가, 돈은 돌려주고 기록은 없는 상태가 된다. 건별로 끊으면 실패한 한 건만 남는다.</p>
+     *
+     * <p><b>반려를 먼저 하고 환불하는 이유:</b> 같은 트랜잭션이라 환불이 실패하면 반려도 함께 롤백되고,
+     * 예약은 PENDING 으로 남아 다음 실행 때 다시 시도된다. 반대로 환불부터 하면 중간에 실패했을 때
+     * 결제만 취소된 PENDING 예약이 남아 업체가 승인해버릴 수 있다.</p>
+     *
+     * <p>재시도가 안전한 이유는 포트원이 이미 취소된 건에 주는 오류를 클라이언트가 성공으로 처리하기 때문이다
+     * ({@code PortOneClient.cancelPayment}).</p>
+     */
+    @Transactional
+    public void autoRejectExpired(Long reservationId, String reason) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
-    cancelled.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
-    if (wasPaid) {
-      paymentService.refund(reservationId); // PENDING/RESERVED = 결제 완료 상태였으므로 환불
+        // 대상 목록을 뽑은 뒤 이 건을 처리하기까지 사이에 업체가 수락·거절했을 수 있다.
+        // 그 경우 조용히 건너뛴다(이미 사람이 처리한 건을 스케줄러가 덮어쓰면 안 된다).
+        if (reservation.getStatus() != ReservationStatus.PENDING) {
+            return;
+        }
+
+        reservation.reject(reason);
+        paymentService.refund(reservationId); // 포트원 취소 API 호출 포함
     }
 
-    return ReservationResponse.from(cancelled);
-  }
-
-  // 업체가 대기중인 예약을 수락
-  @Transactional
-  public ReservationResponse approveReservation(Long reservationId, Long ownerId) {
-    Reservation reservation =
-        reservationRepository
-            .findById(reservationId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
-
-    reservation.getCamp().validateOwner(ownerId); // 소유권 검증
-    reservation.approve(); // 예약상태변경(RESERVED)
-
-    // 커밋 이후 예약자에게 확정 알림 (AFTER_COMMIT 리스너가 저장·push)
-    eventPublisher.publishEvent(
-        NotificationEvent.of(
-            reservation.getUser().getId(),
-            NotificationType.RESERVATION_CONFIRMED,
-            reservation.getId(),
-            reservation.getCamp().getFacltNm()));
-
-    return ReservationResponse.from(reservation);
-  }
-
-  // 업체가 대기중인 예약을 거절(사유 필수)
-  @Transactional
-  public ReservationResponse rejectReservation(
-      Long reservationId, ReservationRejectRequest request, Long ownerId) {
-    Reservation reservation =
-        reservationRepository
-            .findById(reservationId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
-
-    reservation.getCamp().validateOwner(ownerId); // 소유권 검증
-    reservation.reject(request.reason()); // 예약상태변경(REJECTED, reject_reason값 할당)
-    paymentService.refund(reservationId); // PENDING = 결제 완료 상태이므로 항상 환불
-
-    // 커밋 이후 예약자에게 거절 알림 (AFTER_COMMIT 리스너가 저장·push)
-    eventPublisher.publishEvent(
-        NotificationEvent.of(
-            reservation.getUser().getId(),
-            NotificationType.RESERVATION_REJECTED,
-            reservation.getId(),
-            reservation.getCamp().getFacltNm()));
-
-    return ReservationResponse.from(reservation);
-  }
-
-  /**
-   * 업체 미응답으로 기한이 지난 예약 <b>1건</b>을 자동 반려하고 환불한다. (ReservationExpiryScheduler 전용)
-   *
-   * <p><b>왜 건별 트랜잭션인가:</b> 환불은 포트원 취소 API 호출을 동반하는데, 외부 호출은 롤백되지 않는다. 여러 건을 한 트랜잭션에 묶으면 5번째 건에서 PG
-   * 오류가 났을 때 앞선 4건의 취소는 이미 나갔는데 DB 는 전부 되돌아가, 돈은 돌려주고 기록은 없는 상태가 된다. 건별로 끊으면 실패한 한 건만 남는다.
-   *
-   * <p><b>반려를 먼저 하고 환불하는 이유:</b> 같은 트랜잭션이라 환불이 실패하면 반려도 함께 롤백되고, 예약은 PENDING 으로 남아 다음 실행 때 다시 시도된다.
-   * 반대로 환불부터 하면 중간에 실패했을 때 결제만 취소된 PENDING 예약이 남아 업체가 승인해버릴 수 있다.
-   *
-   * <p>재시도가 안전한 이유는 포트원이 이미 취소된 건에 주는 오류를 클라이언트가 성공으로 처리하기 때문이다 ({@code
-   * PortOneClient.cancelPayment}).
-   */
-  @Transactional
-  public void autoRejectExpired(Long reservationId, String reason) {
-    Reservation reservation =
-        reservationRepository
-            .findById(reservationId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
-
-    // 대상 목록을 뽑은 뒤 이 건을 처리하기까지 사이에 업체가 수락·거절했을 수 있다.
-    // 그 경우 조용히 건너뛴다(이미 사람이 처리한 건을 스케줄러가 덮어쓰면 안 된다).
-    if (reservation.getStatus() != ReservationStatus.PENDING) {
-      return;
+    // 해당 유저 아이디의 예약목록 보여주기
+    public Page<ReservationListResponse> findAllReservations(Long userId, Pageable pageable){
+        return reservationRepository.findAllByUserId(userId, pageable)
+                .map(ReservationListResponse::from);
     }
 
-    reservation.reject(reason);
-    paymentService.refund(reservationId); // 포트원 취소 API 호출 포함
-  }
+    // 해당 캠핑장의 예약목록 보여주기
+    public Page<ReservationResponse> findAllReservationsByCamp(Long campId, Pageable pageable, Long ownerId){
+        Camp camp = campRepository.findById(campId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND));
 
-  // 해당 유저 아이디의 예약목록 보여주기
-  public Page<ReservationListResponse> findAllReservations(Long userId, Pageable pageable) {
-    return reservationRepository
-        .findAllByUserId(userId, pageable)
-        .map(ReservationListResponse::from);
-  }
+        camp.validateOwner(ownerId); // 소유권 검증
 
-  // 해당 캠핑장의 예약목록 보여주기
-  public Page<ReservationResponse> findAllReservationsByCamp(
-      Long campId, Pageable pageable, Long ownerId) {
-    Camp camp =
-        campRepository
-            .findById(campId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.CAMP_NOT_FOUND));
+        return reservationRepository.findAllByCamp_CampIdAndStatusNot(campId, ReservationStatus.CANCELLED, pageable)
+                .map(ReservationResponse::from);
+    }
 
-    camp.validateOwner(ownerId); // 소유권 검증
+    // 사업자 대시보드용 예약 통계 (RESERVED 확정 예약만 집계, createdAt 기준)
+    public ReservationStatsResponse getReservationStats(Long ownerId) {
+        List<ReservationStatus> confirmedOnly = List.of(ReservationStatus.RESERVED);
 
-    return reservationRepository
-        .findAllByCamp_CampIdAndStatusNot(campId, ReservationStatus.CANCELLED, pageable)
-        .map(ReservationResponse::from);
-  }
+        LocalDate today = LocalDate.now();
+        LocalDateTime monthStart = today.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime nextMonthStart = monthStart.plusMonths(1);
+        LocalDateTime yearStart = today.withDayOfYear(1).atStartOfDay();
+        LocalDateTime nextYearStart = yearStart.plusYears(1);
 
-  // 사업자 대시보드용 예약 통계 (RESERVED 확정 예약만 집계, createdAt 기준)
-  public ReservationStatsResponse getReservationStats(Long ownerId) {
-    List<ReservationStatus> confirmedOnly = List.of(ReservationStatus.RESERVED);
+        long monthlyRevenue = reservationRepository.sumRevenueByOwnerAndPeriod(
+                ownerId, confirmedOnly, monthStart, nextMonthStart);
+        long monthlyReservations = reservationRepository.countByOwnerAndPeriod(
+                ownerId, confirmedOnly, monthStart, nextMonthStart);
+        long yearlyReservations = reservationRepository.countByOwnerAndPeriod(
+                ownerId, confirmedOnly, yearStart, nextYearStart);
 
-    LocalDate today = LocalDate.now();
-    LocalDateTime monthStart = today.withDayOfMonth(1).atStartOfDay();
-    LocalDateTime nextMonthStart = monthStart.plusMonths(1);
-    LocalDateTime yearStart = today.withDayOfYear(1).atStartOfDay();
-    LocalDateTime nextYearStart = yearStart.plusYears(1);
+        // 승인 대기는 "지금 처리해야 할 건"이라 기간으로 자르지 않는다. 지난달에 들어온 미처리 신청도 대기 중이면 세야 한다.
+        long pendingCount = reservationRepository.countByOwnerAndStatuses(
+                ownerId, List.of(ReservationStatus.PENDING));
 
-    long monthlyRevenue =
-        reservationRepository.sumRevenueByOwnerAndPeriod(
-            ownerId, confirmedOnly, monthStart, nextMonthStart);
-    long monthlyReservations =
-        reservationRepository.countByOwnerAndPeriod(
-            ownerId, confirmedOnly, monthStart, nextMonthStart);
-    long yearlyReservations =
-        reservationRepository.countByOwnerAndPeriod(
-            ownerId, confirmedOnly, yearStart, nextYearStart);
+        // 평점은 기간 조건 없이 보유 캠핑장의 리뷰 전체를 집계한다. (매출·건수와 달리 이번달/올해로 자르지 않는다)
+        return new ReservationStatsResponse(
+                monthlyRevenue,
+                monthlyReservations,
+                yearlyReservations,
+                pendingCount,
+                roundToFirstDecimal(reviewRepository.findAverageRatingByOwnerId(ownerId))
+        );
+    }
 
-    // 승인 대기는 "지금 처리해야 할 건"이라 기간으로 자르지 않는다. 지난달에 들어온 미처리 신청도 대기 중이면 세야 한다.
-    long pendingCount =
-        reservationRepository.countByOwnerAndStatuses(ownerId, List.of(ReservationStatus.PENDING));
+    // 평점 표시 단위를 캠핑장 평점(camps.average_rating)과 맞춘다. 리뷰가 없으면(null) 그대로 null을 넘겨
+    // "아직 평점 없음"과 "평점이 0.0점"을 화면에서 구분할 수 있게 둔다.
+    private Double roundToFirstDecimal(Double value) {
+        return value == null ? null : BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP).doubleValue();
+    }
 
-    // 평점은 기간 조건 없이 보유 캠핑장의 리뷰 전체를 집계한다. (매출·건수와 달리 이번달/올해로 자르지 않는다)
-    return new ReservationStatsResponse(
-        monthlyRevenue,
-        monthlyReservations,
-        yearlyReservations,
-        pendingCount,
-        roundToFirstDecimal(reviewRepository.findAverageRatingByOwnerId(ownerId)));
-  }
+    // 사업자 대시보드용 예약 통계 (월별 매출, 예약 건수)
+    public List<MonthlyRevenueResponse> getMonthlyRevenue(Long ownerId) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime yearStart = today.withDayOfYear(1).atStartOfDay();
+        LocalDateTime nextYearStart = yearStart.plusYears(1);
 
-  // 평점 표시 단위를 캠핑장 평점(camps.average_rating)과 맞춘다. 리뷰가 없으면(null) 그대로 null을 넘겨
-  // "아직 평점 없음"과 "평점이 0.0점"을 화면에서 구분할 수 있게 둔다.
-  private Double roundToFirstDecimal(Double value) {
-    return value == null
-        ? null
-        : BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP).doubleValue();
-  }
+        Map<Integer, MonthlyRevenueProjection> byMonth =
+                reservationRepository.findMonthlyRevenueByOwner(
+                                ownerId, ReservationStatus.RESERVED, yearStart, nextYearStart)
+                        .stream()
+                        .collect(Collectors.toMap(MonthlyRevenueProjection::getMonth, p -> p));
 
-  // 사업자 대시보드용 예약 통계 (월별 매출, 예약 건수)
-  public List<MonthlyRevenueResponse> getMonthlyRevenue(Long ownerId) {
-    LocalDate today = LocalDate.now();
-    LocalDateTime yearStart = today.withDayOfYear(1).atStartOfDay();
-    LocalDateTime nextYearStart = yearStart.plusYears(1);
-
-    Map<Integer, MonthlyRevenueProjection> byMonth =
-        reservationRepository
-            .findMonthlyRevenueByOwner(
-                ownerId, ReservationStatus.RESERVED, yearStart, nextYearStart)
-            .stream()
-            .collect(Collectors.toMap(MonthlyRevenueProjection::getMonth, p -> p));
-
-    return IntStream.rangeClosed(1, 12)
-        .mapToObj(
-            m -> {
-              MonthlyRevenueProjection p = byMonth.get(m);
-              return new MonthlyRevenueResponse(
-                  m, p != null ? p.getRevenue() : 0L, p != null ? p.getCount() : 0L);
-            })
-        .toList();
-  }
+        return IntStream.rangeClosed(1, 12)
+                .mapToObj(m -> {
+                    MonthlyRevenueProjection p = byMonth.get(m);
+                    return new MonthlyRevenueResponse(
+                            m,
+                            p != null ? p.getRevenue() : 0L,
+                            p != null ? p.getCount() : 0L);
+                })
+                .toList();
+    }
 }
