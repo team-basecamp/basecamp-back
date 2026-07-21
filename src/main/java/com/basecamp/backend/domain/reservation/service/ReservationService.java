@@ -149,6 +149,29 @@ public class ReservationService {
         return ReservationResponse.from(cancelled);
     }
 
+    // 캠핑장이 삭제될 때 진행 중인 예약(결제대기/승인대기)을 전부 취소·환불 처리한다.
+    @Transactional
+    public void cancelAllForDeletedCamp(Long campId) {
+        List<ReservationStatus> activeStatuses = List.of(
+                ReservationStatus.PENDING_PAYMENT, ReservationStatus.PENDING);
+
+        List<Reservation> reservations = reservationRepository.findAllByCamp_CampIdAndStatusIn(campId, activeStatuses);
+
+        for (Reservation reservation : reservations) {
+            ReservationStatus prev = reservation.getStatus();
+
+            reservation.cancel(); // 예약상태변경(CANCELLED, cancel_date값 할당)
+            if (prev == ReservationStatus.PENDING) {
+                paymentService.refund(reservation.getId()); // PENDING/RESERVED = 결제 완료 상태였으므로 환불
+            }
+
+            // 커밋 이후 예약자에게 취소 알림. 캠핑장을 지운 업체 본인에게는 보내지 않는다.
+            eventPublisher.publishEvent(NotificationEvent.of(
+                    reservation.getUser().getId(), NotificationType.RESERVATION_CANCELLED,
+                    reservation.getId(), reservation.getCamp().getFacltNm()));
+        }
+    }
+
     // 업체가 대기중인 예약을 수락
     @Transactional
     public ReservationResponse approveReservation(Long reservationId, Long ownerId){
@@ -254,8 +277,6 @@ public class ReservationService {
                 ownerId, List.of(ReservationStatus.PENDING));
 
         // 평점은 기간 조건 없이 보유 캠핑장 전체를 집계한다. (매출·건수와 달리 이번달/올해로 자르지 않는다)
-        // 리뷰 rating을 직접 평균내면 리뷰가 많은 캠핑장 쪽으로 쏠리므로, 캠핑장마다 캐싱된
-        // average_rating(camps.average_rating)을 캠핑장 단위로 평균내 동일한 가중치를 준다.
         return new ReservationStatsResponse(
                 monthlyRevenue,
                 monthlyReservations,

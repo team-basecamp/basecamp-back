@@ -24,8 +24,6 @@ public record ReviewResponse(
 ) {
 
     // 엔티티 → DTO 변환 정적 팩토리.
-    // review.getImages()도 LAZY라 같은 트랜잭션 안에서 초기화해 상대경로만 뽑아 담는다.
-    // 목록 조회처럼 리뷰가 여러 건인 경로에서는 Review.images 의 @BatchSize 가 IN 조회로 묶어 채운다.
     public static ReviewResponse from(Review review) {
         User user = review.getReservation().getUser();
         List<String> imageUrls = review.getImages().stream()

@@ -91,7 +91,6 @@ public class Review {
     }
 
     // 리뷰에 이미지를 첨부한다. 저장소에 올린 뒤 만든 Image들을 순서대로 붙인다(전달 순서가 곧 노출 순서).
-    // 비어 있으면 아무것도 하지 않는다.
     public void attachImages(List<Image> images) {
         if (images == null || images.isEmpty()) {
             return;
@@ -100,7 +99,6 @@ public class Review {
     }
 
     // 비교는 Image 인스턴스 동일성 기준. 남기는 이미지는 이미 이 컬렉션에 로딩된 바로 그 객체를 다시 넘겨야 한다.
-    // (ReviewService.resolveKeptImages 가 이 전제를 강제한다 — 경로 문자열로 새 Image를 만들어 넘기면 안 된다.)
     public List<Image> replaceImages(List<Image> newImages) {
         List<Image> detached = new ArrayList<>(this.images);
         detached.removeAll(newImages);

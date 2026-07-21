@@ -7,16 +7,18 @@ import com.basecamp.backend.domain.camp.client.kakao.GeoPoint;
 import com.basecamp.backend.domain.camp.dto.request.CampUpdateRequest;
 import com.basecamp.backend.domain.camp.entity.Camp;
 import com.basecamp.backend.domain.camp.repository.CampRepository;
+import com.basecamp.backend.domain.reservation.service.ReservationService;
 import com.basecamp.backend.domain.user.entity.Image;
 import com.basecamp.backend.domain.user.repository.ImageRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 캠핑장 쓰기 작업 중 <b>DB 트랜잭션이 필요한 부분만</b> 담당한다.
@@ -34,6 +36,7 @@ public class CampTransactionService {
 
   private final CampRepository campRepository;
   private final ImageRepository imageRepository;
+  private final ReservationService reservationService;
 
   /** 새 캠핑장을 이미지와 함께 저장한다. */
   @Transactional
@@ -84,6 +87,9 @@ public class CampTransactionService {
   @Transactional
   public List<String> softDelete(Long campId, Long ownerId) {
     Camp camp = loadOwned(campId, ownerId);
+
+    // 진행 중인 예약을 먼저 취소·환불 처리한다.
+    reservationService.cancelAllForDeletedCamp(campId);
 
     // 캠핑장 자체는 소프트 삭제지만 이미지는 하드 삭제다. 게시글 삭제와 같은 기준 —
     // 남겨두면 저장소만 계속 불어나고, URL 을 아는 사람은 지운 사진을 계속 열어볼 수 있다.
