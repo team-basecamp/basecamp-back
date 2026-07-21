@@ -49,12 +49,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         """)
     List<Review> findByReservationUserIdWithDetails(@Param("userId") Long userId);
 
-    // 사업자 대시보드 통계: 해당 사업자가 소유한 모든 캠핑장의 평균 평점.
-    @Query("""
-            select avg(rv.rating)
-            from Review rv
-            where rv.camp.ownerId = :ownerId
-            """)
-    Double findAverageRatingByOwnerId(@Param("ownerId") Long ownerId);
+    // 예약 목록에 hasReview를 채우기 위해, 주어진 예약 id들 중 이미 리뷰가 달린 것만 골라낸다.
+    @Query("select rv.reservation.id from Review rv where rv.reservation.id in :reservationIds")
+    List<Long> findReservationIdsWithReview(@Param("reservationIds") List<Long> reservationIds);
 
 }

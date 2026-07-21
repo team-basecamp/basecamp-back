@@ -36,6 +36,12 @@ public interface CampRepository extends JpaRepository<Camp,Long>, JpaSpecificati
     // 소유자(owner_id) 기준으로 등록한 캠핑장 조회, 최근 등록순
     List<Camp> findByOwnerIdOrderByCreatedAtDesc(Long ownerId);
 
+    // 사업자 대시보드 통계: 보유 캠핑장 전체(각 캠핑장의 캐싱된 average_rating)의 평균.
+    // 리뷰 건수가 많은 캠핑장 쪽으로 쏠리지 않도록 캠핑장마다 동일한 가중치를 준다.
+    // 소유 캠핑장이 없으면(=owner_id 매칭 0건) null이 반환된다.
+    @Query("select avg(c.averageRating) from Camp c where c.ownerId = :ownerId")
+    Double findAverageRatingAcrossOwnedCamps(@Param("ownerId") Long ownerId);
+
     // 모든 캠핑장의 contentId 리스트 조회
     @Query("SELECT c.contentId FROM Camp c")
     List<Long> findAllContentIds();
