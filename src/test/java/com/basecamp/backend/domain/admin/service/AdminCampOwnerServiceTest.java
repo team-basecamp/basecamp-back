@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.basecamp.backend.common.enums.Role;
@@ -178,6 +179,21 @@ class AdminCampOwnerServiceTest {
 		// when & then
 		assertBusinessException(() -> adminCampOwnerService.approve(APPLICATION_ID, ADMIN_ID),
 				ErrorCode.ALREADY_CAMP_OWNER);
+		verify(userRevocationCache, never()).revoke(anyLong());
+	}
+
+	@Test
+	@DisplayName("approve_이미승인된사업자번호_CO005를던지고_토큰을건드리지않는다")
+	void approve_이미승인된사업자번호_CO005를던진다() {
+		// given: 다른 신청이 같은 사업자번호로 이미 승인돼, flush 시 유니크 제약(uq_coa_biznum_approved)이 터진다.
+		given(applicationRepository.findById(APPLICATION_ID)).willReturn(Optional.of(pendingApplication()));
+		given(userRepository.findById(USER_ID)).willReturn(Optional.of(activeUser()));
+		org.mockito.BDDMockito.willThrow(new DataIntegrityViolationException("dup biznum"))
+				.given(applicationRepository).flush();
+
+		// when & then: 승격이 확정되지 않았으므로 회원을 무효화(블랙리스트)해서는 안 된다.
+		assertBusinessException(() -> adminCampOwnerService.approve(APPLICATION_ID, ADMIN_ID),
+				ErrorCode.BUSINESS_NUMBER_ALREADY_APPROVED);
 		verify(userRevocationCache, never()).revoke(anyLong());
 	}
 

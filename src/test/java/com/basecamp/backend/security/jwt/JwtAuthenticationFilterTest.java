@@ -135,7 +135,9 @@ class JwtAuthenticationFilterTest {
 		// given: 토큰 자체는 폐기되지 않았지만(jti 블랙리스트에 없음) 회원이 관리자에게 제재됐다.
 		withBearer(jwtTokenProvider.createAccessToken(USER_ID, ROLE));
 		given(tokenBlacklistCache.isBlacklisted(org.mockito.ArgumentMatchers.anyString())).willReturn(false);
-		given(userRevocationCache.isRevoked(USER_ID)).willReturn(true);
+		given(userRevocationCache.isRevoked(
+						org.mockito.ArgumentMatchers.eq(USER_ID), org.mockito.ArgumentMatchers.any()))
+				.willReturn(true);
 
 		// when
 		filter.doFilter(request, response, chain);
