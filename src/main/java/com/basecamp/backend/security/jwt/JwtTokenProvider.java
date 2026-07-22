@@ -98,6 +98,14 @@ public class JwtTokenProvider {
 	}
 
 	/**
+	 * 토큰 발급 시각(iat). {@link com.basecamp.backend.security.cache.UserRevocationCache} 가
+	 * "무효화 시각 이전에 발급된 토큰"만 거부하도록 판단하는 데 쓴다.
+	 */
+	public Instant getIssuedAt(Claims claims) {
+		return claims.getIssuedAt().toInstant();
+	}
+
+	/**
 	 * 토큰 만료 시각. 블랙리스트 레코드의 수명(만료된 토큰은 서명 검증에서 이미 걸러지므로 더 보관할 필요가 없다)을 정하는 데 쓴다.
 	 *
 	 * <p>타임존 해석 없이 다루도록 {@link Instant} 로 반환한다. 저장 시점에 {@code Clock} 의 존으로 변환한다.</p>

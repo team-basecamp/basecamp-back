@@ -149,10 +149,12 @@ CONSTRAINT fk_camps_owner
 ```java
 // 승격 트랜잭션 안에서
 user.promoteToCampOwner();          // users.role = CAMP_OWNER
-userRevocationCache.revoke(userId); // 기존 access 토큰 전부 무효화
+userRevocationCache.revoke(userId); // 이 시각 이전에 발급된 access 토큰 무효화 (재로그인분은 통과, #119)
 ```
 
-인증 필터가 매 요청 `isRevoked(userId)`를 확인하므로, 구 토큰은 즉시 거부되고 사용자는 재로그인한다. 재로그인 시 발급되는 토큰에는 `CAMP_OWNER`가 담긴다. **새 인프라가 필요 없다.**
+인증 필터가 매 요청 `isRevoked(userId, iat)`를 확인하므로, 구 토큰은 즉시 거부되고 사용자는 재로그인한다. 재로그인 시 발급되는 토큰에는 `CAMP_OWNER`가 담긴다. **새 인프라가 필요 없다.**
+
+> **#119 보강.** 초기 구현은 `UserRevocationCache`가 "회원 무효화 여부(존재/부재)"만 표시해, 무효화 이후 재로그인해 받은 **새 토큰까지** 거부했다(승격은 제재와 달리 DB status가 정상이라 재로그인이 열려 있다). 이후 마커 값을 **무효화 시각(revokedAt, epoch 초)**으로 바꿔, 필터가 `token.iat < revokedAt`일 때만 거부하도록 고쳤다. 제재는 재로그인이 DB로 막혀 새 토큰이 안 나오므로 종전과 동일하게 동작한다.
 
 ### fail-open의 방향성 — 승격과 강등은 다르다
 

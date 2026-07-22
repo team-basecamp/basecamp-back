@@ -104,8 +104,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			// (Role 로 좁혀두면 "ROLE_HACKER" 같은 임의 권한이 authorities 에 실리지 않는다)
 			Role roleValue = Role.valueOf(role);
 
-			// 관리자에게 제재된 회원. 토큰 자체는 멀쩡하므로 회원 식별자로 확인한다(#18). 403 으로 응답한다.
-			if (userRevocationCache.isRevoked(userId)) {
+			// 무효화된 회원 토큰. 토큰 서명은 멀쩡하므로 회원 식별자 + 발급 시각으로 확인한다(#18 제재, #53 승격).
+			// 무효화 시각 이전 발급 토큰만 거부하므로, 승격 후 재로그인해 받은 새 토큰은 통과한다(#119). 403 으로 응답한다.
+			if (userRevocationCache.isRevoked(userId, jwtTokenProvider.getIssuedAt(claims))) {
 				request.setAttribute(ATTR_ERROR_CODE, ErrorCode.BLACKLISTED_USER);
 				return;
 			}

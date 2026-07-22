@@ -3,6 +3,7 @@ package com.basecamp.backend.domain.admin.service;
 import java.time.Clock;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -48,8 +49,11 @@ public class AdminCampOwnerService {
 	/**
 	 * 신청을 승인하고 회원을 {@code CAMP_OWNER} 로 승격한다.
 	 *
-	 * <p><b>DB 를 먼저 바꾸고 Redis 를 나중에 쓴다.</b> {@code role} 은 access 토큰 클레임에 들어 있어 승격 직후에도
-	 * 구 토큰은 {@code CUSTOMER} 다. 무효화해야 사용자가 재로그인해 새 권한을 받는다.
+	 * <p><b>DB 변경을 flush 로 먼저 검증하고 Redis 를 나중에 쓴다.</b> {@code role} 은 access 토큰 클레임에 들어 있어
+	 * 승격 직후에도 구 토큰은 {@code CUSTOMER} 다. 무효화해야 사용자가 재로그인해 새 권한을 받는다. 다만 사업자번호
+	 * 유니크 위반({@code uq_coa_biznum_approved})·낙관적 락은 커밋 시점에 터지므로, {@code flush()} 로 앞당겨
+	 * 검증한다. 그래야 승격이 확정된 뒤에만 무효화하고, 승격이 실패하면 {@code revoke()} 로 회원을 무효화하는 일
+	 * 자체가 일어나지 않는다(#119 후속: 실패한 승격이 회원을 블랙리스트로 남기던 문제).
 	 * {@code revoke()} 가 실패하면 예외가 전파되어 승격도 함께 롤백된다.</p>
 	 *
 	 * <p>제재 회원({@code blacklistUser})과 순서가 반대인 이유: 제재는 <b>권한 축소</b>라 커밋과 캐시 반영 사이의
@@ -62,6 +66,17 @@ public class AdminCampOwnerService {
 
 		application.approve(adminId, clock);   // PENDING 아니면 CO004
 		user.promoteToCampOwner();             // 이미 CAMP_OWNER 면 CO003
+
+		// 사업자번호 유니크 위반·낙관적 락을 커밋까지 미루지 않고 지금 확인한다. 커밋 시점에 터지면 아래 revoke 가
+		// 이미 실행돼 "승격은 실패했는데 회원만 무효화된" 상태가 남는다. 여기서 끊으면 revoke 는 실행되지 않는다.
+		try {
+			applicationRepository.flush();
+		} catch (DataIntegrityViolationException e) {
+			// 이미 같은 사업자번호로 승인된 업체가 있다. 원본 500 대신 명시적 409 로 변환한다.
+			throw new BusinessException(ErrorCode.BUSINESS_NUMBER_ALREADY_APPROVED);
+		}
+
+		// 승격이 DB 에 안전히 반영된 뒤에만 구 토큰을 무효화한다.
 		userRevocationCache.revoke(user.getId());
 
 		// 커밋 이후 신청자에게 승인 알림 (AFTER_COMMIT 리스너가 저장·push)

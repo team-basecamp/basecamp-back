@@ -12,6 +12,7 @@ public enum ErrorCode {
 	ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "C003", "요청한 리소스를 찾을 수 없습니다."),
 	INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C004", "서버 내부 오류가 발생했습니다."),
 	CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "C005", "다른 요청에 의해 이미 처리되었습니다. 다시 시도해 주세요."),
+	DATA_INTEGRITY_VIOLATION(HttpStatus.CONFLICT, "C006", "요청이 데이터 제약 조건을 위반했습니다."),
 
 	// Auth / Security
 	UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "A001", "인증이 필요합니다."),
@@ -57,6 +58,7 @@ public enum ErrorCode {
 	CAMP_OWNER_APPLICATION_ALREADY_PENDING(HttpStatus.CONFLICT, "CO002", "이미 심사 중인 신청이 있습니다."),
 	ALREADY_CAMP_OWNER(HttpStatus.CONFLICT, "CO003", "이미 캠핑업체로 등록된 회원입니다."),
 	CAMP_OWNER_APPLICATION_ALREADY_PROCESSED(HttpStatus.CONFLICT, "CO004", "이미 처리된 신청입니다."),
+	BUSINESS_NUMBER_ALREADY_APPROVED(HttpStatus.CONFLICT, "CO005", "이미 승인된 사업자등록번호입니다."),
 
 	// Payment
 	PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "P001", "결제 정보를 찾을 수 없습니다."),

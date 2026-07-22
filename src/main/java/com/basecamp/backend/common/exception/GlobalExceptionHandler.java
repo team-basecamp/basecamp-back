@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.basecamp.backend.common.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.validation.FieldError;
 import org.springframework.http.HttpHeaders;
@@ -69,6 +70,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 		log.warn("ObjectOptimisticLockingFailureException: {}", ex.getMessage());
 		return ResponseEntity.status(ErrorCode.CONCURRENT_MODIFICATION.getStatus())
 				.body(ApiResponse.error(ErrorCode.CONCURRENT_MODIFICATION));
+	}
+
+	/**
+	 * DB 유니크·FK 등 무결성 제약 위반. 서비스에서 명시적 {@link ErrorCode} 로 변환하지 못하고 커밋 시점에
+	 * 새어 나온 경우의 안전망이다. 클라이언트 데이터 충돌에 가까우므로 500 이 아니라 409 로 돌려준다.
+	 */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	protected ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolationException(
+			DataIntegrityViolationException ex) {
+		log.warn("DataIntegrityViolationException: {}", ex.getMessage());
+		return ResponseEntity.status(ErrorCode.DATA_INTEGRITY_VIOLATION.getStatus())
+				.body(ApiResponse.error(ErrorCode.DATA_INTEGRITY_VIOLATION));
 	}
 
 	@ExceptionHandler(AccessDeniedException.class)
