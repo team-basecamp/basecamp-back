@@ -329,6 +329,6 @@ public void approve(Long applicationId, Long adminId) {
 
 - [이슈 #18](https://github.com/team-basecamp/basecamp-back/issues/18) — 관리자 회원 제재. `UserRevocationCache` 도입
 - [이슈 #39](https://github.com/team-basecamp/basecamp-back/issues/39) — Refresh Token 회전 및 토큰 블랙리스트 설계
-- [docker-setting.md](../infra/docker-setting.md) — Redis 키 구조(`revoke:user:{userId}`)와 fail-open 정책
+- [docker-setting.md](../guides/docker-setting.md) — Redis 키 구조(`revoke:user:{userId}`)와 fail-open 정책
 - `V1__init_schema.sql` — `camps.chk_camps_source` XOR 제약
 - `V9__unique_email_for_active_users.sql` — 파생 컬럼 + UNIQUE 패턴의 선례

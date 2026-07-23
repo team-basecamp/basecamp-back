@@ -3,7 +3,7 @@
 --  Base    : V1~V13 적용 완료 상태 기준
 --  DB      : MySQL 8.0.16+ (CHECK 제약을 실제로 강제하는 최소 버전)
 --  변경     : 1) camp_owner_applications.status 허용값 CHECK 제약 추가
---  참고     : docs/camp-owner-promotion.md, 이슈 #53
+--  참고     : docs/decisions/camp-owner-promotion.md, 이슈 #53
 -- =============================================================
 
 -- -------------------------------------------------------------

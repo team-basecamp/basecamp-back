@@ -4,7 +4,7 @@
 #   docker compose ps        # 상태 확인
 #   docker compose down      # 내리기
 #
-# 자세한 설명은 docs/docker-setting.md 참고.
+# 자세한 설명은 docs/guides/docker-setting.md 참고.
 
 services:
   redis:

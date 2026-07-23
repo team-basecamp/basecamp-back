@@ -463,7 +463,7 @@ public ... createPost(@RequestBody PostCreateRequest request) {
 docker compose up -d
 ```
 
-자세한 건 [docker-setting.md](../infra/docker-setting.md)를 보세요.
+자세한 건 [docker-setting.md](docker-setting.md)를 보세요.
 
 ### `import`가 헷갈립니다
 
@@ -506,6 +506,6 @@ public ResponseEntity<Void> logout(@AuthenticationPrincipal AuthUser user, HttpS
 - `security/JwtAuthenticationFilter.java` — 토큰을 검증하고 `AuthUser`를 넣어주는 곳
 - `domain/post/controller/PostController.java` — 가장 단순한 사용 예시
 - `domain/auth/controller/AuthController.java` — 토큰 문자열이 필요한 특수 케이스
-- [docker-setting.md](../infra/docker-setting.md) — Redis(로그아웃/제재 처리)를 띄우는 법
+- [docker-setting.md](docker-setting.md) — Redis(로그아웃/제재 처리)를 띄우는 법
 - [이슈 #18](https://github.com/team-basecamp/basecamp-back/issues/18) — 관리자 회원 제재
 - [이슈 #39](https://github.com/team-basecamp/basecamp-back/issues/39) — Refresh Token 회전 및 토큰 블랙리스트

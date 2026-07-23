@@ -58,7 +58,7 @@ public class AdminCampOwnerService {
 	 *
 	 * <p>제재 회원({@code blacklistUser})과 순서가 반대인 이유: 제재는 <b>권한 축소</b>라 커밋과 캐시 반영 사이의
 	 * 빈틈으로 제재된 회원의 요청이 통과하면 안 된다. 승격은 <b>권한 확대</b>라 그 빈틈에서 구 토큰이 살아남아도
-	 * {@code CUSTOMER} 권한일 뿐이라 무해하다(자세한 근거는 {@code docs/camp-owner-promotion.md} §5).</p>
+	 * {@code CUSTOMER} 권한일 뿐이라 무해하다(자세한 근거는 {@code docs/decisions/camp-owner-promotion.md} §5).</p>
 	 */
 	public void approve(Long applicationId, Long adminId) {
 		CampOwnerApplication application = findApplication(applicationId);
