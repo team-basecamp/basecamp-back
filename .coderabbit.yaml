@@ -1,0 +1,134 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit 설정 파일
+# 문서: https://docs.coderabbit.ai/getting-started/configure-coderabbit
+#
+# 이 레포의 리뷰 기준은 CLAUDE.md · .claude/rules/(api-design.md · testing.md) 를 따른다.
+
+# 리뷰 결과를 한국어로 출력
+language: "ko-KR"
+
+# 리뷰 톤 지침
+tone_instructions: >-
+  한국어로 정중하지만 간결하게 리뷰한다. CLAUDE.md와 .claude/rules/의 규칙 위반은 명확히
+  지적하고, 단순 취향 차이는 nitpick으로 구분한다. 지적할 때는 이유와 개선 방안을 함께
+  제시하고, 사소한 스타일 문제보다 버그·보안·성능 이슈를 우선한다.
+
+reviews:
+  # chill: 중요한 이슈 위주 / assertive: 더 적극적으로 지적
+  profile: "chill"
+  # 리뷰에서 변경 요청이 있으면 PR을 자동으로 request changes 상태로
+  request_changes_workflow: false
+  # PR 요약 및 워크스루 생성
+  high_level_summary: true
+  review_status: true
+  collapse_walkthrough: false
+  # 시(poem) 생성 비활성화
+  poem: false
+
+  auto_review:
+    enabled: true
+    # 초안(draft) PR은 리뷰하지 않음
+    drafts: false
+    # 이 브랜치를 대상으로 하는 PR을 리뷰
+    base_branches:
+      - "main"
+      - "dev"
+
+  # 리뷰 제외 경로
+  path_filters:
+    - "!**/build/**"
+    - "!**/*.jar"
+    - "!**/*.lockb"
+    - "!gradlew"
+    - "!gradlew.bat"
+    - "!gradle/wrapper/**"
+
+  # 경로별 리뷰 지침
+  path_instructions:
+    - path: "src/main/java/**"
+      instructions: >-
+        이 레포의 백엔드 구현 규칙(CLAUDE.md · .claude/rules/)을 기준으로 리뷰한다.
+        패키지는 com.basecamp.backend.{common | domain.<name>} 구조를 따르며, 각 도메인은
+        controller/service/repository/dto(request·response)/entity 레이어로 구성한다.
+        계층 흐름은 Controller → Service → Repository 단방향이며, Controller에 비즈니스 로직을 두지 않는다.
+        Controller: 얇게 유지(파싱·검증·Service 호출·DTO 변환만), 생성자 주입(@RequiredArgsConstructor + final)만
+        허용, 필드 주입(@Autowired) 금지, JPA Entity를 API 요청/응답으로 직접 노출 금지,
+        @RequestBody 파라미터에는 @Valid 필수.
+        URL은 리소스 기반 복수형 명사(/api/v1/reservations, /api/v1/camps/{campId}/reviews)를 쓰고,
+        동사는 URL이 아닌 HTTP 메서드로 표현한다(조회 GET, 생성 POST, 전체수정 PUT, 부분수정 PATCH, 삭제 DELETE).
+        생성 응답은 201 Created, 조회 성공은 200 OK.
+        예외: 비즈니스 오류는 common.exception 의 ErrorCode + BusinessException 으로 던진다.
+        raw RuntimeException 을 던지거나 Controller/Service 에서 직접 ResponseEntity 로 에러를 조립하는 것은 금지하며,
+        예외→응답 변환은 GlobalExceptionHandler 에만 둔다. 새 오류 상황은 ErrorCode enum 에 추가한다.
+        에러 응답에 내부 예외 메시지/SQL/stack trace/secret 노출 금지.
+        새 엔드포인트에는 springdoc 애노테이션(@Operation, @Schema)으로 설명을 남긴다.
+
+    - path: "src/main/java/**/entity/**"
+      instructions: >-
+        JPA Entity 규칙: @NoArgsConstructor(access = AccessLevel.PROTECTED) 사용,
+        @Setter/@Data/@AllArgsConstructor(및 public all-args 생성자) 금지,
+        상태 변경은 setter 대신 의미 있는 메서드로 표현,
+        컬럼 제약은 @Column(nullable = false, length = ...)처럼 명시한다.
+        양방향 연관관계에서 무분별한 @ToString/@EqualsAndHashCode는 지적한다.
+        Entity 를 API 요청/응답 DTO 로 직접 사용하지 않는다.
+
+    - path: "src/main/java/**/dto/**"
+      instructions: >-
+        요청/응답은 엔티티가 아닌 DTO(dto/request · dto/response)로 주고받는다.
+        요청 DTO의 모든 사용자 입력 필드에는 Bean Validation
+        annotation(@NotNull/@NotBlank/@Size/@Email/@Pattern/@Min/@Max 등)이 있어야 하며,
+        문자열 필수 필드는 @NotNull 이 아닌 @NotBlank 를 사용하고, validation message 는 한국어로 작성한다.
+        중첩 DTO 필드에는 @Valid 를 붙인다.
+        응답 DTO 는 Entity 의 민감 필드/내부 상태/secret 값을 노출하지 않는다.
+
+    - path: "src/main/java/**/service/**"
+      instructions: >-
+        읽기 메서드는 @Transactional(readOnly = true), 생성/수정/삭제/외부 동기화는 명시적
+        @Transactional 을 사용한다. secret, API key, OAuth token 값을 로그에 남기지 않는다.
+        비즈니스 예외를 raw RuntimeException 으로 던지지 않고 BusinessException + ErrorCode 로 던진다.
+        N+1 쿼리 가능성, 트랜잭션 경계, 입력 검증을 중점적으로 본다.
+
+    - path: "src/test/java/**"
+      instructions: >-
+        프레임워크는 JUnit 5 + Spring Boot Test + Spring Security Test.
+        테스트 클래스명은 {대상클래스}Test, 메서드명은 동작_조건_기대결과 형태이며 given–when–then 으로 구간을 구분한다.
+        Service 는 순수 단위 테스트 우선(의존 리포지토리는 Mockito 목킹),
+        Controller 는 @WebMvcTest + MockMvc 로 요청/응답·검증 확인,
+        Repository 는 @DataJpaTest 로 쿼리 동작을 확인한다.
+        외부 연동(결제/소셜 로그인/알림)은 실제 호출 대신 목/스텁을 사용한다.
+        경계값·예외 경로 등 의미 있는 케이스를 다루는지, 기능 변경 PR에 대응하는 테스트가 있는지 확인한다.
+
+    - path: "src/main/resources/**"
+      instructions: >-
+        설정 파일에 secret/OAuth client secret/JWT secret/token 값이 하드코딩되어 있으면 반드시 지적한다.
+        secret 은 환경변수 또는 application-secret.yml 로 분리해 주입해야 하며, 시크릿 파일은 커밋되지 않아야 한다.
+        운영 프로파일에서 ddl-auto 가 create/update 로 설정되어 있으면 지적한다.
+
+    - path: "src/main/resources/db/migration/**/*.sql"
+      instructions: >-
+        Flyway 마이그레이션 규칙: 스키마 변경은 항상 새 버전 파일(V{n}__설명.sql)로 추가하며,
+        이미 적용된 마이그레이션 파일 내용을 변경하지 않는다.
+        되돌릴 수 없는 파괴적 변경, 외래키·인덱스·제약조건, 명명 규칙(V{n}__)을 확인한다.
+
+  # 정적 분석 도구 연동
+  tools:
+    languagetool:
+      enabled: true
+    detekt:
+      enabled: false
+
+  # PR 자동 라벨링 지침 (레포에 존재하는 라벨만 부여됨)
+  labeling_instructions:
+    - label: "feat"
+      instructions: "신규 기능 추가 PR"
+    - label: "fix"
+      instructions: "버그 수정 PR"
+    - label: "docs"
+      instructions: "문서 변경 PR"
+    - label: "refac"
+      instructions: "동작 변경 없는 구조 정리 PR"
+
+chat:
+  # 코멘트에 대한 자동 응답
+  auto_reply: true

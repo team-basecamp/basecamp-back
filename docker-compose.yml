@@ -1,0 +1,72 @@
+# BaseCamp 로컬 개발용 인프라.
+#
+#   docker compose up -d     # 띄우기
+#   docker compose ps        # 상태 확인
+#   docker compose down      # 내리기
+#
+# 자세한 설명은 docs/guides/docker-setting.md 참고.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: basecamp-redis
+    ports:
+      # application.yml 의 기본값(localhost:6379)과 맞춘다. 이 포트만 열면 별도 환경변수가 필요 없다.
+      - "6379:6379"
+    # Docker Desktop 을 켤 때마다 알아서 올라온다(직접 멈춘 경우는 제외).
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # 이미지 저장소. application.yml 의 minio.* 기본값(localhost:9000 / basecamp)과 맞춘다.
+  #   API     http://localhost:9000
+  #   콘솔    http://localhost:9001  (basecamp / basecamp123)
+  minio:
+    image: minio/minio:latest
+    container_name: basecamp-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-basecamp}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-basecamp123}
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # 버킷 생성 + 공개 읽기 정책 설정 + 시드 이미지 업로드를 하고 종료되는 일회성 컨테이너.
+  # anonymous download = URL 을 아는 누구나 GET 가능. 로컬 전용이라 이 방식을 택했다.
+  # docker/minio-seed 는 리포에 커밋되어 있어, 볼륨을 새로 만들어도(다른 컴퓨터 포함)
+  # V25 더미 캠핑장(camps/001.jpg~015.jpg)이 매번 같은 상태로 채워진다.
+  minio-init:
+    image: minio/mc:latest
+    container_name: basecamp-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-basecamp}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-basecamp123}
+      MINIO_BUCKET: ${MINIO_BUCKET:-basecamp}
+    volumes:
+      - ./docker/minio-seed:/seed:ro
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/$${MINIO_BUCKET} &&
+      mc anonymous set download local/$${MINIO_BUCKET} &&
+      mc cp --recursive /seed/camps/ local/$${MINIO_BUCKET}/camps/ &&
+      echo '[minio-init] bucket ready: '$${MINIO_BUCKET}
+      "
+
+volumes:
+  minio-data:

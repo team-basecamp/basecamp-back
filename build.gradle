@@ -2,10 +2,11 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.3.5'
 	id 'io.spring.dependency-management' version '1.1.6'
+	id 'com.diffplug.spotless' version '6.25.0'
 }
 
 group = 'com.basecamp'
-version = '0.0.1-SNAPSHOT'
+version = '1.0.0'
 
 java {
 	toolchain {
@@ -26,6 +27,22 @@ repositories {
 ext {
 	set('jjwtVersion', '0.12.6')
 	set('springdocVersion', '2.6.0')
+	set('minioVersion', '8.5.17')
+}
+
+// 코드 포맷은 논쟁 대상이 아니라 도구가 정한다.
+//   ./gradlew spotlessApply   포맷 적용
+//   ./gradlew spotlessCheck   검증 (build 시 자동 실행)
+// enforceCheck(기본 true)를 켜 둬, 포맷이 어긋난 코드는 build/CI 에서 걸러진다.
+// 커밋 전 반드시 spotlessApply 로 포맷을 맞출 것.
+spotless {
+	java {
+		target 'src/*/java/**/*.java'
+		googleJavaFormat('1.22.0')
+		removeUnusedImports()
+		trimTrailingWhitespace()
+		endWithNewline()
+	}
 }
 
 dependencies {
@@ -36,6 +53,9 @@ dependencies {
 	// Persistence
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	runtimeOnly 'com.mysql:mysql-connector-j'
+
+	// 토큰 블랙리스트 조회 캐시 (TTL 자동 만료). 영속 기록은 MySQL token_blacklist 가 담당.
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
 	// DB Migration
 	implementation 'org.flywaydb:flyway-core'
@@ -50,6 +70,9 @@ dependencies {
 
 	// API 문서화 (Swagger)
 	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+	// 오브젝트 스토리지 (MinIO). 프로필/게시글/리뷰/캠핑장 이미지 저장소.
+	implementation "io.minio:minio:${minioVersion}"
 
 	// Lombok
 	compileOnly 'org.projectlombok:lombok'
