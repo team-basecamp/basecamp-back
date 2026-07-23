@@ -3,7 +3,7 @@
 --  Base    : V1~V12 적용 완료 상태 기준
 --  DB      : MySQL 8.0+
 --  변경     : 1) camp_owner_applications 에 낙관적 락용 version 컬럼 추가
---  참고     : docs/decisions/camp-owner-promotion.md, 이슈 #53
+--  참고     : docs/camp-owner-promotion.md, 이슈 #53
 -- =============================================================
 
 -- -------------------------------------------------------------

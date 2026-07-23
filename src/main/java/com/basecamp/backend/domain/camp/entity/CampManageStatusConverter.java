@@ -8,13 +8,13 @@ import jakarta.persistence.Converter;
 @Converter(autoApply = true)
 public class CampManageStatusConverter implements AttributeConverter<CampManageStatus, String> {
 
-    @Override
-    public String convertToDatabaseColumn(CampManageStatus attribute) {
-        return attribute == null ? null : attribute.getLabel();
-    }
+  @Override
+  public String convertToDatabaseColumn(CampManageStatus attribute) {
+    return attribute == null ? null : attribute.getLabel();
+  }
 
-    @Override
-    public CampManageStatus convertToEntityAttribute(String dbData) {
-        return dbData == null ? null : CampManageStatus.fromLabel(dbData);
-    }
+  @Override
+  public CampManageStatus convertToEntityAttribute(String dbData) {
+    return dbData == null ? null : CampManageStatus.fromLabel(dbData);
+  }
 }

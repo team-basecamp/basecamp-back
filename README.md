@@ -162,13 +162,13 @@ docker compose up -d
 ### 5. 빌드 및 실행
 
 ```bash
-./gradlew build          # 컴파일 + 테스트
+./gradlew build          # 컴파일 + 테스트 + Spotless 포맷 검증
 ./gradlew bootRun        # 로컬 실행
 ```
 
 또는 IntelliJ에서 `BasecampApplication`을 직접 실행합니다.
 
-> 코드 포맷은 Spotless(Google Java Format)로 관리합니다. 커밋 전 `./gradlew spotlessApply`로 포맷을 맞추고 `./gradlew spotlessCheck`로 검증하세요. 현재는 미포맷 PR 정리 전까지 `enforceCheck`를 꺼둬 `build`가 포맷 때문에 깨지지는 않습니다(수동 검증). 자세한 내용은 [docs/guides/spotless-guide.md](docs/guides/spotless-guide.md) 참고.
+> 코드 포맷은 Spotless(Google Java Format)로 관리합니다. **커밋 전 `./gradlew spotlessApply`로 포맷을 맞추세요.** `enforceCheck`가 켜져 있어 포맷이 어긋나면 `./gradlew build`(→ `spotlessCheck`)가 실패합니다. 자세한 내용은 [docs/guides/spotless-guide.md](docs/guides/spotless-guide.md) 참고.
 
 ### 6. Swagger 접속
 
@@ -261,5 +261,5 @@ DB 스키마는 Flyway로 관리합니다. 마이그레이션 스크립트는 `s
 이 프로젝트는 별도 서버 배포 없이 로컬 실행만 하지만, `dev` 브랜치 머지 전 빌드 오류를 걸러내기 위해 GitHub Actions로 CI를 구성했습니다. (`.github/workflows/ci.yml`)
 
 - 트리거: `dev` 브랜치로의 Pull Request, `dev` 브랜치로의 Push
-- 실행 내용: JDK 21 세팅 → MySQL 8 서비스 컨테이너 기동 → `./gradlew build` (컴파일 + 테스트 + Flyway 마이그레이션 검증)
+- 실행 내용: JDK 21 세팅 → MySQL 8 서비스 컨테이너 기동 → `./gradlew build` (컴파일 + 테스트 + Flyway 마이그레이션 검증 + Spotless 포맷 검증)
 - 실패 시 `build/reports/tests/test` 리포트가 Actions 아티팩트로 업로드됩니다.

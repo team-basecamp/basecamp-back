@@ -8,13 +8,13 @@ import lombok.Getter;
 @Builder
 public class CampPriceBackfillResponseDto {
 
-    private int updatedCount;
-    private String message;
+  private int updatedCount;
+  private String message;
 
-    public static CampPriceBackfillResponseDto of(int updatedCount) {
-        return CampPriceBackfillResponseDto.builder()
-                .updatedCount(updatedCount)
-                .message(updatedCount + "개 캠핑장의 가격이 채워졌습니다")
-                .build();
-    }
+  public static CampPriceBackfillResponseDto of(int updatedCount) {
+    return CampPriceBackfillResponseDto.builder()
+        .updatedCount(updatedCount)
+        .message(updatedCount + "개 캠핑장의 가격이 채워졌습니다")
+        .build();
+  }
 }
